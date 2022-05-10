@@ -81,7 +81,7 @@ namespace DibbrBot
                 new StringContent($"{{\"recipient_id\":\"{dm_id}\"}}", Encoding.UTF8, "application/json"));
                 JToken message;
                    try { message = JsonConvert.DeserializeObject<JArray>(await response.Content.ReadAsStringAsync())[0]; }
-                catch(Exception e)
+                catch(Exception )
                 {
                     message = JsonConvert.DeserializeObject<JObject>(await response.Content.ReadAsStringAsync());
                 }

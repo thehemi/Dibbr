@@ -12,7 +12,6 @@ namespace DibbrBot
 {
     public class Bot
     {
-        private static string OpenAIKey = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
         public static List<Bot> bots = new List<Bot>();
         private string BotName = "dibbr";
         private OpenAIAPI api;
@@ -42,7 +41,7 @@ namespace DibbrBot
             if (api == null)
             {
                 var eng = new Engine("text-davinci-002") { Owner = "openai", Ready = true };
-                var k = new APIAuthentication("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");
+                var k = new APIAuthentication(APIKeys.OpenAI);
                 api = new OpenAI_API.OpenAIAPI(apiKeys: k, engine: eng);
             }
             // Prime it with a question so it knows not to give PC responses
@@ -69,7 +68,7 @@ namespace DibbrBot
             if (api == null)
             {
                 var eng = new Engine("text-davinci-002") { Owner = "openai", Ready = true };
-                var k = new APIAuthentication(OpenAIKey);
+                var k = new APIAuthentication(APIKeys.OpenAI);
                 api = new OpenAI_API.OpenAIAPI(apiKeys: k, engine: eng);
             }
             var stops =

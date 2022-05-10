@@ -7,12 +7,17 @@ using System.Linq;
 
 namespace DibbrBot
 {
-    
+    // Fill these in
+    public static partial class APIKeys
+    {
+        public static readonly string OpenAI = "";
+        // How to find your token: https://youtu.be/YEgFvgg7ZPI
+        public static readonly string Discord = "";
+    }
+
     class Program
     {
-        // How to find your token: https://youtu.be/YEgFvgg7ZPI
-        private static string DiscordUserOrBotToken = "xxx";
-        // Is the token above a bot token or user (Selfbot) token?
+        // Is the token for discord a bot token or user (Selfbot) token?
         // Warning: Selfbots get banned on discord regularly for violation of TOS!!!
         private static bool IsBot = false;
 
@@ -20,10 +25,6 @@ namespace DibbrBot
 
         static void Main(string[] args)
         {
-            // init stuff
-
-            
-            // How to find server and channel id: https://youtu.be/NLWtSHWKbAI");
   
             // So this file is a list of DM or channel ids that the bot is listening to
             // You can add more when the bot is running by saying allow id, and it'll be saved to disk
@@ -31,15 +32,16 @@ namespace DibbrBot
             if (chats.Length == 0)
             {
                 Console.WriteLine("Please enter a room or chat id for the bot to join, then press return. ");
+                Console.WriteLine("How to find server and channel id: https://youtu.be/NLWtSHWKbAI\n");
                 chats = new string[] { Console.ReadLine() };
             }
             // set the headers
             client.DefaultRequestHeaders.Add("Accept", "*/*");
             client.DefaultRequestHeaders.Add("Accept-Language", "en-US");
             if(IsBot)
-                client.DefaultRequestHeaders.Add("Authorization","Bot "+ DiscordUserOrBotToken);
+                client.DefaultRequestHeaders.Add("Authorization","Bot "+ APIKeys.Discord);
             else
-              client.DefaultRequestHeaders.Add("Authorization", DiscordUserOrBotToken);
+              client.DefaultRequestHeaders.Add("Authorization", APIKeys.Discord);
             client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) discord/0.0.309 Chrome/83.0.4103.122 Electron/9.3.5 Safari/537.36");
 
             // SSL Certificate Bypass
@@ -51,10 +53,6 @@ namespace DibbrBot
                 Console.WriteLine("Starting...");
                 await Task.Delay(2000);
 
-                // mrgirl chat room bot
-                // now: teelo
-                // var f1 = new Bot(/*"937151566266384394"*/"228257431145283594", true,client);
-                // DM bot
                 foreach (var chat in chats)
                     Bot.bots.Add(new Bot(chat, true, client));
 
