@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -78,7 +79,12 @@ namespace DibbrBot
                 "POST",
                 $"/users/@me/channels",
                 new StringContent($"{{\"recipient_id\":\"{dm_id}\"}}", Encoding.UTF8, "application/json"));
-                JToken message = JsonConvert.DeserializeObject<JArray>(await response.Content.ReadAsStringAsync())[0];
+                JToken message;
+                   try { message = JsonConvert.DeserializeObject<JArray>(await response.Content.ReadAsStringAsync())[0]; }
+                catch(Exception e)
+                {
+                    message = JsonConvert.DeserializeObject<JObject>(await response.Content.ReadAsStringAsync());
+                }
                 dm_map.Add(dm_id, message["id"].ToString());
             }
             
@@ -109,6 +115,12 @@ namespace DibbrBot
                 $"/users/@me/channels",
                 new StringContent($"{{\"recipient_id\":\"{channel_id}\"}}", Encoding.UTF8, "application/json"));
                 var s = await r2.Content.ReadAsStringAsync();
+
+                if(s.Contains("Invalid Recipient(s)"))
+                {
+                    return null;
+                }
+                
                 JToken m = JsonConvert.DeserializeObject<JObject>(s);
                 dm_map.Add(channel_id, m["id"].ToString());
             }
