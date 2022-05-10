@@ -12,7 +12,7 @@ namespace DibbrBot
 {
     public class Bot
     {
-        private static string OpenAIKey = "x";
+        private static string OpenAIKey = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
         public static List<Bot> bots = new List<Bot>();
         private string BotName = "dibbr";
         private OpenAIAPI api;
