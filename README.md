@@ -5,3 +5,7 @@ Self Botting is against Discord ToS and you should use it at your own risk.
 Please use your own OpenAI key
 
 ![Selfbots](https://i.imgur.com/2mvBVVC.png)
+
+
+More example chat from dibbr:
+![Chat](https://i.imgur.com/E2qjTw3.png)
