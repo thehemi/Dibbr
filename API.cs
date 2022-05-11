@@ -40,9 +40,9 @@ namespace DibbrBot
             }
             return response;
         }
-    
 
-    static string lastMsg = "";
+
+        static string lastMsg = "";
         /// <summary>
         /// Sends a message to the specified channel
         /// </summary>
@@ -50,7 +50,7 @@ namespace DibbrBot
         /// <param name="channel_id"></param>
         /// <param name="content"></param>
         /// <returns> Returns a HttpResponseMessage </returns>
-        async static public Task<HttpResponseMessage> send_message(HttpClient client, string channel_id, string content,string msgid)
+        async static public Task<HttpResponseMessage> send_message(HttpClient client, string channel_id, string content, string msgid)
         {
             if (lastMsg == content)
             {
@@ -58,7 +58,7 @@ namespace DibbrBot
             }
             lastMsg = content;
             var str = $"{{\"content\":\"{content}\",\"message_reference\": {{ \"message_id\": \"{msgid}\" }} }}";
-            
+
             var r = await send_request(
             client,
             "POST",
@@ -66,7 +66,7 @@ namespace DibbrBot
             new StringContent(str, Encoding.UTF8, "application/json"));
 
             return r;
-      
+
         }
 
         static Dictionary<string, string> dm_map = new Dictionary<string, string>();
@@ -79,15 +79,24 @@ namespace DibbrBot
                 "POST",
                 $"/users/@me/channels",
                 new StringContent($"{{\"recipient_id\":\"{dm_id}\"}}", Encoding.UTF8, "application/json"));
+                var s = await response.Content.ReadAsStringAsync();
                 JToken message;
-                   try { message = JsonConvert.DeserializeObject<JArray>(await response.Content.ReadAsStringAsync())[0]; }
-                catch(Exception )
+                try { message = JsonConvert.DeserializeObject<JArray>(s)[0]; }
+                catch (Exception)
                 {
-                    message = JsonConvert.DeserializeObject<JObject>(await response.Content.ReadAsStringAsync());
+                    if (s.Contains("Invalid Recipient(s)"))
+                    {
+                        return null;
+                    }
+                    try
+                    {
+                        message = JsonConvert.DeserializeObject<JObject>(s);
+                    }
+                    catch (Exception) { return null; }
                 }
                 dm_map.Add(dm_id, message["id"].ToString());
             }
-            
+
             return await send_request(
             client,
             "POST",
@@ -116,23 +125,34 @@ namespace DibbrBot
                 new StringContent($"{{\"recipient_id\":\"{channel_id}\"}}", Encoding.UTF8, "application/json"));
                 var s = await r2.Content.ReadAsStringAsync();
 
-                if(s.Contains("Invalid Recipient(s)"))
+                if (s.Contains("Invalid Recipient(s)") || s.Contains("rate limited") || s.Contains("Unknown Channel"))
                 {
+                    Console.WriteLine(s);
+                    await Task.Delay(5000);
+
                     return null;
                 }
-                
+
                 JToken m = JsonConvert.DeserializeObject<JObject>(s);
                 dm_map.Add(channel_id, m["id"].ToString());
             }
-
-            HttpResponseMessage response = await send_request(client, "GET", $"channels/{dm_map[channel_id]}/messages?limit=1");///" +lastMsg);
-            JToken message = JsonConvert.DeserializeObject<JArray>(await response.Content.ReadAsStringAsync())[0];
-            if (user_id != "" && user_id != message["author"]["id"].ToString())
+            try
             {
-                await Task.Delay(1000);
-                return await getLatestdm(client, channel_id, user_id);
+                HttpResponseMessage response = await send_request(client, "GET", $"channels/{dm_map[channel_id]}/messages?limit=1");///" +lastMsg);
+                var str = await response.Content.ReadAsStringAsync();
+                JToken message = JsonConvert.DeserializeObject<JArray>(str)[0];
+                if (user_id != "" && user_id != message["author"]["id"].ToString())
+                {
+                    await Task.Delay(1000);
+                    return await getLatestdm(client, channel_id, user_id);
+                }
+                return JsonConvert.DeserializeObject<JArray>(str).First();
             }
-            return JsonConvert.DeserializeObject<JArray>(await response.Content.ReadAsStringAsync()).First();
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return null;
+            }
         }
 
         /// <summary>
@@ -146,13 +166,48 @@ namespace DibbrBot
         async static public Task<JToken> getLatestMessage(HttpClient client, string channel_id, string user_id = "")
         {
             HttpResponseMessage response = await send_request(client, "GET", $"channels/{channel_id}/messages?limit=1");
-            JToken message = JsonConvert.DeserializeObject<JArray>(await response.Content.ReadAsStringAsync())[0];
-            if (user_id != "" && user_id != message["author"]["id"].ToString())
+            if (response.ReasonPhrase == "Forbidden")
             {
-                await Task.Delay(1000);
-                return await getLatestMessage(client, channel_id, user_id);
+                Console.WriteLine("Forbidden to access " + channel_id);
+                return null;
             }
-            return JsonConvert.DeserializeObject<JArray>(await response.Content.ReadAsStringAsync()).First();
+            var str = await response.Content.ReadAsStringAsync();
+            if (str.Contains("rate limited"))
+            {
+                Console.WriteLine("Rate limited");
+                await Task.Delay(10000);
+                return null;
+            }
+
+            try
+            {
+                JToken message = JsonConvert.DeserializeObject<JArray>(str)[0];
+                if (user_id != "" && user_id != message["author"]["id"].ToString())
+                {
+                    await Task.Delay(1000);
+                    return await getLatestMessage(client, channel_id, user_id);
+                }
+                return JsonConvert.DeserializeObject<JArray>(str).First();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                try
+                {
+                    JToken message = JsonConvert.DeserializeObject<JObject>(str);
+                    if (user_id != "" && user_id != message["author"]["id"].ToString())
+                    {
+                        await Task.Delay(1000);
+                        return await getLatestMessage(client, channel_id, user_id);
+                    }
+                    return JsonConvert.DeserializeObject<JArray>(str).First();
+                }
+                catch (Exception e2)
+                {
+                    Console.WriteLine(e2.Message);
+                    return null;
+                }
+            }
         }
     }
 }
