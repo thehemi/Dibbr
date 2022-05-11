@@ -41,20 +41,28 @@ namespace DibbrBot
                     {
                         txt = Program.BotName +" "+ txt[(txt.IndexOf(">") + 1)..];
                     }
-                    @ChatLog += message.User.Name + ": " + message.Text + "\n";                    
+                    
+                    @ChatLog += message.User.Name + ": " + message.Text + "\n";
 
-                    message.ReplyWith(async () => {
-                        var msg = await callback(txt, message.User.Name);
-                        if (msg == null)
-                            return null;
-                        else
-                         return new BotMessage { Text = msg };
-                    });
+                    if (txt.ToLower().StartsWith(Program.BotName))
+                    {
+                        message.ReplyWith(async () =>
+                        {
+                            var msg = await callback(txt, message.User.Name);
+                            if (msg == null)
+                                return null;
+                            else
+                            {
+                                @ChatLog += "dibbr: " + msg + "\n";
+                                return new BotMessage { Text = msg };
+                            }
+                        });
+                    }
                     /* handle message */
                 };
-                bot.Messages.Subscribe(( message) => {
-                    Console.WriteLine(message.Text);
-                });
+              //  bot.Messages.Subscribe(( message) => {
+               //     Console.WriteLine(message.Text);
+               // });
               //  bot.AddHandler(new MyMessageHandler(this));
 
 

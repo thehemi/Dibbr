@@ -25,18 +25,28 @@ namespace DibbrBot
         async static public Task<HttpResponseMessage> send_request(HttpClient client, string method, string request_url, HttpContent body = null)
         {
             HttpResponseMessage response = null;
-            switch (method.ToUpper())
+            try
             {
-                case "GET":
-                    {
-                        response = await client.GetAsync(API_URL + request_url);
-                        break;
-                    }
-                case "POST":
-                    {
-                        response = await client.PostAsync(API_URL + request_url, body);
-                        break;
-                    }
+                switch (method.ToUpper())
+                {
+
+                    case "GET":
+                        {
+                            response = await client.GetAsync(API_URL + request_url);
+                            break;
+                        }
+                    case "POST":
+                        {
+                            response = await client.PostAsync(API_URL + request_url, body);
+                            break;
+                        }
+
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return null;
             }
             return response;
         }
@@ -52,11 +62,11 @@ namespace DibbrBot
         /// <returns> Returns a HttpResponseMessage </returns>
         async static public Task<HttpResponseMessage> send_message(HttpClient client, string channel_id, string content, string msgid)
         {
-            if (lastMsg == content)
-            {
-                return null;
-            }
-            lastMsg = content;
+            /*  if (lastMsg == content)
+              {
+                  return null;
+              }
+              lastMsg = content;*/
             var str = $"{{\"content\":\"{content}\",\"message_reference\": {{ \"message_id\": \"{msgid}\" }} }}";
 
             var r = await send_request(
@@ -163,18 +173,22 @@ namespace DibbrBot
         /// <param name="channel_id"></param>
         /// <param name="user_id"></param>
         /// <returns> Returns a JToken with the message data </returns>
-        async static public Task<JToken> getLatestMessage(HttpClient client, string channel_id, string user_id = "")
+        async static public Task<JToken> getLatestMessage(HttpClient client, string channel_id)
         {
             HttpResponseMessage response = await send_request(client, "GET", $"channels/{channel_id}/messages?limit=1");
             if (response.ReasonPhrase == "Forbidden")
             {
                 Console.WriteLine("Forbidden to access " + channel_id);
+                Console.Beep();
+                await Task.Delay(10000);
                 return null;
             }
+            
             var str = await response.Content.ReadAsStringAsync();
             if (str.Contains("rate limited"))
             {
                 Console.WriteLine("Rate limited");
+                Console.Beep();
                 await Task.Delay(10000);
                 return null;
             }
@@ -182,11 +196,6 @@ namespace DibbrBot
             try
             {
                 JToken message = JsonConvert.DeserializeObject<JArray>(str)[0];
-                if (user_id != "" && user_id != message["author"]["id"].ToString())
-                {
-                    await Task.Delay(1000);
-                    return await getLatestMessage(client, channel_id, user_id);
-                }
                 return JsonConvert.DeserializeObject<JArray>(str).First();
             }
             catch (Exception e)
@@ -195,18 +204,56 @@ namespace DibbrBot
                 try
                 {
                     JToken message = JsonConvert.DeserializeObject<JObject>(str);
-                    if (user_id != "" && user_id != message["author"]["id"].ToString())
-                    {
-                        await Task.Delay(1000);
-                        return await getLatestMessage(client, channel_id, user_id);
-                    }
-                    return JsonConvert.DeserializeObject<JArray>(str).First();
+                    return JsonConvert.DeserializeObject<JArray>(str);
                 }
                 catch (Exception e2)
                 {
                     Console.WriteLine(e2.Message);
                     return null;
                 }
+            }
+        }
+
+
+
+        /// <summary>
+        /// Gets the newest message sent in the channel, user_id is optional
+        /// Recursive Function
+        /// </summary>
+        /// <param name="client"></param>
+        /// <param name="channel_id"></param>
+        /// <param name="user_id"></param>
+        /// <returns> Returns a JToken with the message data </returns>
+        async static public Task<JArray> getLatestMessages(HttpClient client, string channel_id, string user_id = "")
+        {
+            HttpResponseMessage response = await send_request(client, "GET", $"channels/{channel_id}/messages?limit=5");
+            if (response.ReasonPhrase == "Forbidden")
+            {
+                Console.Beep();
+                Console.WriteLine("Forbidden to access " + channel_id);
+                await Task.Delay(10000);
+                return null;
+            }
+            var str = await response.Content.ReadAsStringAsync();
+            if (str.Contains("rate limited"))
+            {
+                Console.WriteLine("Rate limited");
+                Console.Beep();
+                await Task.Delay(10000);
+                return null;
+            }
+            
+            try
+            {
+                var messages = JsonConvert.DeserializeObject<JArray>(str);
+                return messages;
+            }
+            catch (Exception e)
+            {
+                    Console.WriteLine(e.Message);
+                Console.Beep();
+                await Task.Delay(10000);
+                return null;
             }
         }
     }

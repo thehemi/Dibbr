@@ -1,81 +1,136 @@
-﻿using System;
+﻿// (c) github.com/thehemi
+using System;
 using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Collections.Generic;
+using System.Configuration;
 
 namespace DibbrBot
 {
-    // Fill these in
-    public static partial class APIKeys
-    {
-        public static readonly string OpenAI = "";
-        // How to find your token: https://youtu.be/YEgFvgg7ZPI
-        // If you're using a bot, make this string "Bot <token>"
-        public static  string Discord = "";
-        public static string DiscordBot = "";        
-    }
-
-
     class Program
     {
         public static string BotName = "dibbr";
-        static string BotUsername = "dabbr";
-
+        public static string BotUsername = "dabbr";
+        public static List<IChatSystem> systems = new List<IChatSystem>();
 
         static void Main(string[] args)
         {
-            // So this file is a list of DM or channel ids that the bot is listening to
-            // You can add more when the bot is running by saying allow id, and it'll be saved to disk
-            // File format:
-            // XX XX DiscordV2
-            // ROOM 569702120190771200 DiscordV1
-            // DM 553003716081614861 DiscordV1
-            // BLAH SLACK Slack
+            Console.WriteLine("DibbrBot is starting...Settings are in App.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
 
-            var chats = File.ReadAllLines("chats.txt").Where(l => l.Length > 0).ToArray();
-            if (chats.Length == 0)
+            var primeText = ConfigurationManager.AppSettings["PrimeText"];
+            if(primeText == null)
             {
+                Console.WriteLine("Paste your priming text here, e.g. Dibbr is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
+                Console.WriteLine("Or Press Enter for default");
+                primeText = Console.ReadLine();
+                if(primeText == null || primeText == "")
+                {
+                    primeText = "Dibbr is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats " +
+                " dibbr will write long responses and articles or fan fiction upon request.";
+                    
+                   primeText += "\nThe folowing is the discord chat log:\n";
+                }
+                ConfigurationManager.AppSettings.Add("PrimeText", primeText+"\n");
+            }
+
+            var discord = ConfigurationManager.AppSettings["DiscordBot"];
+            if (discord == null && ConfigurationManager.AppSettings["Discord"] == null)
+            {
+                Console.WriteLine("How to find your discord token: https://youtu.be/YEgFvgg7ZPI");
+                Console.WriteLine("If this is a bot token, please paste Bot <token> below");
+                Console.WriteLine("Paste your discord bot token, or discord user token here, or leave blank, then press enter:");
+                discord = Console.ReadLine();
+                if (discord.Length > 10)
+                {
+                    if (discord.Contains("Bot "))
+                        ConfigurationManager.AppSettings.Add("DiscordBot", discord.Replace("Bot ", ""));
+                    else
+                        ConfigurationManager.AppSettings.Add("Discord", discord);
+                }
+
+            }
+
+            // For selfbot only
+            // chats.txt stores the list of channels and dms that the bot is listening to
+            var chats = File.ReadAllLines("chats.txt").Where(l => l.Length > 0).ToArray();
+            if (chats.Length == 0 && discord != null &&! discord.Contains("Bot"))
+            {
+                Console.WriteLine("You are using a SELFBOT (no Bot <token>) BE CAREFUL. You can add channels and dms to the chats.txt file to make the bot listen to them.");
                 chats = new string[] { "" };
                 Console.WriteLine("Type ROOM or DM, then press return");
                 chats[0] += Console.ReadLine() + " ";
-
-                Console.WriteLine("Please enter a room or chat id for the bot to join, then press return. ");
                 Console.WriteLine("How to find server and channel id: https://youtu.be/NLWtSHWKbAI\n");
-                chats[0] += Console.ReadLine() + " DiscordV2";
+                Console.WriteLine("Please enter a room or chat id for the bot to join, then press return. ");                
+                chats[0] += Console.ReadLine();
+                Console.WriteLine("String is " + chats[0]);
                 File.WriteAllLines("chats.txt", chats);
             }
+
+            if (ConfigurationManager.AppSettings["SlackBotApiToken"] == null)
+            {
+                Console.WriteLine("To Create a slack bot token, create a classic app, here https://api.slack.com/apps?new_classic_app=1");
+                Console.WriteLine("Then go to the app's page, and click on the 'OAuth & Permissions' tab");
+                Console.WriteLine("Then click on the 'Add Bot User' button");
+                Console.WriteLine("Please enter youy Slack bot API token, or press enter to skip:");
+                var token = Console.ReadLine();
+                if (token.Length > 10)
+                    ConfigurationManager.AppSettings.Add("SlackBotApiToken", token);
+            }
+            if (ConfigurationManager.AppSettings["OpenAI"] == null)
+            {
+                Console.WriteLine("Where to find your OpenAI API Key: https://beta.openai.com/account/api-keys");
+                Console.WriteLine("Paste your OpenAI Key here:");
+                var token = Console.ReadLine();
+                if (token.Length > 10)
+                    ConfigurationManager.AppSettings.Add("OpenAI", token);
+            }
+
+            // Start the bot on all chat services
             new Thread(async () =>
             {
                 var clients = new List<IChatSystem>();
-                foreach (var chat in chats)
+                var slackToken = ConfigurationManager.AppSettings["SlackBotApiToken"];
+                if (slackToken != null)
                 {
-                    var words = chat.Split(' ');
-                    
-                    IChatSystem client;
-                    string token = null;
-
-                    // My server, use bot token, and use V2 discord system, which supports bots
-                    if (words[2] == "DiscordV2")
-                    {
-                        client = new DiscordChatV2();
-                        token = APIKeys.DiscordBot;
-                    }
-                    else if (words[2] == "DiscordV1")
-                        client = new DiscordChat(false, words[0] == "DM", words[1]);
-                    else //if (words[2] == "Slack")
-                        client = new SlackChat();
-
-                    _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user); }, token);
-
+                    var client = new SlackChat();
+                    _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user); }, slackToken);
                 }
+
+                var discordBot = ConfigurationManager.AppSettings["DiscordBot"];
+                if(discordBot != null)
+                {
+                    var client = new DiscordChatV2();
+                    _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user); }, ConfigurationManager.AppSettings["DiscordBot"]);
+                }
+
+                // Selfbot
+                if (ConfigurationManager.AppSettings["Discord"] != null)
+                {
+                    foreach (var chat in chats)
+                    {
+                        var words = chat.Split(' ');
+                        IChatSystem client;
+                        client = new DiscordChat(false, words[0] == "DM", words[1]/*Channel id, room or dm*/);
+                        systems.Add(client);
+                        _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user); }, ConfigurationManager.AppSettings["Discord"]);
+                    }
+                }
+
             }).Start();
 
             while (true) { }
-        }        
+        }
 
+        /// <summary>
+        /// This is the main message handler for the bot
+        /// </summary>
+        /// <param name="client"></param>
+        /// <param name="msg"></param>
+        /// <param name="user"></param>
+        /// <returns></returns>
         static async Task<string> OnMessage(IChatSystem client, string msg, string user)
         {
             if (msg.ToLower().StartsWith(BotName + " timeout") || msg.ToLower().StartsWith(BotName + ", timeout"))
@@ -87,22 +142,6 @@ namespace DibbrBot
             // Do we have a message for the bot?
             if (/*!dm && !(msg.ToLower().StartsWith(BotName) || */!msg.ToLower().StartsWith(BotName))// || (c.Length > 20 && c.Contains("?")))
                 return null;
-
-
-            /*  if (msg.StartsWith("allow"))
-              {
-                  var id = msg.Substring(msg.IndexOf("allow") + 6);
-                  File.AppendAllLines("chats.txt", new string[] { id });
-                  if (id.Length == 18)
-                  {
-                   // Add a new client here
-                  }
-
-              }*/
-            
-            // Author running the bot can trigger bot with dibbr, only, to avoid recursion
-           // if (!msg.StartsWith(BotName))
-            //    return null;
 
             var txt = await GPT3.Ask(client.GetChatLog(), user);
             // if (lastDibbrMsg.Length > 0 && lastDibbrMsg == txt)
@@ -119,7 +158,6 @@ namespace DibbrBot
             var last = txt.IndexOf("Ultimately,");
             if (last != -1)
                 txt = txt.Substring(0, last);
-
 
             return txt;
         }
