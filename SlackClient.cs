@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Castle.Windsor;
-using MargieBot;
+using SlackNet.Bot;
 using System.Configuration;
-using Castle.MicroKernel.Registration;
 
 namespace DibbrBot
 {
@@ -15,7 +13,7 @@ namespace DibbrBot
     class SlackChat : IChatSystem
     {
         private string ChatLog = "";
-
+        public MessageRecievedCallback Callback;
         public SlackChat()
         {
             ChatLog = "";
@@ -28,43 +26,65 @@ namespace DibbrBot
         // Initialize slack client
         public override async Task Initialize(MessageRecievedCallback callback, string token = null)
         {
-            var s = new Thread(() =>
+            Callback = callback;
+            var s = new Thread(async () =>
             {
-                var container = new WindsorContainer();
-                container.Register(Component.For<IResponder>().ImplementedBy<BotResponder>());
+                var bot = new SlackBot(token??ConfigurationManager.AppSettings["SlackBotApiToken"]);
 
-                var bot = new MargieBot.Bot();
-                var responders = container.ResolveAll<IResponder>();
-                foreach (var responder in responders)
-                {
-                    (responder as BotResponder).Chat = this;
-                    bot.Responders.Add(responder);
-                }
-                var connect = bot.Connect(token ?? ConfigurationManager.AppSettings["SlackBotApiToken"]);
+                //bot.Responders.Add(x => !x.BotHasResponded, rc => "My responses are limited, you must ask the right question...");
+                // .NET events
+                bot.OnMessage +=  (sender, message) => {
+                    var txt = message.Text;
 
-                while (Console.ReadLine() != "close") { }
+                    // Change @bot to bot, query
+                    if (message.MentionsBot)
+                    {
+                        txt = Program.BotName +" "+ txt[(txt.IndexOf(">") + 1)..];
+                    }
+                    @ChatLog += message.User.Name + ": " + message.Text + "\n";                    
+
+                    message.ReplyWith(async () => {
+                        var msg = await callback(txt, message.User.Name);
+                        if (msg == null)
+                            return null;
+                        else
+                         return new BotMessage { Text = msg };
+                    });
+                    /* handle message */
+                };
+                bot.Messages.Subscribe(( message) => {
+                    Console.WriteLine(message.Text);
+                });
+              //  bot.AddHandler(new MyMessageHandler(this));
+
+
+                await bot.Connect();
+                await Task.Delay(200);
+                while (true) { }
             });
             s.Start();
         }
-
-
-        public class BotResponder : IResponder
+     /*   class MyMessageHandler : IMessageHandler
         {
-            public SlackChat Chat { get; set; }
-            public IChatSystem.MessageRecievedCallback Callback;
-            public bool CanRespond(ResponseContext context)
+            public MyMessageHandler(SlackChat chat)
             {
-                return context.Message.MentionsBot
-                      && !context.BotHasResponded
-                      && context.Message.Text.ToLower().Contains("dibbr");
+                slack = chat;
             }
-
-            public BotMessage GetResponse(ResponseContext context)
+            public static SlackChat slack;
+            
+            public Task HandleMessage(IMessage message)
             {
-                Chat.ChatLog += context.Message.Text + "\n";
-
-                return new BotMessage { Text = Task.Run<string>(async () => (await Callback(context.Message.Text, context.Message.User.ToString()))).Result };
+                slack.ChatLog += message.User.Name + ": " + message.Text + "\n";
+                message.ReplyWith(async () => {
+                    var msg = await slack.Callback(message.Text, message.User.Name);
+                    return new BotMessage { Text = msg };
+                });
+                return Task.FromResult(0);
             }
+        }*/
+        private void Bot_MessageReceived(string messageText)
+        {
+            Console.WriteLine("Msg = " + messageText);
         }
 
     }
