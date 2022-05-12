@@ -7,9 +7,15 @@ SUPPORTS
  * Slack Bot
  * Discord regular bot
  
+![Chat](https://i.imgur.com/E2qjTw3.png)
+
+# Setup
+
+Download or locally build. Latest build is here
+
 Please use your own OpenAI key and discord keys. I created a file called MyAPIKeys.cs with a constructor for the partial class that sets the keys, I should have used the config file
 
-== Slack install Guide
+## Slack install Guide
 1. Createw a classic Slack app here https://api.slack.com/apps?new_classic_app=1
 2. Go to OAth on the left bar and generate tokens
 3. Copy the bot token. You'll give it to the app on setup 
@@ -18,7 +24,5 @@ Please use your own OpenAI key and discord keys. I created a file called MyAPIKe
 6. Dibbr should be online and ready to go! Make sure the app is running
 ![Selfbots](https://i.imgur.com/2mvBVVC.png)
 
-More example chat from dibbr:
-![Chat](https://i.imgur.com/E2qjTw3.png)
 
 Sexy Keywords: Davinci Davinci-text-002 Davinci instruct AI Artificial Intelligence Turing Test Bot OpenAI Elon Musk Tom Hardy
