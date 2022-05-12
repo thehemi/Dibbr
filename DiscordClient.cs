@@ -50,20 +50,21 @@ namespace DibbrBot
                 // SSL Certificate Bypass
                 System.Net.ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
                 // 2 secs for headers to take
-                await Task.Delay(2000);
+               // await Task.Delay(1000);
             }
-            //
+            await Task.Delay(1000);
+            
             new Thread(async delegate ()
             {
                 string lastMsg = "";
-                string lastSentMsg = "";
                 while (true)
                 {
-                    await Task.Delay(500);
+                    
 
                     // Read message
                     // TODO: Use getLatestMessages()
                     var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
+                    await Task.Delay(500);
                     if (message == null)
                     {
                         dm = false;

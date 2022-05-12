@@ -22,7 +22,7 @@ namespace DibbrBot
         /// <param name="request_url"></param>
         /// <param name="body"></param>
         /// <returns> Returns a HttpResponseMessage </returns>
-        async static public Task<HttpResponseMessage> send_request(HttpClient client, string method, string request_url, HttpContent body = null)
+        async static public Task<string> send_request(HttpClient client, string method, string request_url, HttpContent body = null)
         {
             HttpResponseMessage response = null;
             try
@@ -33,6 +33,7 @@ namespace DibbrBot
                     case "GET":
                         {
                             response = await client.GetAsync(API_URL + request_url);
+                           
                             break;
                         }
                     case "POST":
@@ -48,7 +49,21 @@ namespace DibbrBot
                 Console.WriteLine(e.Message);
                 return null;
             }
-            return response;
+            var s = await response.Content.ReadAsStringAsync(); 
+            if (response.IsSuccessStatusCode)
+            {
+                return s;
+            }       
+            else
+            {
+
+                    Console.Beep();
+                Console.WriteLine(request_url +" "+response.ReasonPhrase);
+                    await Task.Delay(10000);
+                    return null;
+               
+            }
+            return s;
         }
 
 
@@ -60,7 +75,7 @@ namespace DibbrBot
         /// <param name="channel_id"></param>
         /// <param name="content"></param>
         /// <returns> Returns a HttpResponseMessage </returns>
-        async static public Task<HttpResponseMessage> send_message(HttpClient client, string channel_id, string content, string msgid)
+        async static public Task<string> send_message(HttpClient client, string channel_id, string content, string msgid)
         {
             /*  if (lastMsg == content)
               {
@@ -71,39 +86,29 @@ namespace DibbrBot
             content = content.Replace("\n", "\\n");
             var str = $"{{\"content\":\"{content}\",\"message_reference\": {{ \"message_id\": \"{msgid}\" }} }}";
 
-            var r = await send_request(
+            return await send_request(
             client,
             "POST",
             $"channels/{channel_id}/messages",
             new StringContent(str, Encoding.UTF8, "application/json"));
-            if (!r.IsSuccessStatusCode)
-            {
-                Console.WriteLine(r.StatusCode);
-            }
-
-            return r;
 
         }
-
+        
         static Dictionary<string, string> dm_map = new Dictionary<string, string>();
-        async static public Task<HttpResponseMessage> send_dm(HttpClient client, string dm_id, string content)
+        async static public Task<string> send_dm(HttpClient client, string dm_id, string content)
         {
             if (!dm_map.ContainsKey(dm_id))
             {
-                var response = await send_request(
+                var s = await send_request(
                 client,
                 "POST",
                 $"/users/@me/channels",
                 new StringContent($"{{\"recipient_id\":\"{dm_id}\"}}", Encoding.UTF8, "application/json"));
-                var s = await response.Content.ReadAsStringAsync();
+
                 JToken message;
                 try { message = JsonConvert.DeserializeObject<JArray>(s)[0]; }
                 catch (Exception)
                 {
-                    if (s.Contains("Invalid Recipient(s)"))
-                    {
-                        return null;
-                    }
                     try
                     {
                         message = JsonConvert.DeserializeObject<JObject>(s);
@@ -134,34 +139,19 @@ namespace DibbrBot
         {
             if (!dm_map.ContainsKey(channel_id))
             {
-                var r2 = await send_request(
+                var s = await send_request(
                 client,
                 "POST",
                 $"/users/@me/channels",
                 new StringContent($"{{\"recipient_id\":\"{channel_id}\"}}", Encoding.UTF8, "application/json"));
-                var s = await r2.Content.ReadAsStringAsync();
-
-                if (s.Contains("Invalid Recipient(s)") || s.Contains("rate limited") || s.Contains("Unknown Channel"))
-                {
-                    Console.WriteLine(s);
-                    await Task.Delay(5000);
-
-                    return null;
-                }
-
                 JToken m = JsonConvert.DeserializeObject<JObject>(s);
                 dm_map.Add(channel_id, m["id"].ToString());
             }
             try
             {
-                HttpResponseMessage response = await send_request(client, "GET", $"channels/{dm_map[channel_id]}/messages?limit=1");///" +lastMsg);
-                var str = await response.Content.ReadAsStringAsync();
+                var str = await send_request(client, "GET", $"channels/{dm_map[channel_id]}/messages?limit=1");///" +lastMsg);
                 JToken message = JsonConvert.DeserializeObject<JArray>(str)[0];
-                if (user_id != "" && user_id != message["author"]["id"].ToString())
-                {
-                    await Task.Delay(1000);
-                    return await getLatestdm(client, channel_id, user_id);
-                }
+               
                 return JsonConvert.DeserializeObject<JArray>(str).First();
             }
             catch (Exception e)
@@ -181,24 +171,8 @@ namespace DibbrBot
         /// <returns> Returns a JToken with the message data </returns>
         async static public Task<JToken> getLatestMessage(HttpClient client, string channel_id)
         {
-            HttpResponseMessage response = await send_request(client, "GET", $"channels/{channel_id}/messages?limit=1");
-            if (response.ReasonPhrase == "Forbidden")
-            {
-                Console.WriteLine("Forbidden to access " + channel_id);
-                Console.Beep();
-                await Task.Delay(10000);
-                return null;
-            }
-
-            var str = await response.Content.ReadAsStringAsync();
-            if (str.Contains("rate limited"))
-            {
-                Console.WriteLine("Rate limited");
-                Console.Beep();
-                await Task.Delay(10000);
-                return null;
-            }
-
+            var str = await send_request(client, "GET", $"channels/{channel_id}/messages?limit=1");
+           
             try
             {
                 JToken message = JsonConvert.DeserializeObject<JArray>(str)[0];
@@ -232,23 +206,8 @@ namespace DibbrBot
         /// <returns> Returns a JToken with the message data </returns>
         async static public Task<JArray> getLatestMessages(HttpClient client, string channel_id, string user_id = "")
         {
-            HttpResponseMessage response = await send_request(client, "GET", $"channels/{channel_id}/messages?limit=5");
-            if (response.ReasonPhrase == "Forbidden")
-            {
-                Console.Beep();
-                Console.WriteLine("Forbidden to access " + channel_id);
-                await Task.Delay(10000);
-                return null;
-            }
-            var str = await response.Content.ReadAsStringAsync();
-            if (str.Contains("rate limited"))
-            {
-                Console.WriteLine("Rate limited");
-                Console.Beep();
-                await Task.Delay(10000);
-                return null;
-            }
-
+            var str = await send_request(client, "GET", $"channels/{channel_id}/messages?limit=5");
+  
             try
             {
                 var messages = JsonConvert.DeserializeObject<JArray>(str);
