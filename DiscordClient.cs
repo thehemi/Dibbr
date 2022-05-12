@@ -21,7 +21,7 @@ namespace DibbrBot
         public bool IsBot;
         public bool dm;
         public string channel;
-        HttpClient client; // Shared
+        static HttpClient client; // Shared
         public string ChatLog = "";
         private readonly int MAX_BUFFER = 600; // Chat buffer to GPT3 (memory) THIS CAN GET EXPENSIVE
 
@@ -52,19 +52,17 @@ namespace DibbrBot
                 // 2 secs for headers to take
                // await Task.Delay(1000);
             }
-            await Task.Delay(1000);
+          //  await Task.Delay(1000);
             
             new Thread(async delegate ()
             {
                 string lastMsg = "";
                 while (true)
                 {
-                    
-
                     // Read message
                     // TODO: Use getLatestMessages()
                     var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
-                    await Task.Delay(500);
+                    await Task.Delay(500 +(int) (new Random().NextDouble()*500));
                     if (message == null)
                     {
                         dm = false;
@@ -90,7 +88,7 @@ namespace DibbrBot
                     ChatLog += c;
                     lastMsg = c;
 
-                    if (first)
+                    if (first && dm)
                     {
                         // First message, we don't respond to it, could be old
                         continue;

@@ -34,6 +34,15 @@ namespace DibbrBot
             ConfigurationManager.RefreshSection("appSettings");
         }
 
+
+        static string Prompt(string prompt)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;       
+            Console.WriteLine(prompt);
+            Console.ForegroundColor = ConsoleColor.Black;
+            return Console.ReadLine();
+        }
+
         static void Main(string[] args)
         {
             Console.WriteLine("DibbrBot is starting...Settings are in App.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
@@ -45,8 +54,7 @@ namespace DibbrBot
                 Console.WriteLine("");
 
                 Console.WriteLine("Paste your priming text here, e.g. Dibbr is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
-                Console.WriteLine("Or Press Enter for default");
-                primeText = Console.ReadLine();
+                primeText = Prompt("\nPriming Text (Or Press Enter for default):");
                 if (primeText == null || primeText == "")
                 {
                     primeText = "Dibbr is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats " +
@@ -63,9 +71,8 @@ namespace DibbrBot
             {
                 Console.WriteLine("How to find your discord token: https://youtu.be/YEgFvgg7ZPI");
                 Console.WriteLine("If this is a bot token, please paste Bot <token> below");
-                Console.WriteLine("Paste your discord bot token, or discord user token here, or leave blank, then press enter:");
-                discord = Console.ReadLine();
-                if (discord.Length > 10)
+                discord = Prompt("\nToken (or leave blank for none):");
+                if (discord!=null&&discord.Length > 10)
                 {
                     if (discord.Contains("Bot "))
                         Set("DiscordBot", discord.Replace("Bot ", ""));
@@ -96,9 +103,8 @@ namespace DibbrBot
                 Console.WriteLine("To Create a slack bot token, create a classic app, here https://api.slack.com/apps?new_classic_app=1");
                 Console.WriteLine("Then go to the app's page, and click on the 'OAuth & Permissions' tab");
                 Console.WriteLine("Then click on the 'Add Bot User' button");
-                Console.WriteLine("Please enter youy Slack bot API token, or press enter to skip:");
-                var token = Console.ReadLine();
-                if (token.Length > 10)
+                var token = Prompt("Please enter youy Slack bot API token, or press enter to skip:");
+                if (token!=null&&token.Length > 10)
                     Set("SlackBotApiToken", token);
             }
             if (ConfigurationManager.AppSettings["OpenAI"] == null)
