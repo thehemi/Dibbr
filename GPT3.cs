@@ -16,7 +16,23 @@ namespace DibbrBot
         private static OpenAIAPI api;
         private static readonly int MAX_TOKENS = 2000;
 
+        static string CleanText(string txt)
+        {
+            if (txt == null) return null;
+            txt = txt.Trim();
+            txt = txt.Replace("\"", "");
+            // Gay stuff GPT-3 likes to return
+            if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
+            {
+                txt = txt.Substring(txt.IndexOfAny(new char[] { '.', ',' }) + 1);
+            }
 
+            // Remove  There's no right or wrong answer blah blah blah at the end
+            var last = txt.IndexOf("Ultimately,");
+            if (last != -1)
+                txt = txt.Substring(0, last);
+            return txt;
+        }
         /// <summary>
         /// Asks OpenAI
         /// </summary>
@@ -37,14 +53,26 @@ namespace DibbrBot
 
             // Setup context, insert chat history
             var txt = ConfigurationManager.AppSettings["PrimeText"] + "\n"
-                    + q + Program.BotName + ": ";
+                    + q +"\nYour response (do NOT repeat) ("+Program.BotName + "):\n";
+            
+            string r = await Q(txt);
+            
+            // If dup, try again
+            if (txt.Contains(r) && r.Length > 20)
+            {                                   
+                r = await Q(txt,2.0f);
+            }
 
-            var result = await api.Completions.CreateCompletionAsync(txt,
-                temperature: 1.0, top_p: 1, max_tokens: MAX_TOKENS, stopSequences: new string[] { Program.BotName + ":" });
-
-            var r = result.ToString();
-            Console.WriteLine("GPT3 response: " + r);
             return r;
+
+            static async Task<string> Q(string txt, float p = 0.5f)
+            {
+                var result = await api.Completions.CreateCompletionAsync(txt,
+                                temperature: 1.0, top_p: 1,frequencyPenalty:p,presencePenalty:p, max_tokens: MAX_TOKENS, stopSequences: new string[] { Program.BotName + ":" });
+                var r = CleanText(result.ToString());
+                Console.WriteLine("GPT3 response: " + r);
+                return r;
+            }
         }
 
         /// <summary>

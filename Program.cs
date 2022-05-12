@@ -168,22 +168,17 @@ namespace DibbrBot
                 return null;
 
             // if(user == Program.BotName)
-
-            var txt = await GPT3.Ask(client.GetChatLog(), user);
+            var log = client.GetChatLog();
+            var txt = CleanText(await GPT3.Ask(log, user));
             if (txt == null)
                 return null;
-            txt = txt.Trim();
-            txt = txt.Replace("\"", "");
-            // Gay stuff GPT-3 likes to return
-            if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
-            {
-                txt = txt.Substring(txt.IndexOfAny(new char[] { '.', ',' }) + 1);
-            }
 
-            // Remove  There's no right or wrong answer blah blah blah at the end
-            var last = txt.IndexOf("Ultimately,");
-            if (last != -1)
-                txt = txt.Substring(0, last);
+            txt = CleanText(txt);
+
+            if (log.Contains(txt))
+            {
+                Console.WriteLine("Already said that");
+            }
 
 
             // if (lastBotMsg.Length > 0 && lastBotMsg == txt)
@@ -191,6 +186,24 @@ namespace DibbrBot
             //  lastBotMsg = txt;
 
             return txt;
+
+            static string CleanText(string txt)
+            {
+                if (txt == null) return null;
+                txt = txt.Trim();
+                txt = txt.Replace("\"", "");
+                // Gay stuff GPT-3 likes to return
+                if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
+                {
+                    txt = txt.Substring(txt.IndexOfAny(new char[] { '.', ',' }) + 1);
+                }
+
+                // Remove  There's no right or wrong answer blah blah blah at the end
+                var last = txt.IndexOf("Ultimately,");
+                if (last != -1)
+                    txt = txt.Substring(0, last);
+                return txt;
+            }
         }
 
 

@@ -33,7 +33,7 @@ namespace DibbrBot
         public DiscordChat(bool IsBot, bool isdm, string channel)
         {
             this.dm = isdm;
-            this.channel = channel;
+            this.channel = channel;    
         }
 
         public override async Task Initialize(MessageRecievedCallback callback, string token = null)
@@ -155,6 +155,7 @@ namespace DibbrBot
                 _discordClient.MessageCreated += MessageCreated;
 
                 await _discordClient.ConnectAsync();
+                Console.WriteLine("V 2.0 Discord Bot Client Online");
             }
             catch (Exception e)
             {
@@ -173,7 +174,7 @@ namespace DibbrBot
         /// <param name="sender"></param>
         /// <param name="e"></param>
         /// <returns></returns>
-        private async Task<Task> MessageCreated(DiscordClient sender, DSharpPlus.EventArgs.MessageCreateEventArgs e)
+        private Task<Task> MessageCreated(DiscordClient sender, DSharpPlus.EventArgs.MessageCreateEventArgs e)
         {
             new Thread(async delegate ()
             {
@@ -198,7 +199,7 @@ namespace DibbrBot
                 if (str != null)
                     await sender.SendMessageAsync(e.Channel, str);
             }).Start();
-            return Task.CompletedTask;
+            return Task.FromResult(Task.CompletedTask);
         }
 
 
@@ -215,7 +216,7 @@ namespace DibbrBot
                 return;
             if (disposing)
             {
-                //  Initialize().Dispose();
+                  Initialize(null,null).Dispose();
             }
 
         }
