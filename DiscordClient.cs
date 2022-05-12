@@ -56,6 +56,7 @@ namespace DibbrBot
             new Thread(async delegate ()
             {
                 string lastMsg = "";
+                string lastSentMsg = "";
                 while (true)
                 {
                     await Task.Delay(500);
@@ -74,11 +75,14 @@ namespace DibbrBot
                     var msg = message["content"].ToString();
                     var auth = message["author"]["username"].ToString();
                     // Make bot recognize the user as itself
-                    if (auth == Program.BotUsername)
-                        auth = Program.BotName;
+                   // if (auth == Program.BotUsername && !msg.ToLower().StartsWith(Program.BotName))
+                  //      auth = Program.BotName;
                     auth = auth.Replace("?????", "Q"); // Crap usernames
                     var c = auth + ": " + msg + "\n";
-                    if (c == lastMsg)
+
+                    // Skip lines already parsed
+                    // Funky check is because log might be BotName or BotUsername
+                    if (c == lastMsg || (auth==Program.BotUsername && lastMsg.Contains(msg)))
                         continue;
 
                     bool first = lastMsg == "";
@@ -98,12 +102,16 @@ namespace DibbrBot
                     File.AppendAllText("chat_log_" + channel + ".txt", c);
 
                     var reply = await callback(msg, auth);
+                   
                     if (reply != null)
                     {
+                        c = Program.BotName + ": " + reply + "\n";
+                        ChatLog += c;
+                        lastMsg = c;
                         var response = dm ? await API.send_dm(client, channel, reply) : await API.send_message(client, channel, reply, msgid);
                         int i = 0;
-                        while (++i<1 && (response == null || !response.IsSuccessStatusCode))
-                            response = dm ? await API.send_dm(client, channel, reply) : await API.send_message(client, channel, reply, msgid);
+                       // while (++i<1 && (response == null || !response.IsSuccessStatusCode))
+                        //    response = dm ? await API.send_dm(client, channel, reply) : await API.send_message(client, channel, reply, msgid);
                     }
                 }
 

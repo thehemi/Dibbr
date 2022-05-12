@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace DibbrBot
@@ -67,6 +68,8 @@ namespace DibbrBot
                   return null;
               }
               lastMsg = content;*/
+            //  content = Regex.Escape(content);
+            content = content.Replace("\n", "\\n");
             var str = $"{{\"content\":\"{content}\",\"message_reference\": {{ \"message_id\": \"{msgid}\" }} }}";
 
             var r = await send_request(
@@ -74,6 +77,10 @@ namespace DibbrBot
             "POST",
             $"channels/{channel_id}/messages",
             new StringContent(str, Encoding.UTF8, "application/json"));
+            if(!r.IsSuccessStatusCode)
+            {
+                Console.WriteLine(r.StatusCode);
+            }
 
             return r;
 

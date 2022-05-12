@@ -53,8 +53,8 @@ namespace DibbrBot
             // q = "questions"+q;
 
             // Setup context, insert chat history
-            var txt = ConfigurationManager.AppSettings["PrimeText"]
-                    + q + "Write your response or article here. " + Program.BotName + ": ";
+            var txt = ConfigurationManager.AppSettings["PrimeText"]+"\n"
+                    + q + Program.BotName + ": ";
 
             var result = await api.Completions.CreateCompletionAsync(txt,
                 temperature: 1.0, top_p: 1, max_tokens: MAX_TOKENS, stopSequences: new string[] { Program.BotName + ":" });

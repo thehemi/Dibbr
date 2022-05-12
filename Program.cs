@@ -15,15 +15,27 @@ namespace DibbrBot
         public static string BotName = "dibbr";
         public static string BotUsername = "dabbr";
         public static List<IChatSystem> systems = new List<IChatSystem>();
-
+        private static void Set(string key, string value)
+        {
+            Configuration configuration =
+                ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+            configuration.AppSettings.Settings.Remove(key);
+            configuration.AppSettings.Settings.Add(key, value);
+            configuration.Save(ConfigurationSaveMode.Full, true);
+            ConfigurationManager.RefreshSection("appSettings");
+        }
+        
         static void Main(string[] args)
         {
             Console.WriteLine("DibbrBot is starting...Settings are in App.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
-
+          
+           // var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
             var primeText = ConfigurationManager.AppSettings["PrimeText"];
             if(primeText == null)
             {
-                Console.WriteLine("Paste your priming text here, e.g. Dibbr is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
+                Console.WriteLine("");
+
+               Console.WriteLine("Paste your priming text here, e.g. Dibbr is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
                 Console.WriteLine("Or Press Enter for default");
                 primeText = Console.ReadLine();
                 if(primeText == null || primeText == "")
@@ -33,7 +45,8 @@ namespace DibbrBot
                     
                    primeText += "\nThe folowing is the discord chat log:\n";
                 }
-                ConfigurationManager.AppSettings.Add("PrimeText", primeText+"\n");
+                
+                Set("PrimeText", primeText+"\n");
             }
 
             var discord = ConfigurationManager.AppSettings["DiscordBot"];
@@ -46,9 +59,9 @@ namespace DibbrBot
                 if (discord.Length > 10)
                 {
                     if (discord.Contains("Bot "))
-                        ConfigurationManager.AppSettings.Add("DiscordBot", discord.Replace("Bot ", ""));
+                        Set("DiscordBot", discord.Replace("Bot ", ""));
                     else
-                        ConfigurationManager.AppSettings.Add("Discord", discord);
+                        Set("Discord", discord);
                 }
 
             }
@@ -77,7 +90,7 @@ namespace DibbrBot
                 Console.WriteLine("Please enter youy Slack bot API token, or press enter to skip:");
                 var token = Console.ReadLine();
                 if (token.Length > 10)
-                    ConfigurationManager.AppSettings.Add("SlackBotApiToken", token);
+                    Set("SlackBotApiToken", token);
             }
             if (ConfigurationManager.AppSettings["OpenAI"] == null)
             {
@@ -85,7 +98,7 @@ namespace DibbrBot
                 Console.WriteLine("Paste your OpenAI Key here:");
                 var token = Console.ReadLine();
                 if (token.Length > 10)
-                    ConfigurationManager.AppSettings.Add("OpenAI", token);
+                    Set("OpenAI", token);
             }
 
             // Start the bot on all chat services
@@ -113,6 +126,7 @@ namespace DibbrBot
                     {
                         var words = chat.Split(' ');
                         IChatSystem client;
+                        
                         client = new DiscordChat(false, words[0] == "DM", words[1]/*Channel id, room or dm*/);
                         systems.Add(client);
                         _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user); }, ConfigurationManager.AppSettings["Discord"]);
@@ -124,6 +138,7 @@ namespace DibbrBot
             while (true) { }
         }
 
+        static string lastBotMsg = "";
         /// <summary>
         /// This is the main message handler for the bot
         /// </summary>
@@ -143,10 +158,12 @@ namespace DibbrBot
             if (/*!dm && !(msg.ToLower().StartsWith(BotName) || */!msg.ToLower().StartsWith(BotName))// || (c.Length > 20 && c.Contains("?")))
                 return null;
 
+           // if(user == Program.BotName)
+
             var txt = await GPT3.Ask(client.GetChatLog(), user);
-            // if (lastDibbrMsg.Length > 0 && lastDibbrMsg == txt)
-            //     txt = "I was going to say something repeititive. I'm sorry";
-            txt = txt.Replace("\n", "");
+            if (txt == null)
+                return null;
+            txt = txt.Trim();
             txt = txt.Replace("\"", "");
             // Gay stuff GPT-3 likes to return
             if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
@@ -158,6 +175,11 @@ namespace DibbrBot
             var last = txt.IndexOf("Ultimately,");
             if (last != -1)
                 txt = txt.Substring(0, last);
+
+
+           // if (lastBotMsg.Length > 0 && lastBotMsg == txt)
+           //     txt = "I was going to say something repeititive. I'm sorry";
+          //  lastBotMsg = txt;
 
             return txt;
         }
