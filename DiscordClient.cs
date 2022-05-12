@@ -1,9 +1,9 @@
-﻿using System;
+﻿using DSharpPlus;
+using System;
 using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using DSharpPlus;
 //using DSharpPlus.CommandsNext;
 
 namespace DibbrBot
@@ -75,14 +75,14 @@ namespace DibbrBot
                     var msg = message["content"].ToString();
                     var auth = message["author"]["username"].ToString();
                     // Make bot recognize the user as itself
-                   // if (auth == Program.BotUsername && !msg.ToLower().StartsWith(Program.BotName))
-                  //      auth = Program.BotName;
+                    // if (auth == Program.BotUsername && !msg.ToLower().StartsWith(Program.BotName))
+                    //      auth = Program.BotName;
                     auth = auth.Replace("?????", "Q"); // Crap usernames
                     var c = auth + ": " + msg + "\n";
 
                     // Skip lines already parsed
                     // Funky check is because log might be BotName or BotUsername
-                    if (c == lastMsg || (auth==Program.BotUsername && lastMsg.Contains(msg)))
+                    if (c == lastMsg || (auth == Program.BotUsername && lastMsg.Contains(msg)))
                         continue;
 
                     bool first = lastMsg == "";
@@ -102,7 +102,7 @@ namespace DibbrBot
                     File.AppendAllText("chat_log_" + channel + ".txt", c);
 
                     var reply = await callback(msg, auth);
-                   
+
                     if (reply != null)
                     {
                         c = Program.BotName + ": " + reply + "\n";
@@ -110,7 +110,7 @@ namespace DibbrBot
                         lastMsg = c;
                         var response = dm ? await API.send_dm(client, channel, reply) : await API.send_message(client, channel, reply, msgid);
                         int i = 0;
-                       // while (++i<1 && (response == null || !response.IsSuccessStatusCode))
+                        // while (++i<1 && (response == null || !response.IsSuccessStatusCode))
                         //    response = dm ? await API.send_dm(client, channel, reply) : await API.send_message(client, channel, reply, msgid);
                     }
                 }
@@ -133,16 +133,9 @@ namespace DibbrBot
         private readonly int MAX_BUFFER = 1000; // Chat buffer to GPT3 (memory) THIS CAN GET EXPENSIVE
 
         private DiscordClient _discordClient;
-        //  private CommandsNextUtilities _commandsNext;
         readonly bool disposed = false;
-    //    public string token = "";
         MessageRecievedCallback Callback;
 
-
-       // public DiscordChatV2(string token)
-       // {
-     //       this.token = token;
-     //   }
 
         public async override Task Initialize(MessageRecievedCallback callback, string token)
         {
@@ -156,10 +149,10 @@ namespace DibbrBot
                     TokenType = TokenType.Bot,
                     //  UseInternalLogHandler = true
                 };
-              
+
                 /* INSTANTIATE DISCORDCLIENT */
                 _discordClient = new DiscordClient(clientConfig);
-                _discordClient.MessageCreated += _discordClient_MessageCreated;
+                _discordClient.MessageCreated += MessageCreated;
 
                 await _discordClient.ConnectAsync();
             }
@@ -173,31 +166,38 @@ namespace DibbrBot
         }
 
         string lastMsg = "";
-        private async Task<Task> _discordClient_MessageCreated(DiscordClient sender, DSharpPlus.EventArgs.MessageCreateEventArgs e)
+
+        /// <summary>
+        /// Me
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        /// <returns></returns>
+        private async Task<Task> MessageCreated(DiscordClient sender, DSharpPlus.EventArgs.MessageCreateEventArgs e)
         {
-            Console.WriteLine(e.Channel.Name);
-          //  Console.WriteLine(e.Message.Content);
-           // Console.WriteLine(e.Author.Username);
-            var c = e.Author.Username + ": " + e.Message.Content + "\n";
-            if (ChatLog.Length > MAX_BUFFER)
-                ChatLog = ChatLog.Substring(ChatLog.Length - MAX_BUFFER);
-
-            var first = lastMsg == "";
-            if(c == lastMsg)
+            new Thread(async delegate ()
             {
-                return null;
-            }
-            lastMsg = c;
-            if (first) return null;
+                var c = e.Author.Username + ": " + e.Message.Content + "\n";
+                ChatLog += c;
+                if (ChatLog.Length > MAX_BUFFER)
+                    ChatLog = ChatLog.Substring(ChatLog.Length - MAX_BUFFER);
 
-            Console.WriteLine(c);
-            File.AppendAllText("chat_log_" + e.Channel.Name + ".txt", c);
+                var first = lastMsg == "";
+                if (c == lastMsg)
+                {
+                    return;
+                }
+                lastMsg = c;
+                if (first) return;
+
+                Console.WriteLine(c);
+                File.AppendAllText("chat_log_" + e.Channel.Name + ".txt", c);
 
 
-            var str = await Callback(e.Message.Content, e.Author.Username);
-            if(str != null)
-              await sender.SendMessageAsync(e.Channel, str);
-
+                var str = await Callback(e.Message.Content, e.Author.Username);
+                if (str != null)
+                    await sender.SendMessageAsync(e.Channel, str);
+            }).Start();
             return Task.CompletedTask;
         }
 
@@ -215,7 +215,7 @@ namespace DibbrBot
                 return;
             if (disposing)
             {
-              //  Initialize().Dispose();
+                //  Initialize().Dispose();
             }
 
         }

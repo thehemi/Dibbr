@@ -1,15 +1,24 @@
 ﻿// (c) github.com/thehemi
 using System;
-using System.IO;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Linq;
 using System.Collections.Generic;
 using System.Configuration;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DibbrBot
 {
+    public abstract class IChatSystem
+    {
+        public abstract string GetChatLog();
+        // Declare a delegate type for processing a book:
+        public delegate Task<string> MessageRecievedCallback(string msg, string author);
+        // public abstract Task<string> GetNewMessages();
+        //   public abstract Task SendMessage(string message, string replyContext = null);
+        public abstract Task Initialize(MessageRecievedCallback callback, string token);
+    }
+
     class Program
     {
         public static string BotName = "dibbr";
@@ -24,29 +33,29 @@ namespace DibbrBot
             configuration.Save(ConfigurationSaveMode.Full, true);
             ConfigurationManager.RefreshSection("appSettings");
         }
-        
+
         static void Main(string[] args)
         {
             Console.WriteLine("DibbrBot is starting...Settings are in App.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
-          
-           // var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+
+            // var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
             var primeText = ConfigurationManager.AppSettings["PrimeText"];
-            if(primeText == null)
+            if (primeText == null)
             {
                 Console.WriteLine("");
 
-               Console.WriteLine("Paste your priming text here, e.g. Dibbr is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
+                Console.WriteLine("Paste your priming text here, e.g. Dibbr is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
                 Console.WriteLine("Or Press Enter for default");
                 primeText = Console.ReadLine();
-                if(primeText == null || primeText == "")
+                if (primeText == null || primeText == "")
                 {
                     primeText = "Dibbr is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats " +
                 " dibbr will write long responses and articles or fan fiction upon request.";
-                    
-                   primeText += "\nThe folowing is the discord chat log:\n";
+
+                    primeText += "\nThe folowing is the discord chat log:\n";
                 }
-                
-                Set("PrimeText", primeText+"\n");
+
+                Set("PrimeText", primeText + "\n");
             }
 
             var discord = ConfigurationManager.AppSettings["DiscordBot"];
@@ -69,14 +78,14 @@ namespace DibbrBot
             // For selfbot only
             // chats.txt stores the list of channels and dms that the bot is listening to
             var chats = File.ReadAllLines("chats.txt").Where(l => l.Length > 0).ToArray();
-            if (chats.Length == 0 && discord != null &&! discord.Contains("Bot"))
+            if (chats.Length == 0 && discord != null && !discord.Contains("Bot"))
             {
                 Console.WriteLine("You are using a SELFBOT (no Bot <token>) BE CAREFUL. You can add channels and dms to the chats.txt file to make the bot listen to them.");
                 chats = new string[] { "" };
                 Console.WriteLine("Type ROOM or DM, then press return");
                 chats[0] += Console.ReadLine() + " ";
                 Console.WriteLine("How to find server and channel id: https://youtu.be/NLWtSHWKbAI\n");
-                Console.WriteLine("Please enter a room or chat id for the bot to join, then press return. ");                
+                Console.WriteLine("Please enter a room or chat id for the bot to join, then press return. ");
                 chats[0] += Console.ReadLine();
                 Console.WriteLine("String is " + chats[0]);
                 File.WriteAllLines("chats.txt", chats);
@@ -113,7 +122,7 @@ namespace DibbrBot
                 }
 
                 var discordBot = ConfigurationManager.AppSettings["DiscordBot"];
-                if(discordBot != null)
+                if (discordBot != null)
                 {
                     var client = new DiscordChatV2();
                     _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user); }, ConfigurationManager.AppSettings["DiscordBot"]);
@@ -126,7 +135,7 @@ namespace DibbrBot
                     {
                         var words = chat.Split(' ');
                         IChatSystem client;
-                        
+
                         client = new DiscordChat(false, words[0] == "DM", words[1]/*Channel id, room or dm*/);
                         systems.Add(client);
                         _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user); }, ConfigurationManager.AppSettings["Discord"]);
@@ -158,7 +167,7 @@ namespace DibbrBot
             if (/*!dm && !(msg.ToLower().StartsWith(BotName) || */!msg.ToLower().StartsWith(BotName))// || (c.Length > 20 && c.Contains("?")))
                 return null;
 
-           // if(user == Program.BotName)
+            // if(user == Program.BotName)
 
             var txt = await GPT3.Ask(client.GetChatLog(), user);
             if (txt == null)
@@ -177,9 +186,9 @@ namespace DibbrBot
                 txt = txt.Substring(0, last);
 
 
-           // if (lastBotMsg.Length > 0 && lastBotMsg == txt)
-           //     txt = "I was going to say something repeititive. I'm sorry";
-          //  lastBotMsg = txt;
+            // if (lastBotMsg.Length > 0 && lastBotMsg == txt)
+            //     txt = "I was going to say something repeititive. I'm sorry";
+            //  lastBotMsg = txt;
 
             return txt;
         }

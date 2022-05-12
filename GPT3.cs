@@ -1,29 +1,12 @@
 ﻿// (c) github.com/thehemi
 // using System;
-using System;
-using System.Collections.Generic;
-using System.Configuration;
-using System.IO;
-using System.Linq;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
 using OpenAI_API;
+using System;
+using System.Configuration;
+using System.Threading.Tasks;
 
 namespace DibbrBot
 {
-    public abstract class IChatSystem
-    {
-        public abstract string GetChatLog();
-        // Declare a delegate type for processing a book:
-        public delegate Task<string> MessageRecievedCallback(string msg, string author);
-        // public abstract Task<string> GetNewMessages();
-        //   public abstract Task SendMessage(string message, string replyContext = null);
-        public abstract Task Initialize(MessageRecievedCallback callback, string token);
-    }
-
-
     /// <summary>
     /// Chat system that uses the OpenAI API to send and receive messages
     /// </summary>
@@ -53,7 +36,7 @@ namespace DibbrBot
             // q = "questions"+q;
 
             // Setup context, insert chat history
-            var txt = ConfigurationManager.AppSettings["PrimeText"]+"\n"
+            var txt = ConfigurationManager.AppSettings["PrimeText"] + "\n"
                     + q + Program.BotName + ": ";
 
             var result = await api.Completions.CreateCompletionAsync(txt,

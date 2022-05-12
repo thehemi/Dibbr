@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace DibbrBot
@@ -53,7 +52,7 @@ namespace DibbrBot
         }
 
 
-        static string lastMsg = "";
+       // static string lastMsg = "";
         /// <summary>
         /// Sends a message to the specified channel
         /// </summary>
@@ -77,7 +76,7 @@ namespace DibbrBot
             "POST",
             $"channels/{channel_id}/messages",
             new StringContent(str, Encoding.UTF8, "application/json"));
-            if(!r.IsSuccessStatusCode)
+            if (!r.IsSuccessStatusCode)
             {
                 Console.WriteLine(r.StatusCode);
             }
@@ -190,7 +189,7 @@ namespace DibbrBot
                 await Task.Delay(10000);
                 return null;
             }
-            
+
             var str = await response.Content.ReadAsStringAsync();
             if (str.Contains("rate limited"))
             {
@@ -249,7 +248,7 @@ namespace DibbrBot
                 await Task.Delay(10000);
                 return null;
             }
-            
+
             try
             {
                 var messages = JsonConvert.DeserializeObject<JArray>(str);
@@ -257,7 +256,7 @@ namespace DibbrBot
             }
             catch (Exception e)
             {
-                    Console.WriteLine(e.Message);
+                Console.WriteLine(e.Message);
                 Console.Beep();
                 await Task.Delay(10000);
                 return null;
