@@ -1,7 +1,9 @@
 ﻿using DSharpPlus;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 //using DSharpPlus.CommandsNext;
@@ -35,7 +37,12 @@ namespace DibbrBot
             this.dm = isdm;
             this.channel = channel;    
         }
-
+        private static List<string> TakeLastLines(string text, int count)
+        {
+            var lines = text.Split("\r\n");
+            
+            return new List<string>(lines);
+        }
         public override async Task Initialize(MessageRecievedCallback callback, string token = null)
         {
             if (client == null)
@@ -52,66 +59,84 @@ namespace DibbrBot
                 // 2 secs for headers to take
                // await Task.Delay(1000);
             }
-          //  await Task.Delay(1000);
-            
+            //  await Task.Delay(1000);
+            var lastMsgTime = DateTime.MinValue;
             new Thread(async delegate ()
             {
                 string lastMsg = "";
                 while (true)
                 {
+
+                    bool Contains(List<string> lines, string str)
+                    {
+                        foreach (var l in lines) if (l.Contains(str))
+                                return true;
+                        return false;
+                    }
+                    
+                    await Task.Delay(2000 + (int)(new Random().NextDouble() * 500));
                     // Read message
                     // TODO: Use getLatestMessages()
-                    var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
-                    await Task.Delay(500 +(int) (new Random().NextDouble()*500));
-                    if (message == null)
+                    // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
+                    var msgList = new List<string>();
+                   var messages = await API.getLatestMessages(client, channel);
+                    var log = TakeLastLines(ChatLog, messages.Count);
+                    foreach (var message in messages)
                     {
-                        dm = false;
-                        message = await API.getLatestMessage(client, channel);
-                        if (message == null)
+                        var msgid = message["id"].ToString();
+                        var msg = message["content"].ToString();
+                        var auth = message["author"]["username"].ToString();
+                        
+                        var c = auth + ": " + msg;
+                        
+                        // FIXME: Will block repeating messages
+                        if (Contains(log,c))
                             continue;
-                    }
-                    var msgid = message["id"].ToString();
-                    var msg = message["content"].ToString();
-                    var auth = message["author"]["username"].ToString();
-                    // Make bot recognize the user as itself
-                    // if (auth == Program.BotUsername && !msg.ToLower().StartsWith(Program.BotName))
-                    //      auth = Program.BotName;
-                    auth = auth.Replace("?????", "Q"); // Crap usernames
-                    var c = auth + ": " + msg + "\n";
 
-                    // Skip lines already parsed
-                    // Funky check is because log might be BotName or BotUsername
-                    if (c == lastMsg || (auth == Program.BotUsername && lastMsg.Contains(msg)))
-                        continue;
+                        c += "\n";
+                       
+                        // Make bot recognize the user as itself
+                        // if (auth == Program.BotUsername && !msg.ToLower().StartsWith(Program.BotName))
+                        //      auth = Program.BotName;
+                        auth = auth.Replace("????", "Q"); // Crap usernames
+                  
+                        // Skip lines already parsed
+                        // Funky check is because log might be BotName or BotUsername
+                        if (c == lastMsg || (auth == Program.BotUsername && lastMsg.Contains(msg)))
+                            continue;
 
-                    bool first = lastMsg == "";
-                    ChatLog += c;
-                    lastMsg = c;
-
-                    if (first && dm)
-                    {
-                        // First message, we don't respond to it, could be old
-                        continue;
-                    }
-
-                    if (ChatLog.Length > MAX_BUFFER)
-                        ChatLog = ChatLog.Substring(ChatLog.Length - MAX_BUFFER);
-
-                    Console.WriteLine(c);
-                    File.AppendAllText("chat_log_" + channel + ".txt", c);
-
-                    var reply = await callback(msg, auth);
-
-                    if (reply != null)
-                    {
-                        c = Program.BotName + ": " + reply + "\n";
-                        ChatLog += c;
+                        ChatLog += c + "\r\n";
                         lastMsg = c;
-                        var response = dm ? await API.send_dm(client, channel, reply) : await API.send_message(client, channel, reply, msgid);
-                        int i = 0;
-                        // while (++i<1 && (response == null || !response.IsSuccessStatusCode))
-                        //    response = dm ? await API.send_dm(client, channel, reply) : await API.send_message(client, channel, reply, msgid);
-                    }
+
+                        if (lastMsgTime == DateTime.MinValue && dm)
+                        {
+                            // First message, we don't respond to it, could be old
+                            continue;
+                        }
+
+                        if (ChatLog.Length > MAX_BUFFER)
+                            ChatLog = ChatLog.Substring(ChatLog.Length - MAX_BUFFER);
+
+                        Console.WriteLine(c);
+
+                        // If you wanna log context, too
+                        // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
+                        //  File.AppendAllText("chat_log_" + channel + ".txt", c);
+
+                        var reply = await callback(msg, auth);
+
+                        if (reply != null)
+                        {
+                            lastMsgTime = DateTime.Now;
+                            var c2 = Program.BotName + ": " + reply + "\n";
+                            ChatLog += c2;
+                            lastMsg = c2;
+                            var response = dm ? await API.send_dm(client, channel, reply) : await API.send_message(client, channel, reply, msgid);
+
+                            // Write out our response, along with the question
+                            File.AppendAllText("chat_log_" + channel + ".txt", c + c2);
+                        }
+                    }                        
                 }
 
                 Console.WriteLine("How did I get here?");
