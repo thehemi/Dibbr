@@ -2,7 +2,9 @@
 Dibbr GPT-3 BOT WITH STYLE
 Just look at the chat logs - this is GPT-3 at its best
 
-SUPPORTS
+[Download dibbr here!](https://github.com/thehemi/Dibbr/blob/master/Dibbr-x86.zip)
+
+## SUPPORTS
  * Discord selfbot (can put bot in anyone's server, but violates TOS)
  * Slack Bot
  * Discord regular bot
