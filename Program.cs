@@ -170,7 +170,7 @@ namespace DibbrBot
             }
 
             // Do we have a message for the bot?
-            if (/*!dm && !(msg.ToLower().StartsWith(BotName) || */!msg.ToLower().StartsWith(BotName))// || (c.Length > 20 && c.Contains("?")))
+            if (!msg.ToLower().Replace("hey ","").StartsWith(BotName))// || (c.Length > 20 && c.Contains("?")))
                 return null;
 
             // if(user == Program.BotName)

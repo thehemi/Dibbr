@@ -25,7 +25,7 @@ namespace DibbrBot
         public string channel;
         static HttpClient client; // Shared
         public string ChatLog = "";
-        private readonly int MAX_BUFFER = 600; // Chat buffer to GPT3 (memory) THIS CAN GET EXPENSIVE
+        private readonly int MAX_BUFFER = 4000; // Chat buffer to GPT3 (memory) THIS CAN GET EXPENSIVE
 
         public override string GetChatLog()
         {
@@ -39,7 +39,7 @@ namespace DibbrBot
         }
         private static List<string> TakeLastLines(string text, int count)
         {
-            var lines = text.Split("\r\n");
+            var lines = text.Split("\n\r");
             
             return new List<string>(lines);
         }
@@ -79,10 +79,12 @@ namespace DibbrBot
                     // TODO: Use getLatestMessages()
                     // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
                     var msgList = new List<string>();
-                   var messages = await API.getLatestMessages(client, channel);
+                    var messages = await API.getLatestMessages(client, channel);
+                    
                     var log = TakeLastLines(ChatLog, messages.Count);
-                    foreach (var message in messages)
+                    for(int i=0;i<messages.Count;i++)
                     {
+                        var message = messages[i];
                         var msgid = message["id"].ToString();
                         var msg = message["content"].ToString();
                         var auth = message["author"]["username"].ToString();
@@ -105,7 +107,16 @@ namespace DibbrBot
                         if (c == lastMsg || (auth == Program.BotUsername && lastMsg.Contains(msg)))
                             continue;
 
-                        ChatLog += c + "\r\n";
+                        // Skip messages we sent as replies
+                        if ((auth == Program.BotUsername) && message["referenced_message"] != null)
+                            continue;
+
+                        // Treat replies to bot as bot messages
+                        var replyUser = message["referenced_message"] != null ? message["referenced_message"]["author"]["username"]:null;
+                        if(replyUser?.ToString() == Program.BotUsername && !msg.StartsWith(Program.BotName))
+                            msg = Program.BotName + " " + msg;
+
+                        ChatLog += c + "\r";
                         lastMsg = c;
 
                         if (lastMsgTime == DateTime.MinValue && dm)
@@ -129,7 +140,7 @@ namespace DibbrBot
                         {
                             lastMsgTime = DateTime.Now;
                             var c2 = Program.BotName + ": " + reply + "\n";
-                            ChatLog += c2;
+                            ChatLog += c2 + "\r";
                             lastMsg = c2;
                             var response = dm ? await API.send_dm(client, channel, reply) : await API.send_message(client, channel, reply, msgid);
 

@@ -85,12 +85,23 @@ namespace DibbrBot
             //  content = Regex.Escape(content);
             content = content.Replace("\n", "\\n");
             var str = $"{{\"content\":\"{content}\",\"message_reference\": {{ \"message_id\": \"{msgid}\" }} }}";
-
-            return await send_request(
-            client,
-            "POST",
-            $"channels/{channel_id}/messages",
-            new StringContent(str, Encoding.UTF8, "application/json"));
+            
+            for (int i = 0; i < 3; i++)
+            {
+               
+                var reply = await send_request(
+                client,
+                "POST",
+                $"channels/{channel_id}/messages",
+                new StringContent(str, Encoding.UTF8, "application/json"));
+                if (reply != null)
+                {
+                    return reply;
+                }
+                else
+                    await Task.Delay(2000);
+            }
+            return null;
 
         }
         

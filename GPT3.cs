@@ -48,27 +48,53 @@ namespace DibbrBot
                 api = new OpenAI_API.OpenAIAPI(apiKeys: k, engine: eng);
             }
 
+            q = q.Trim();
+
+            float fp = 0, pp = 0, temp = 1;
             // Prime it with other questions here
+            var latestLine = q.LastIndexOf("\n");
+            if (latestLine == -1) latestLine = 0;
+            var line = q.Substring(latestLine);
+
             // q = "questions"+q;
+            
+
+            if(line.Contains("&") && line.Contains("?"))
+            {
+                string[] query = line.Split('?');
+                if (query.Length == 2)
+                {
+                    foreach (string pairs in query[1].Split('&'))
+                    {
+                        string[] values = pairs.Split('=');
+                        if (values[0] == "pp")
+                            pp = float.Parse(values[1]);
+                        if (values[0] == "fp")
+                            fp = float.Parse(values[1]);
+                        if (values[0] == "temp")
+                            temp = float.Parse(values[1]);
+                    }
+                }
+            }
 
             // Setup context, insert chat history
             var txt = ConfigurationManager.AppSettings["PrimeText"] + "\n"
                     + q +"\nYour response (do NOT repeat) ("+Program.BotName + "):\n";
             
-            string r = await Q(txt);
+            string r = await Q(txt,pp,fp,temp);
             
             // If dup, try again
             if (txt.Contains(r) && r.Length > 20)
             {                                   
-                r = await Q(txt,2.0f);
+                r = await Q(txt,pp,fp,2);
             }
 
             return r;
 
-            static async Task<string> Q(string txt, float p = 0.5f)
+            static async Task<string> Q(string txt, float pp, float tp, float temp)
             {
                 var result = await api.Completions.CreateCompletionAsync(txt,
-                                temperature: 1.0, top_p: 1,frequencyPenalty:p,presencePenalty:p, max_tokens: MAX_TOKENS, stopSequences: new string[] { Program.BotName + ":" });
+                                temperature: temp, top_p: 1,frequencyPenalty:tp,presencePenalty:pp, max_tokens: MAX_TOKENS, stopSequences: new string[] { Program.BotName + ":" });
                 // var r = CleanText(result.ToString());
 		var r = result.ToString();
                 Console.WriteLine("GPT3 response: " + r);

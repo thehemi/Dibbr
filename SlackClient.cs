@@ -66,9 +66,13 @@ namespace DibbrBot
                 // });
                 //  bot.AddHandler(new MyMessageHandler(this));
 
-
-                await bot.Connect();
-                await Task.Delay(200);
+                try
+                {
+                    await bot.Connect();
+                    await Task.Delay(200);
+                }
+                catch(Exception e)
+                { Console.WriteLine(e.Message); }
                 while (true) { }
             });
             s.Start();
