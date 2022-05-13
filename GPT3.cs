@@ -69,7 +69,8 @@ namespace DibbrBot
             {
                 var result = await api.Completions.CreateCompletionAsync(txt,
                                 temperature: 1.0, top_p: 1,frequencyPenalty:p,presencePenalty:p, max_tokens: MAX_TOKENS, stopSequences: new string[] { Program.BotName + ":" });
-                var r = CleanText(result.ToString());
+                // var r = CleanText(result.ToString());
+		var r = result.ToString();
                 Console.WriteLine("GPT3 response: " + r);
                 return r;
             }
