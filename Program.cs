@@ -11,6 +11,7 @@ namespace DibbrBot
 {
     public abstract class IChatSystem
     {
+        public abstract void SetChatLog(string log);
         public abstract string GetChatLog();
         // Declare a delegate type for processing a book:
         public delegate Task<string> MessageRecievedCallback(string msg, string author);
@@ -58,9 +59,9 @@ namespace DibbrBot
                 if (primeText == null || primeText == "")
                 {
                     primeText = "Dibbr is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats " +
-                " dibbr will write long responses and articles or fan fiction upon request.";
+                " dibbr will write long responses and articles or fan fiction upon request. Dibbr was made by dabbr, and his favorite animal is the sexually violent time travelling truffle pig, of which he likes to tell stories.";
 
-                    primeText += "\nThe folowing is the discord chat log:\n";
+                    primeText += "\nThe folowing is the chat log with dibbr:\n";
                 }
 
                 Set("PrimeText", primeText + "\n");
@@ -126,7 +127,11 @@ namespace DibbrBot
                     var client = new SlackChat();
                     _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user); }, slackToken);
                 }
-
+                
+                slackToken = "xoxb-3027888414759-3509949993762-U1NUr8Je55qSW25DF4WJHKSH";
+                var client2 = new SlackChat();
+                _ = client2.Initialize(async (msg, user) => { return await OnMessage(client2, msg, user); }, slackToken);
+                
                 var discordBot = ConfigurationManager.AppSettings["DiscordBot"];
                 if (discordBot != null)
                 {
@@ -148,12 +153,14 @@ namespace DibbrBot
                     }
                 }
 
-            }).Start();
+            })
+            {
+                
+            }.Start();
 
             while (true) { }
         }
 
-        static string lastBotMsg = "";
         /// <summary>
         /// This is the main message handler for the bot
         /// </summary>
@@ -173,17 +180,22 @@ namespace DibbrBot
             if (!msg.ToLower().Replace("hey ","").StartsWith(BotName))// || (c.Length > 20 && c.Contains("?")))
                 return null;
 
-            // if(user == Program.BotName)
-            var log = client.GetChatLog();
-            var txt = CleanText(await GPT3.Ask(log, user));
+            // Commands
+            // 1. Wipe memory
+            if (msg.ToLower().StartsWith(Program.BotName + " wipe memory"))
+            {
+                client.SetChatLog("");
+                return "Memory erased";
+            }
+            var txt = (await GPT3.Ask(client.GetChatLog(), user));
             if (txt == null)
                 return null;
 
             txt = CleanText(txt);
 
-            if (log.Contains(txt))
+            if (client.GetChatLog().Contains(txt))
             {
-                Console.WriteLine("Already said that");
+                Console.WriteLine("Already said that. Should not happen");
             }
 
 
@@ -196,18 +208,24 @@ namespace DibbrBot
             static string CleanText(string txt)
             {
                 if (txt == null) return null;
-                txt = txt.Trim();
-                txt = txt.Replace("\"", "");
-                // Gay stuff GPT-3 likes to return
-                if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
+                try
                 {
-                    txt = txt.Substring(txt.IndexOfAny(new char[] { '.', ',' }) + 1);
-                }
+                    txt = txt.Trim();
+                    txt = txt.Replace("\"", "");
+                    // Gay stuff GPT-3 likes to return
+                    if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
+                    {
+                        txt = txt.Substring(txt.IndexOfAny(new char[] { '.', ',' }) + 1);
+                    }
 
-                // Remove  There's no right or wrong answer blah blah blah at the end
-                var last = txt.IndexOf("Ultimately,");
-                if (last != -1)
-                    txt = txt.Substring(0, last);
+                    // Remove  There's no right or wrong answer blah blah blah at the end
+                    var last = txt.IndexOf("Ultimately,");
+                    if (last != -1)
+                        txt = txt.Substring(0, last);
+
+                    txt = $"{char.ToUpper(txt[0])}{txt[1..]}";
+                }
+                catch(Exception e) { }
                 return txt;
             }
         }

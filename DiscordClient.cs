@@ -25,11 +25,16 @@ namespace DibbrBot
         public string channel;
         static HttpClient client; // Shared
         public string ChatLog = "";
-        private readonly int MAX_BUFFER = 4000; // Chat buffer to GPT3 (memory) THIS CAN GET EXPENSIVE
+        private readonly int MAX_BUFFER = 5000; // Chat buffer, don't change this, change the one in GPT3
 
         public override string GetChatLog()
         {
             return ChatLog;
+        }
+
+        public override void SetChatLog(string log)
+        {
+            ChatLog = log;
         }
 
         public DiscordChat(bool IsBot, bool isdm, string channel)
@@ -66,7 +71,6 @@ namespace DibbrBot
                 string lastMsg = "";
                 while (true)
                 {
-
                     bool Contains(List<string> lines, string str)
                     {
                         foreach (var l in lines) if (l.Contains(str))
@@ -95,39 +99,41 @@ namespace DibbrBot
                         if (Contains(log,c))
                             continue;
 
-                        c += "\n";
+                        c += "\n\r";
+                        ChatLog += c;
+                        if (ChatLog.Length > MAX_BUFFER)
+                            ChatLog = ChatLog.Substring(ChatLog.Length - MAX_BUFFER);
                        
+                        
                         // Make bot recognize the user as itself
                         // if (auth == Program.BotUsername && !msg.ToLower().StartsWith(Program.BotName))
                         //      auth = Program.BotName;
                         auth = auth.Replace("????", "Q"); // Crap usernames
                   
                         // Skip lines already parsed
-                        // Funky check is because log might be BotName or BotUsername
+                        // Skip lines sent by the bot
                         if (c == lastMsg || (auth == Program.BotUsername && lastMsg.Contains(msg)))
                             continue;
-
-                        // Skip messages we sent as replies
+                        lastMsg = c;
+                        
+                        // Skip our own replies
                         if ((auth == Program.BotUsername) && message["referenced_message"] != null)
                             continue;
 
                         // Treat replies to bot as bot messages
+                        // Huh? Will this ever fire?
                         var replyUser = message["referenced_message"] != null ? message["referenced_message"]["author"]["username"]:null;
                         if(replyUser?.ToString() == Program.BotUsername && !msg.StartsWith(Program.BotName))
                             msg = Program.BotName + " " + msg;
 
-                        ChatLog += c + "\r";
-                        lastMsg = c;
-
+                       
                         if (lastMsgTime == DateTime.MinValue && dm)
                         {
                             // First message, we don't respond to it, could be old
                             continue;
                         }
 
-                        if (ChatLog.Length > MAX_BUFFER)
-                            ChatLog = ChatLog.Substring(ChatLog.Length - MAX_BUFFER);
-
+                        
                         Console.WriteLine(c);
 
                         // If you wanna log context, too
@@ -136,12 +142,13 @@ namespace DibbrBot
 
                         var reply = await callback(msg, auth);
 
-                        if (reply != null)
+                        if (reply != null && reply.Length > 0)
                         {
                             lastMsgTime = DateTime.Now;
-                            var c2 = Program.BotName + ": " + reply + "\n";
-                            ChatLog += c2 + "\r";
+                            var c2 = Program.BotName + ": " + reply + "\n\r";
+                            ChatLog += c2;
                             lastMsg = c2;
+                            
                             var response = dm ? await API.send_dm(client, channel, reply) : await API.send_message(client, channel, reply, msgid);
 
                             // Write out our response, along with the question
@@ -171,6 +178,10 @@ namespace DibbrBot
         readonly bool disposed = false;
         MessageRecievedCallback Callback;
 
+        public override void SetChatLog(string log)
+        {
+            ChatLog = log;
+        }
 
         public async override Task Initialize(MessageRecievedCallback callback, string token)
         {

@@ -14,7 +14,7 @@ namespace DibbrBot
     {
         // Shared between all instances
         private static OpenAIAPI api;
-        private static readonly int MAX_TOKENS = 2000;
+        private static  int MAX_CHARS = 1500;
 
         static string CleanText(string txt)
         {
@@ -33,6 +33,11 @@ namespace DibbrBot
                 txt = txt.Substring(0, last);
             return txt;
         }
+
+
+        static float fp = 0, pp = 0.5f, temp = 1;
+        static string engine = "text-davinci-002";
+        static Engine e;
         /// <summary>
         /// Asks OpenAI
         /// </summary>
@@ -43,23 +48,25 @@ namespace DibbrBot
         {
             if (api == null)
             {
-                var eng = new Engine("text-davinci-002") { Owner = "openai", Ready = true };
-                var k = ConfigurationManager.AppSettings["OpenAI"];
-                api = new OpenAI_API.OpenAIAPI(apiKeys: k, engine: eng);
+                e= new Engine(engine) { Owner = "openai", Ready = true };
+                api = new OpenAI_API.OpenAIAPI(apiKeys: ConfigurationManager.AppSettings["OpenAI"], engine: e);
             }
-
+            
+            
+            if (q.Length > MAX_CHARS)
+                q = q.Substring(q.Length - MAX_CHARS);            
+            
             q = q.Trim();
 
-            float fp = 0, pp = 0, temp = 1;
+          
             // Prime it with other questions here
             var latestLine = q.LastIndexOf("\n");
             if (latestLine == -1) latestLine = 0;
             var line = q.Substring(latestLine);
 
-            // q = "questions"+q;
-            
-
-            if(line.Contains("&") && line.Contains("?"))
+            // Set variables like this
+            // dibbr hey ?fp=1&pp=2
+            if (line.Contains("=") && line.Contains("?"))
             {
                 string[] query = line.Split('?');
                 if (query.Length == 2)
@@ -69,32 +76,52 @@ namespace DibbrBot
                         string[] values = pairs.Split('=');
                         if (values[0] == "pp")
                             pp = float.Parse(values[1]);
+                        if (values[0] == "buffer")
+                            MAX_CHARS = int.Parse(values[1]);
                         if (values[0] == "fp")
                             fp = float.Parse(values[1]);
                         if (values[0] == "temp")
                             temp = float.Parse(values[1]);
+                        if (values[0] == "engine")
+                        {
+                            engine = values[1];
+                            e = new Engine(engine) { Owner = "openai", Ready = true };
+                            api = new OpenAI_API.OpenAIAPI(apiKeys: ConfigurationManager.AppSettings["OpenAI"], engine: e);
+                        }
                     }
+
+                    return $"Changes made. Now, fp={fp} pp={pp} temp={temp} engine={engine}";
                 }
             }
 
+
+            string MakeText(string q)
+            {
+                return ConfigurationManager.AppSettings["PrimeText"] + "\n"
+                    + q + "\ndibbr's response: ";
+            }
             // Setup context, insert chat history
-            var txt = ConfigurationManager.AppSettings["PrimeText"] + "\n"
-                    + q +"\nYour response (do NOT repeat) ("+Program.BotName + "):\n";
+            var txt = MakeText(q);
             
             string r = await Q(txt,pp,fp,temp);
-            
-            // If dup, try again
-            if (txt.Contains(r) && r.Length > 20)
-            {                                   
-                r = await Q(txt,pp,fp,2);
-            }
 
+            // If dup, try again
+            var split = r.Split('.');
+            int percentMatch = 0;
+            foreach (var s in split)
+            {
+                if (s.Contains(q))
+                    percentMatch += s.Length;
+            }
+            if (percentMatch > q.Length)
+                return await Q(MakeText(q), pp, fp, 1);
+       
             return r;
 
             static async Task<string> Q(string txt, float pp, float tp, float temp)
             {
                 var result = await api.Completions.CreateCompletionAsync(txt,
-                                temperature: temp, top_p: 1,frequencyPenalty:tp,presencePenalty:pp, max_tokens: MAX_TOKENS, stopSequences: new string[] { Program.BotName + ":" });
+                                temperature: temp, top_p: 1,frequencyPenalty:tp,presencePenalty:pp, max_tokens: 1000, stopSequences: new string[] { Program.BotName + ":" });
                 // var r = CleanText(result.ToString());
 		var r = result.ToString();
                 Console.WriteLine("GPT3 response: " + r);
@@ -119,7 +146,7 @@ namespace DibbrBot
             var stops =
                 new string[] { Program.BotName + ":" };
             var result = await api.Completions.CreateCompletionAsync(q,
-                temperature: 0.8, top_p: 1, max_tokens: MAX_TOKENS, stopSequences: stops);
+                temperature: 0.8, top_p: 1, max_tokens: 1000, stopSequences: stops);
 
             var r = result.ToString();
             Console.WriteLine("GPT3 response: " + r);

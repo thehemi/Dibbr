@@ -13,6 +13,12 @@ namespace DibbrBot
     class SlackChat : IChatSystem
     {
         private string ChatLog = "";
+
+        public override void SetChatLog(string str)
+        {
+            ChatLog = str;
+        }
+        
         public MessageRecievedCallback Callback;
         public SlackChat()
         {
@@ -37,7 +43,7 @@ namespace DibbrBot
                 {
                     var txt = message.Text;
 
-                    // Change @bot to bot, query
+                // Change @bot to bot, query
                     if (message.MentionsBot)
                     {
                         txt = Program.BotName + " " + txt[(txt.IndexOf(">") + 1)..];
@@ -48,18 +54,19 @@ namespace DibbrBot
                     if (txt.ToLower().StartsWith(Program.BotName))
                     {
                         message.ReplyWith(async () =>
-                        {
-                            var msg = await callback(txt, message.User.Name);
-                            if (msg == null)
-                                return null;
-                            else
-                            {
-                                @ChatLog += "dibbr: " + msg + "\n";
-                                return new BotMessage { Text = msg };
-                            }
-                        });
+                    {
+                                var msg = await callback(txt, message.User.Name);
+                                if (msg == null)
+                                    return null;
+                                else
+                                {
+
+                                    @ChatLog += Program.BotName+": " + msg + "\n";
+                                    return new BotMessage { Text = msg };
+                                }
+                            });
                     }
-                    /* handle message */
+                /* handle message */
                 };
                 //  bot.Messages.Subscribe(( message) => {
                 //     Console.WriteLine(message.Text);
@@ -71,7 +78,7 @@ namespace DibbrBot
                     await bot.Connect();
                     await Task.Delay(200);
                 }
-                catch(Exception e)
+                catch (Exception e)
                 { Console.WriteLine(e.Message); }
                 while (true) { }
             });
