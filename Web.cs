@@ -38,7 +38,7 @@ class Web
             var page = txt;
             page = page.Replace("{Discord}", discord);
             page = page.Replace("{OpenAI}", openai);
-
+             
             if (discord.Length > 0 && openai.Length > 0)
             {
                 foreach (var c in clients)

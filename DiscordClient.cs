@@ -42,12 +42,7 @@ namespace DibbrBot
             this.dm = isdm;
             this.channel = channel;
         }
-        private static List<string> TakeLastLines(string text, int count)
-        {
-            var lines = text.Split("\n\r");
-
-            return new List<string>(lines);
-        }
+        
         public override async Task Initialize(MessageRecievedCallback callback, string token = null)
         {
             if (client == null)
@@ -85,10 +80,26 @@ namespace DibbrBot
                     var msgList = new List<string>();
                     var messages = await API.getLatestMessages(client, channel);
 
-                    var log = TakeLastLines(ChatLog, messages.Count);
+                    // Skip messages already replied to
+                    foreach(var msg in messages)
+                    {
+                        var id = msg["referenced_message"]?["id"].ToString();
+                        if (id == null)
+                            continue;
+                        foreach(var msg2 in messages)
+                        {
+                            if (msg2["id"].ToString() == id)
+                            {
+                                msg2["skip"] = "skip";
+                            }
+                        }
+                    }
+                    var log = ChatLog.TakeLastLines(messages.Count);
                     for (int i = 0; i < messages.Count; i++)
                     {
                         var message = messages[i];
+                        if (message["skip"] != null)
+                            continue;
                         var msgid = message["id"].ToString();
                         var msg = message["content"].ToString();
                         var auth = message["author"]["username"].ToString();
@@ -268,6 +279,16 @@ namespace DibbrBot
                 Initialize(null, null).Dispose();
             }
 
+        }
+    }
+
+    public static class StringHelp
+    {
+        public static List<string> TakeLastLines(this string text, int count)
+        {
+            var lines = text.Split("\n\r");
+
+            return new List<string>(lines);
         }
     }
 }

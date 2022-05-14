@@ -195,15 +195,16 @@ namespace DibbrBot
                 client.SetChatLog("");
                 return "Memory erased";
             }
-            var txt = (await gpt3.Ask(client.GetChatLog(), user));
+            var txt = (await gpt3.Ask(msg,client.GetChatLog(), user));
             if (txt == null)
                 return null;
 
-            txt = CleanText(txt);
+          //  txt = CleanText(txt);
 
             if (client.GetChatLog().Contains(txt))
             {
                 Console.WriteLine("Already said that. Should not happen");
+                return null;
             }
 
 

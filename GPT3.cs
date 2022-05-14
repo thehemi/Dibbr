@@ -19,7 +19,7 @@ namespace DibbrBot
 
         string token;
         private OpenAIAPI api;
-        private   int MAX_CHARS = 1500;
+        private int MAX_CHARS = 100; // GPT-3 working memory is 100 chars
 
         static string CleanText(string txt)
         {
@@ -49,7 +49,7 @@ namespace DibbrBot
         /// <param name="q"></param>
         /// <param name="user"></param>
         /// <returns></returns>
-        public  async Task<string> Ask(string q, string user = "")
+        public  async Task<string> Ask(string msg, string log, string user = "")
         {
             if (api == null)
             {
@@ -58,19 +58,9 @@ namespace DibbrBot
             }
             
             
-            if (q.Length > MAX_CHARS)
-                q = q[^MAX_CHARS..];            
-            
-            q = q.Trim();
-
-          
-            // Prime it with other questions here
-            var latestLine = q.LastIndexOf("\n");
-            if (latestLine == -1) latestLine = 0;
-            var line = q[latestLine..];
-
             // Set variables like this
             // dibbr hey ?fp=1&pp=2
+            var line = msg;
             if (line.Contains("=") && line.Contains("?"))
             {
                 string[] query = line.Split('?');
@@ -100,13 +90,17 @@ namespace DibbrBot
             }
 
 
-            string MakeText(string q)
+            string MakeText()
             {
+                if (log.Length > MAX_CHARS)
+                    log = log[^MAX_CHARS..];
+                log = log.Trim();                
+                
                 return ConfigurationManager.AppSettings["PrimeText"] + "\n"
-                    + q + "\ndibbr's response: ";
+                    + log + msg + "\ndibbr's response: ";
             }
             // Setup context, insert chat history
-            var txt = MakeText(q);
+            var txt = MakeText();
             
             string r = await Q(txt,pp,fp,temp);
 
@@ -115,11 +109,15 @@ namespace DibbrBot
             int percentMatch = 0;
             foreach (var s in split)
             {
-                if (s.Contains(q))
+                if (log.Contains(s))
                     percentMatch += s.Length;
             }
-            if (percentMatch > q.Length)
-                return await Q(MakeText(q), pp, fp, 1);
+            // Ask new Q if our answer was too similar to the previous one
+            if (percentMatch > log.Length / 2)
+            {
+                log = "";
+                return await Q(MakeText(), pp, fp, 1);
+            }                
        
             return r;
 
@@ -130,6 +128,7 @@ namespace DibbrBot
                 // var r = CleanText(result.ToString());
 		var r = result.ToString();
                 Console.WriteLine("GPT3 response: " + r);
+                r = r.Trim(); ;
                 return r;
             }
         }
