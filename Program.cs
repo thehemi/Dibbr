@@ -40,14 +40,15 @@ namespace DibbrBot
         {
             Console.ForegroundColor = ConsoleColor.Green;       
             Console.WriteLine(prompt);
-            Console.ForegroundColor = ConsoleColor.Black;
+            Console.ForegroundColor = ConsoleColor.White;
             return Console.ReadLine();
         }
 
         static void Main(string[] args)
         {
             Console.WriteLine("DibbrBot is starting...Settings are in App.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
-
+            Web.Run();
+            
             // var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
             var primeText = ConfigurationManager.AppSettings["PrimeText"];
             if (primeText == null)
@@ -120,27 +121,34 @@ namespace DibbrBot
             // Start the bot on all chat services
             new Thread(async () =>
             {
+                var gpt3 = new GPT3(ConfigurationManager.AppSettings["OpenAI"]);
+                
                 var clients = new List<IChatSystem>();
                 var slackToken = ConfigurationManager.AppSettings["SlackBotApiToken"];
-                if (slackToken != null)
+                if (slackToken != null && slackToken.Length > 0)
                 {
                     var client = new SlackChat();
-                    _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user); }, slackToken);
+                    _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user,gpt3); }, slackToken);
                 }
                 
-                slackToken = "xoxb-3027888414759-3509949993762-U1NUr8Je55qSW25DF4WJHKSH";
-                var client2 = new SlackChat();
-                _ = client2.Initialize(async (msg, user) => { return await OnMessage(client2, msg, user); }, slackToken);
+                // I have two slack workspaces, so I use two tokens. You probably won't
+                slackToken = ConfigurationManager.AppSettings["SlackBotApiToken2"];
+                if (slackToken != null && slackToken.Length > 0)
+                {
+                    var client2 = new SlackChat();
+                    _ = client2.Initialize(async (msg, user) => { return await OnMessage(client2, msg, user, gpt3); }, slackToken);
+                }                    
                 
                 var discordBot = ConfigurationManager.AppSettings["DiscordBot"];
-                if (discordBot != null)
+                if (discordBot != null && discordBot.Length > 0)
                 {
                     var client = new DiscordChatV2();
-                    _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user); }, ConfigurationManager.AppSettings["DiscordBot"]);
+                    _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user, gpt3); }, ConfigurationManager.AppSettings["DiscordBot"]);
                 }
 
                 // Selfbot
-                if (ConfigurationManager.AppSettings["Discord"] != null)
+                var discord = ConfigurationManager.AppSettings["Discord"];
+                if (discord != null && discord.Length > 0)
                 {
                     foreach (var chat in chats)
                     {
@@ -149,7 +157,7 @@ namespace DibbrBot
 
                         client = new DiscordChat(false, words[0] == "DM", words[1]/*Channel id, room or dm*/);
                         systems.Add(client);
-                        _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user); }, ConfigurationManager.AppSettings["Discord"]);
+                        _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user, gpt3); }, discord);
                     }
                 }
 
@@ -168,7 +176,7 @@ namespace DibbrBot
         /// <param name="msg"></param>
         /// <param name="user"></param>
         /// <returns></returns>
-        static async Task<string> OnMessage(IChatSystem client, string msg, string user)
+        static public async Task<string> OnMessage(IChatSystem client, string msg, string user, GPT3 gpt3)
         {
             if (msg.ToLower().StartsWith(BotName + " timeout") || msg.ToLower().StartsWith(BotName + ", timeout"))
             {
@@ -187,7 +195,7 @@ namespace DibbrBot
                 client.SetChatLog("");
                 return "Memory erased";
             }
-            var txt = (await GPT3.Ask(client.GetChatLog(), user));
+            var txt = (await gpt3.Ask(client.GetChatLog(), user));
             if (txt == null)
                 return null;
 
@@ -215,15 +223,17 @@ namespace DibbrBot
                     // Gay stuff GPT-3 likes to return
                     if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
                     {
-                        txt = txt.Substring(txt.IndexOfAny(new char[] { '.', ',' }) + 1);
+                        txt = txt[(txt.IndexOfAny(new char[] { '.', ',' }) + 1)..];
+                        // Capitalize
+                        txt = $"{char.ToUpper(txt[0])}{txt[1..]}";
                     }
 
                     // Remove  There's no right or wrong answer blah blah blah at the end
                     var last = txt.IndexOf("Ultimately,");
                     if (last != -1)
-                        txt = txt.Substring(0, last);
+                        txt = txt[..last];
 
-                    txt = $"{char.ToUpper(txt[0])}{txt[1..]}";
+                    
                 }
                 catch(Exception e) { }
                 return txt;

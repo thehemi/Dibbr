@@ -12,9 +12,14 @@ namespace DibbrBot
     /// </summary>
     public class GPT3
     {
-        // Shared between all instances
-        private static OpenAIAPI api;
-        private static  int MAX_CHARS = 1500;
+        public GPT3(string token)
+        {
+            this.token = token;
+        }
+
+        string token;
+        private OpenAIAPI api;
+        private   int MAX_CHARS = 1500;
 
         static string CleanText(string txt)
         {
@@ -24,37 +29,37 @@ namespace DibbrBot
             // Gay stuff GPT-3 likes to return
             if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
             {
-                txt = txt.Substring(txt.IndexOfAny(new char[] { '.', ',' }) + 1);
+                txt = txt[(txt.IndexOfAny(new char[] { '.', ',' }) + 1)..];
             }
 
             // Remove  There's no right or wrong answer blah blah blah at the end
             var last = txt.IndexOf("Ultimately,");
             if (last != -1)
-                txt = txt.Substring(0, last);
+                txt = txt[..last];
             return txt;
         }
 
-
-        static float fp = 0, pp = 0.5f, temp = 1;
-        static string engine = "text-davinci-002";
-        static Engine e;
+        
+         float fp = 0, pp = 0.5f, temp = 1;
+         string engine = "text-davinci-002";
+         Engine e;
         /// <summary>
         /// Asks OpenAI
         /// </summary>
         /// <param name="q"></param>
         /// <param name="user"></param>
         /// <returns></returns>
-        public static async Task<string> Ask(string q, string user = "")
+        public  async Task<string> Ask(string q, string user = "")
         {
             if (api == null)
             {
                 e= new Engine(engine) { Owner = "openai", Ready = true };
-                api = new OpenAI_API.OpenAIAPI(apiKeys: ConfigurationManager.AppSettings["OpenAI"], engine: e);
+                api = new OpenAI_API.OpenAIAPI(apiKeys: token, engine: e);
             }
             
             
             if (q.Length > MAX_CHARS)
-                q = q.Substring(q.Length - MAX_CHARS);            
+                q = q[^MAX_CHARS..];            
             
             q = q.Trim();
 
@@ -62,7 +67,7 @@ namespace DibbrBot
             // Prime it with other questions here
             var latestLine = q.LastIndexOf("\n");
             if (latestLine == -1) latestLine = 0;
-            var line = q.Substring(latestLine);
+            var line = q[latestLine..];
 
             // Set variables like this
             // dibbr hey ?fp=1&pp=2
@@ -86,7 +91,7 @@ namespace DibbrBot
                         {
                             engine = values[1];
                             e = new Engine(engine) { Owner = "openai", Ready = true };
-                            api = new OpenAI_API.OpenAIAPI(apiKeys: ConfigurationManager.AppSettings["OpenAI"], engine: e);
+                            api = new OpenAI_API.OpenAIAPI(apiKeys: token, engine: e);
                         }
                     }
 
@@ -118,7 +123,7 @@ namespace DibbrBot
        
             return r;
 
-            static async Task<string> Q(string txt, float pp, float tp, float temp)
+             async Task<string> Q(string txt, float pp, float tp, float temp)
             {
                 var result = await api.Completions.CreateCompletionAsync(txt,
                                 temperature: temp, top_p: 1,frequencyPenalty:tp,presencePenalty:pp, max_tokens: 1000, stopSequences: new string[] { Program.BotName + ":" });
@@ -140,7 +145,7 @@ namespace DibbrBot
             if (api == null)
             {
                 var eng = new Engine("text-davinci-002") { Owner = "openai", Ready = true };
-                var k = ConfigurationManager.AppSettings["OpenAI"];
+                var k = token;
                 api = new OpenAI_API.OpenAIAPI(apiKeys: k, engine: eng);
             }
             var stops =

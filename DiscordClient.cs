@@ -40,12 +40,12 @@ namespace DibbrBot
         public DiscordChat(bool IsBot, bool isdm, string channel)
         {
             this.dm = isdm;
-            this.channel = channel;    
+            this.channel = channel;
         }
         private static List<string> TakeLastLines(string text, int count)
         {
             var lines = text.Split("\n\r");
-            
+
             return new List<string>(lines);
         }
         public override async Task Initialize(MessageRecievedCallback callback, string token = null)
@@ -62,7 +62,7 @@ namespace DibbrBot
                 // SSL Certificate Bypass
                 System.Net.ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
                 // 2 secs for headers to take
-               // await Task.Delay(1000);
+                // await Task.Delay(1000);
             }
             //  await Task.Delay(1000);
             var lastMsgTime = DateTime.MinValue;
@@ -77,63 +77,63 @@ namespace DibbrBot
                                 return true;
                         return false;
                     }
-                    
+
                     await Task.Delay(2000 + (int)(new Random().NextDouble() * 500));
                     // Read message
                     // TODO: Use getLatestMessages()
                     // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
                     var msgList = new List<string>();
                     var messages = await API.getLatestMessages(client, channel);
-                    
+
                     var log = TakeLastLines(ChatLog, messages.Count);
-                    for(int i=0;i<messages.Count;i++)
+                    for (int i = 0; i < messages.Count; i++)
                     {
                         var message = messages[i];
                         var msgid = message["id"].ToString();
                         var msg = message["content"].ToString();
                         var auth = message["author"]["username"].ToString();
-                        
+
                         var c = auth + ": " + msg;
-                        
+
                         // FIXME: Will block repeating messages
-                        if (Contains(log,c))
+                        if (Contains(log, c))
                             continue;
 
                         c += "\n\r";
                         ChatLog += c;
                         if (ChatLog.Length > MAX_BUFFER)
-                            ChatLog = ChatLog.Substring(ChatLog.Length - MAX_BUFFER);
-                       
-                        
+                            ChatLog = ChatLog[^MAX_BUFFER..];
+
+
                         // Make bot recognize the user as itself
                         // if (auth == Program.BotUsername && !msg.ToLower().StartsWith(Program.BotName))
                         //      auth = Program.BotName;
                         auth = auth.Replace("????", "Q"); // Crap usernames
-                  
+
                         // Skip lines already parsed
                         // Skip lines sent by the bot
                         if (c == lastMsg || (auth == Program.BotUsername && lastMsg.Contains(msg)))
                             continue;
                         lastMsg = c;
-                        
+
                         // Skip our own replies
                         if ((auth == Program.BotUsername) && message["referenced_message"] != null)
                             continue;
 
                         // Treat replies to bot as bot messages
                         // Huh? Will this ever fire?
-                        var replyUser = message["referenced_message"] != null ? message["referenced_message"]["author"]["username"]:null;
-                        if(replyUser?.ToString() == Program.BotUsername && !msg.StartsWith(Program.BotName))
+                        var replyUser = message["referenced_message"] != null ? message["referenced_message"]["author"]["username"] : null;
+                        if (replyUser?.ToString() == Program.BotUsername && !msg.StartsWith(Program.BotName))
                             msg = Program.BotName + " " + msg;
 
-                       
+
                         if (lastMsgTime == DateTime.MinValue && dm)
                         {
                             // First message, we don't respond to it, could be old
                             continue;
                         }
 
-                        
+
                         Console.WriteLine(c);
 
                         // If you wanna log context, too
@@ -148,13 +148,13 @@ namespace DibbrBot
                             var c2 = Program.BotName + ": " + reply + "\n\r";
                             ChatLog += c2;
                             lastMsg = c2;
-                            
+
                             var response = dm ? await API.send_dm(client, channel, reply) : await API.send_message(client, channel, reply, msgid);
 
                             // Write out our response, along with the question
                             File.AppendAllText("chat_log_" + channel + ".txt", c + c2);
                         }
-                    }                        
+                    }
                 }
 
                 Console.WriteLine("How did I get here?");
@@ -170,6 +170,7 @@ namespace DibbrBot
     /// </summary>
     class DiscordChatV2 : IChatSystem, IDisposable
     {
+        public string id = "";
         public string ChatLog = "";
         public override string GetChatLog() { return ChatLog; }
         private readonly int MAX_BUFFER = 1000; // Chat buffer to GPT3 (memory) THIS CAN GET EXPENSIVE
@@ -185,6 +186,7 @@ namespace DibbrBot
 
         public async override Task Initialize(MessageRecievedCallback callback, string token)
         {
+            id = token;
             Callback = callback;
             try
             {
@@ -202,12 +204,13 @@ namespace DibbrBot
 
                 await _discordClient.ConnectAsync();
                 Console.WriteLine("V 2.0 Discord Bot Client Online");
+
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
                 System.Threading.Thread.Sleep(5000);
-                Environment.Exit(0);
+
             }
             await Task.Delay(-1);
         }
@@ -227,7 +230,7 @@ namespace DibbrBot
                 var c = e.Author.Username + ": " + e.Message.Content + "\n";
                 ChatLog += c;
                 if (ChatLog.Length > MAX_BUFFER)
-                    ChatLog = ChatLog.Substring(ChatLog.Length - MAX_BUFFER);
+                    ChatLog = ChatLog[^MAX_BUFFER..];
 
                 var first = lastMsg == "";
                 if (c == lastMsg)
@@ -262,7 +265,7 @@ namespace DibbrBot
                 return;
             if (disposing)
             {
-                  Initialize(null,null).Dispose();
+                Initialize(null, null).Dispose();
             }
 
         }

@@ -85,7 +85,7 @@ namespace DibbrBot
 
             // Discord limit without nitro
             if (content.Length > 2000)
-                content = content.Substring(content.Length - 2000);
+                content = content[^2000..];
             
             var c = content;
             content = content.Replace("\n", "\\n");
@@ -117,9 +117,9 @@ namespace DibbrBot
                     if (i == 2)
                         content = Regex.Escape(c);
                     if (i == 3)
-                        content = content.Substring(0, content.Length / 2) + "...(snipped due to send failure)";
+                        content = content[..(content.Length / 2)] + "...(snipped due to send failure)";
                     if (i == 4)
-                        content = "The message I was trying to send failed for some reason. Maybe it was too big or had funny characters in? First 100 chars: "+c.Substring(0,20).Replace("\n","");
+                        content = "The message I was trying to send failed for some reason. Maybe it was too big or had funny characters in? First 100 chars: "+c[..20].Replace("\n","");
                     await Task.Delay(3000);
                 }
             }
