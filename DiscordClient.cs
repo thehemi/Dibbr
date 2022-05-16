@@ -86,7 +86,7 @@ namespace DibbrBot
                     {
                         var id = msg["referenced_message"]?["id"]?.ToString();
                         // We're looking for a message that has not been replied to by us
-                        if (id == null || msg["author"]["username"].ToString() != Program.BotUsername)
+                        if (id == null || msg["author"]?["username"].ToString() != Program.BotUsername)
                             continue;
                         foreach(var msg2 in messages)
                         {

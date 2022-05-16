@@ -19,7 +19,7 @@ namespace DibbrBot
 
         string token;
         private OpenAIAPI api;
-        private int MAX_CHARS = 1500; // GPT-3 working memory is 100 chars
+        private int MAX_CHARS = 500; // GPT-3 working memory is 100 chars
 
         static string CleanText(string txt)
         {
@@ -88,7 +88,11 @@ namespace DibbrBot
                     return $"Changes made. Now, fp={fp} pp={pp} temp={temp} engine={engine}";
                 }
             }
-
+            int oldMax = MAX_CHARS;
+            if (msg.ToLower().Contains("remember") || msg.ToLower().Contains("recall") || msg.Contains("what i said"))
+            {
+                MAX_CHARS = 4000;
+            }
 
             string MakeText()
             {
@@ -101,7 +105,7 @@ namespace DibbrBot
             }
             // Setup context, insert chat history
             var txt = MakeText();
-            
+            MAX_CHARS = oldMax;
             string r = await Q(txt,pp,fp,temp);
 
             // If dup, try again

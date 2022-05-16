@@ -48,7 +48,6 @@ class Web
                         return page;
                     }
 
-                Debug.Assert(discord=="OTcyMDEzNzE4MTY4ODEzNTk5.G9rkGu.KVH8XUMx4W8VRXMMLwcnDvlXlfCgpvY_EnVM28");
                 page = page.Replace("{Status}", "Dibbr initialized with provided keys! Try summoning him in your server chat with dibbr, hi!");
                 var gpt3 = new GPT3(openai);
                 var client = new DiscordChatV2() { };

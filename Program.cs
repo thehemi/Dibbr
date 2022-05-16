@@ -178,10 +178,10 @@ namespace DibbrBot
         /// <returns></returns>
         static public async Task<string> OnMessage(IChatSystem client, string msg, string user, GPT3 gpt3)
         {
-            if (msg.ToLower().StartsWith(BotName + " timeout") || msg.ToLower().StartsWith(BotName + ", timeout"))
+            if (msg.ToLower().StartsWith(BotName) && (msg.ToLower().Contains("timeout") || msg.ToLower().Contains("please stop")))
             {
                 await Task.Delay(5 * 60000);
-                return null;
+                return "I will timeout for 5 minutes";
             }
 
             // Do we have a message for the bot?
