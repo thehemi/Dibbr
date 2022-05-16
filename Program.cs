@@ -55,14 +55,14 @@ namespace DibbrBot
             {
                 Console.WriteLine("");
 
-                Console.WriteLine("Paste your priming text here, e.g. Dibbr is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
+                Console.WriteLine("Paste your priming text here, e.g. "+Program.BotName+" is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
                 primeText = Prompt("\nPriming Text (Or Press Enter for default):");
                 if (primeText == null || primeText == "")
                 {
-                    primeText = "Dibbr is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats " +
-                " dibbr will write long responses and articles or fan fiction upon request. Dibbr was made by dabbr, and his favorite animal is the sexually violent time travelling truffle pig, of which he likes to tell stories.";
+                    primeText = "" + Program.BotName + " is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats " +
+                " dibbr will write long responses and articles or fan fiction upon request. " + Program.BotName + " was made by dabbr, and his favorite animal is the sexually violent time travelling truffle pig, of which he likes to tell stories.";
 
-                    primeText += "\nThe folowing is the chat log with dibbr:\n";
+                    primeText += "\nThe folowing is the chat log with " + Program.BotName + ":\n";
                 }
 
                 Set("PrimeText", primeText + "\n");
@@ -127,6 +127,7 @@ namespace DibbrBot
                 var slackToken = ConfigurationManager.AppSettings["SlackBotApiToken"];
                 if (slackToken != null && slackToken.Length > 0)
                 {
+                    Console.WriteLine("Slack initializing....");
                     var client = new SlackChat();
                     _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user,gpt3); }, slackToken);
                 }
@@ -142,6 +143,7 @@ namespace DibbrBot
                 var discordBot = ConfigurationManager.AppSettings["DiscordBot"];
                 if (discordBot != null && discordBot.Length > 0)
                 {
+                    Console.WriteLine("Discord Bot initializing....");
                     var client = new DiscordChatV2();
                     _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user, gpt3); }, ConfigurationManager.AppSettings["DiscordBot"]);
                 }
@@ -150,16 +152,20 @@ namespace DibbrBot
                 var discord = ConfigurationManager.AppSettings["Discord"];
                 if (discord != null && discord.Length > 0)
                 {
+                    Console.WriteLine("Discord Self Bot initializing....");
                     foreach (var chat in chats)
                     {
                         var words = chat.Split(' ');
                         IChatSystem client;
+                        Console.WriteLine("Discord Bot Added to "+words[0]+" channel " + words[1]);
 
                         client = new DiscordChat(false, words[0] == "DM", words[1]/*Channel id, room or dm*/);
                         systems.Add(client);
                         _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user, gpt3); }, discord);
                     }
                 }
+
+                Console.WriteLine("All initialization done");
 
             })
             {
@@ -169,6 +175,7 @@ namespace DibbrBot
             while (true) { }
         }
 
+        static DateTime breakTime;
         /// <summary>
         /// This is the main message handler for the bot
         /// </summary>
@@ -178,14 +185,18 @@ namespace DibbrBot
         /// <returns></returns>
         static public async Task<string> OnMessage(IChatSystem client, string msg, string user, GPT3 gpt3)
         {
-            if (msg.ToLower().StartsWith(BotName) && (msg.ToLower().Contains("timeout") || msg.ToLower().Contains("please stop")))
+            if (DateTime.Now < breakTime)
+                return null;
+            
+            if (msg.ToLower().StartsWith(BotName) && (msg.ToLower().Contains("timeout") || msg.ToLower().Contains("please stop") || msg.ToLower().Contains("take a break")))
             {
-                await Task.Delay(5 * 60000);
-                return "I will timeout for 5 minutes";
+        
+                breakTime = DateTime.Now.AddMinutes(10);
+                return "I will timeout for 10 minutes";
             }
 
             // Do we have a message for the bot?
-            if (!msg.ToLower().Replace("hey ","").StartsWith(BotName))// || (c.Length > 20 && c.Contains("?")))
+            if (!msg.ToLower().Replace("hey ","").Replace("yo","").StartsWith(BotName))// || (c.Length > 20 && c.Contains("?")))
                 return null;
 
             // Commands
