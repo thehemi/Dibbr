@@ -73,18 +73,20 @@ namespace DibbrBot
                         return false;
                     }
 
-                    await Task.Delay(2000 + (int)(new Random().NextDouble() * 500));
+                    await Task.Delay(3000 + (int)(new Random().NextDouble() * 500));
                     // Read message
                     // TODO: Use getLatestMessages()
                     // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
                     var msgList = new List<string>();
                     var messages = await API.getLatestMessages(client, channel);
-
+                    if (messages == null)
+                        continue;
                     // Skip messages already replied to
                     foreach(var msg in messages)
                     {
-                        var id = msg["referenced_message"]?["id"].ToString();
-                        if (id == null)
+                        var id = msg["referenced_message"]?["id"]?.ToString();
+                        // We're looking for a message that has not been replied to by us
+                        if (id == null || msg["author"]["username"].ToString() != Program.BotUsername)
                             continue;
                         foreach(var msg2 in messages)
                         {
@@ -112,9 +114,6 @@ namespace DibbrBot
 
                         c += "\n\r";
                         ChatLog += c;
-                        if (ChatLog.Length > MAX_BUFFER)
-                            ChatLog = ChatLog[^MAX_BUFFER..];
-
 
                         // Make bot recognize the user as itself
                         // if (auth == Program.BotUsername && !msg.ToLower().StartsWith(Program.BotName))
@@ -146,13 +145,22 @@ namespace DibbrBot
 
 
                         Console.WriteLine(c);
-
+                        
                         // If you wanna log context, too
                         // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
                         //  File.AppendAllText("chat_log_" + channel + ".txt", c);
-
-                        var reply = await callback(msg, auth);
-
+                        string reply = null;
+                        try
+                        {
+                            reply = await callback(msg, auth);
+                        }
+                        catch(Exception e)
+                        {
+                            await Task.Delay(1000);
+                            try { reply = await callback(msg, auth); } catch (Exception) { }
+                            if(reply==null)
+                                 Console.WriteLine(e.Message);
+                        }
                         if (reply != null && reply.Length > 0)
                         {
                             lastMsgTime = DateTime.Now;

@@ -19,7 +19,7 @@ namespace DibbrBot
 
         string token;
         private OpenAIAPI api;
-        private int MAX_CHARS = 100; // GPT-3 working memory is 100 chars
+        private int MAX_CHARS = 1500; // GPT-3 working memory is 100 chars
 
         static string CleanText(string txt)
         {
@@ -116,7 +116,7 @@ namespace DibbrBot
             if (percentMatch > log.Length / 2)
             {
                 log = "";
-                return await Q(MakeText(), pp, fp, 1);
+                return await Q(MakeText(), pp, fp, 1)+"\nDev Note: This is the second message dibbr came up with. The first was too repeptitive";
             }                
        
             return r;
