@@ -131,7 +131,6 @@ namespace DibbrBot
                             continue;
 
                         // Treat replies to bot as bot messages
-                        // Huh? Will this ever fire?
                         var replyUser = message["referenced_message"] != null ? message["referenced_message"]["author"]["username"] : null;
                         if (replyUser?.ToString() == Program.BotUsername && !msg.StartsWith(Program.BotName))
                             msg = Program.BotName + " " + msg;

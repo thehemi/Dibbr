@@ -19,7 +19,7 @@ namespace DibbrBot
 
         string token;
         private OpenAIAPI api;
-        private int MAX_CHARS = 500; // GPT-3 working memory is 100 chars
+        private int MAX_CHARS = 1000; // GPT-3 working memory is 100 chars
 
         static string CleanText(string txt)
         {
@@ -49,7 +49,7 @@ namespace DibbrBot
         /// <param name="q"></param>
         /// <param name="user"></param>
         /// <returns></returns>
-        public  async Task<string> Ask(string msg, string log, string user = "")
+        public  async Task<string> Ask(string msg, string log, string user = "", string endtxt= "dibbr's response: ")
         {
             if (api == null)
             {
@@ -101,7 +101,7 @@ namespace DibbrBot
                 log = log.Trim();                
                 
                 return ConfigurationManager.AppSettings["PrimeText"] + "\n"
-                    + log + msg + "\ndibbr's response: ";
+                    + log + user + ": "+msg + "\n"+endtxt;
             }
             // Setup context, insert chat history
             var txt = MakeText();
@@ -109,21 +109,27 @@ namespace DibbrBot
             string r = await Q(txt,pp,fp,temp);
 
             // If dup, try again
-            var split = r.Split('.');
+            var split = r.Split(new char[] { '.' });
             int percentMatch = 0;
+            var response = "";
             foreach (var s in split)
             {
                 if (log.Contains(s))
                     percentMatch += s.Length;
+                else
+                    response += s +".";
             }
+            if (response == "")
+                return null;
+            return response;
             // Ask new Q if our answer was too similar to the previous one
-            if (percentMatch > log.Length / 2)
+         /*   if (percentMatch > log.Length / 3)
             {
                 log = "";
-                return await Q(MakeText(), pp, fp, 1)+"\nDev Note: This is the second message dibbr came up with. The first was too repeptitive";
+                return null;// await Q(MakeText(), pp, fp, 1)+"\nDev Note: This is the second message "+Program.BotName+" came up with. The first was too repeptitive";
             }                
        
-            return r;
+            return r;*/
 
              async Task<string> Q(string txt, float pp, float tp, float temp)
             {

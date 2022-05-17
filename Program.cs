@@ -46,7 +46,9 @@ namespace DibbrBot
 
         static void Main(string[] args)
         {
-            Console.WriteLine("DibbrBot is starting...Settings are in App.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
+            BotName = BotName.ToLower();
+            BotUsername = BotUsername.ToLower();
+            Console.WriteLine($"{Program.BotName} is starting...Settings are in App.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
             Web.Run();
             
             // var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
@@ -60,7 +62,7 @@ namespace DibbrBot
                 if (primeText == null || primeText == "")
                 {
                     primeText = "" + Program.BotName + " is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats " +
-                " dibbr will write long responses and articles or fan fiction upon request. " + Program.BotName + " was made by dabbr, and his favorite animal is the sexually violent time travelling truffle pig, of which he likes to tell stories.";
+                $"{Program.BotName} will write long responses and articles or fan fiction upon request. " + Program.BotName + " was made by dabbr. {Program.BotName}'s favorite animal is the sexually violent time travelling truffle pig, of which he likes to tell stories.";
 
                     primeText += "\nThe folowing is the chat log with " + Program.BotName + ":\n";
                 }
@@ -68,35 +70,38 @@ namespace DibbrBot
                 Set("PrimeText", primeText + "\n");
             }
 
-            var discord = ConfigurationManager.AppSettings["DiscordBot"];
-            if (discord == null && ConfigurationManager.AppSettings["Discord"] == null)
+     
+            if (ConfigurationManager.AppSettings["DiscordBot"] == null && ConfigurationManager.AppSettings["Discord"] == null)
             {
-                Console.WriteLine("How to find your discord token: https://youtu.be/YEgFvgg7ZPI");
-                Console.WriteLine("If this is a bot token, please paste Bot <token> below");
-                discord = Prompt("\nToken (or leave blank for none):");
+                Console.WriteLine("How to find your discord token: https://youtu.be/YEgFvgg7ZPI . OR you can use a Discord bot token, available on the developer discord page.");
+                var discord = Prompt("\nToken (or leave blank for none):").Replace("Bot ", "");
                 if (discord!=null&&discord.Length > 10)
                 {
-                    if (discord.Contains("Bot "))
-                        Set("DiscordBot", discord.Replace("Bot ", ""));
-                    else
-                        Set("Discord", discord);
+                        var isBot = Prompt("Is this a bot token? Y/N: ");
+                        if(isBot.ToLower() == "y")
+                             Set("DiscordBot", discord);
+                        else
+                            Set("Discord", discord);
                 }
 
             }
 
             // For selfbot only
             // chats.txt stores the list of channels and dms that the bot is listening to
-            var chats = File.ReadAllLines("chats.txt").Where(l => l.Length > 0).ToArray();
-            if (chats.Length == 0 && discord != null && !discord.Contains("Bot"))
+            var chats = File.ReadAllLines("chats.txt").Where(l => l.Length > 0).ToList();
+            if (chats.Count == 0 && ConfigurationManager.AppSettings["Discord"] != null)
             {
                 Console.WriteLine("You are using a SELFBOT (no Bot <token>) BE CAREFUL. You can add channels and dms to the chats.txt file to make the bot listen to them.");
-                chats = new string[] { "" };
-                Console.WriteLine("Type ROOM or DM, then press return");
-                chats[0] += Console.ReadLine() + " ";
-                Console.WriteLine("How to find server and channel id: https://youtu.be/NLWtSHWKbAI\n");
-                Console.WriteLine("Please enter a room or chat id for the bot to join, then press return. ");
-                chats[0] += Console.ReadLine();
-                Console.WriteLine("String is " + chats[0]);
+                while (true)
+                {
+                    var chat = Prompt("Type ROOM or DM, then press return").ToUpper() + " ";
+                    Console.WriteLine("How to find server and channel id: https://youtu.be/NLWtSHWKbAI\n");
+                    chat += Prompt("Please enter a room or chat id for the bot to join, then press return. ");
+                    var ret = Prompt("Added! Any more? Press enter if done, otherwise type more and press enter");
+                    chats.Add(chat);
+                    if (ret != "more")
+                        break;
+                }
                 File.WriteAllLines("chats.txt", chats);
             }
 
@@ -112,15 +117,19 @@ namespace DibbrBot
             if (ConfigurationManager.AppSettings["OpenAI"] == null)
             {
                 Console.WriteLine("Where to find your OpenAI API Key: https://beta.openai.com/account/api-keys");
-                Console.WriteLine("Paste your OpenAI Key here:");
-                var token = Console.ReadLine();
-                if (token.Length > 10)
+                var token = Prompt("Paste your OpenAI Key here:");
+                if (token.StartsWith("sk"))
                     Set("OpenAI", token);
+                else
+                {
+                    Set("OpenAI", Prompt("Please paste your OpenAI Key here. It should start with sk-"));
+                }
             }
 
             // Start the bot on all chat services
             new Thread(async () =>
             {
+                Console.WriteLine("GPT3 initializing....");                
                 var gpt3 = new GPT3(ConfigurationManager.AppSettings["OpenAI"]);
                 
                 var clients = new List<IChatSystem>();
@@ -136,6 +145,7 @@ namespace DibbrBot
                 slackToken = ConfigurationManager.AppSettings["SlackBotApiToken2"];
                 if (slackToken != null && slackToken.Length > 0)
                 {
+                    Console.WriteLine("Slack#2 initializing....");
                     var client2 = new SlackChat();
                     _ = client2.Initialize(async (msg, user) => { return await OnMessage(client2, msg, user, gpt3); }, slackToken);
                 }                    
@@ -175,6 +185,8 @@ namespace DibbrBot
             while (true) { }
         }
 
+        static int messagesSincePost = 0;
+        
         static DateTime breakTime;
         /// <summary>
         /// This is the main message handler for the bot
@@ -187,35 +199,59 @@ namespace DibbrBot
         {
             if (DateTime.Now < breakTime)
                 return null;
-            
-            if (msg.ToLower().StartsWith(BotName) && (msg.ToLower().Contains("timeout") || msg.ToLower().Contains("please stop") || msg.ToLower().Contains("take a break")))
+            var m = msg.ToLower();
+            var isForBot = m.Replace("hey ", "").Replace("yo", "").StartsWith(BotName);
+            var isComment = false;
+            if ((messagesSincePost++ > 5 && (m.Length > 25 || m.StartsWith("does") || m.StartsWith("how") || m.Contains("?") || m.Contains("anyone") || m.Contains("know how") || m.Contains("why"))))
             {
-        
-                breakTime = DateTime.Now.AddMinutes(10);
-                return "I will timeout for 10 minutes";
+                // We'll have the bot jump in randomly every now and then, but not in replies to others
+                if (!msg.Contains("<@"))
+                {
+                    isForBot = true;
+                    isComment = true;
+                }
             }
 
+
             // Do we have a message for the bot?
-            if (!msg.ToLower().Replace("hey ","").Replace("yo","").StartsWith(BotName))// || (c.Length > 20 && c.Contains("?")))
+            if (!isForBot)// || (c.Length > 20 && c.Contains("?")))
                 return null;
+
+            // Bot message, erase counter
+            messagesSincePost = 0;
 
             // Commands
             // 1. Wipe memory
-            if (msg.ToLower().StartsWith(Program.BotName + " wipe memory"))
+
+            if (m.StartsWith(Program.BotName + " wipe memory"))
             {
                 client.SetChatLog("");
                 return "Memory erased";
             }
-            var txt = (await gpt3.Ask(msg,client.GetChatLog(), user));
+
+            // 2. Timeout
+            if ((m.Contains("timeout") || m.Contains("please stop") || m.Contains("take a break")))
+            {
+                breakTime = DateTime.Now.AddMinutes(10);
+                return "I will timeout for 10 minutes";
+            }
+
+
+            var txt = (await gpt3.Ask(msg, client.GetChatLog(), user, isComment ? $"{Program.BotName}'s comment (put no response if {Program.BotName} would not comment next): ": $"{Program.BotName}'s response: "));
             if (txt == null)
                 return null;
 
+            if(txt.ToLower().Contains("no response"))
+            {
+                Console.WriteLine("No response desired!!!!");
+                return null;
+            }
           //  txt = CleanText(txt);
 
             if (client.GetChatLog().Contains(txt))
             {
                 Console.WriteLine("Already said that. Should not happen");
-                return null;
+                return null;// "I've answered that question, already";
             }
 
 

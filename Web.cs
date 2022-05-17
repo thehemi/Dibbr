@@ -44,11 +44,11 @@ class Web
                 foreach (var c in clients)
                     if ((c as DiscordChatV2).id == discord)
                     {
-                        page = page.Replace("{Status}", "Dibbr is already running with your key");
+                        page = page.Replace("{Status}", $"{Program.BotName} is already running with your key");
                         return page;
                     }
 
-                page = page.Replace("{Status}", "Dibbr initialized with provided keys! Try summoning him in your server chat with dibbr, hi!");
+                page = page.Replace("{Status}", $"{Program.BotName} initialized with provided keys! Try summoning him in your server chat with {Program.BotName}, hi!");
                 var gpt3 = new GPT3(openai);
                 var client = new DiscordChatV2() { };
                 _ = client.Initialize(async (msg, user) => { return await Program.OnMessage(client, msg, user, gpt3); }, discord);
