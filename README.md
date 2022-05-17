@@ -1,6 +1,8 @@
 # Dibbr
 Dibbr GPT-3 Bot With Style And Personality
 
+Release build here: https://github.com/thehemi/Dibbr/blob/master/dibbr.zip
+
 Chat log here - beginning of log is Dibbr beta, end of log is current dibbr, he has grown a lot, and has grown since then too
 
 https://github.com/thehemi/Dibbr/blob/master/chat_log_937151566266384394.txt
