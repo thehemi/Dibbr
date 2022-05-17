@@ -44,7 +44,7 @@ namespace DibbrBot
                     var txt = message.Text;
 
                 // Change @bot to bot, query
-                    if (message.MentionsBot)
+                    if (message.MentionsBot && !txt.ToLower().StartsWith(Program.BotName))
                     {
                         txt = Program.BotName + " " + txt[(txt.IndexOf(">") + 1)..];
                     }

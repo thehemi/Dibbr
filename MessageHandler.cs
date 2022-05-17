@@ -63,7 +63,7 @@ namespace DibbrBot
             // Hey DIBBR what's the time => what's the time
             var m = msg.ToLower().Replace("hey ", "").Replace("yo", "");
             
-          
+            
             var bAskQuestion = false;
             m = m.Replace(Program.BotName.ToLower(), "").Trim();
             if (m.StartsWith(","))
@@ -71,7 +71,7 @@ namespace DibbrBot
             
             var isComment = false; //198225782156427265
             var isQuestion = m.StartsWith("does") || m.StartsWith("how") || m.Contains("?") || m.StartsWith("why") || m.StartsWith("how do") || m.StartsWith("what") || m.Contains("can someone");
-            var isForBot = m.StartsWith(Program.BotName.ToLower()) || (isReply && isQuestion);
+            var isForBot = msg.ToLower().StartsWith(Program.BotName.ToLower()) || (isReply && isQuestion);
 
             if (!isForBot && (messagesSincePost++ > talkInterval) && !msg.Contains("<@") && !isReply)
             {
