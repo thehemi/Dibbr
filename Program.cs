@@ -44,6 +44,16 @@ namespace DibbrBot
             return Console.ReadLine();
         }
 
+       public static  void NewClient(IChatSystem client, string token, GPT3 gpt3)
+        {
+            if (token == null || token.Length == 0) return;
+            Console.WriteLine($"{client.ToString()} initializing....");
+            var msgHandler = new MessageHandler(client, gpt3);
+            _ = client.Initialize(async (msg, user) => { return await msgHandler.OnMessage(msg, user); }, token);
+            systems.Add(client);
+        }
+
+        
         static void Main(string[] args)
         {
             BotName = BotName.ToLower();
@@ -129,163 +139,35 @@ namespace DibbrBot
             // Start the bot on all chat services
             new Thread(async () =>
             {
-                Console.WriteLine("GPT3 initializing....");                
+                Console.WriteLine("GPT3 initializing....");
                 var gpt3 = new GPT3(ConfigurationManager.AppSettings["OpenAI"]);
-                
+
+               
+
                 var clients = new List<IChatSystem>();
-                var slackToken = ConfigurationManager.AppSettings["SlackBotApiToken"];
-                if (slackToken != null && slackToken.Length > 0)
-                {
-                    Console.WriteLine("Slack initializing....");
-                    var client = new SlackChat();
-                    _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user,gpt3); }, slackToken);
-                }
-                
-                // I have two slack workspaces, so I use two tokens. You probably won't
-                slackToken = ConfigurationManager.AppSettings["SlackBotApiToken2"];
-                if (slackToken != null && slackToken.Length > 0)
-                {
-                    Console.WriteLine("Slack#2 initializing....");
-                    var client2 = new SlackChat();
-                    _ = client2.Initialize(async (msg, user) => { return await OnMessage(client2, msg, user, gpt3); }, slackToken);
-                }                    
-                
-                var discordBot = ConfigurationManager.AppSettings["DiscordBot"];
-                if (discordBot != null && discordBot.Length > 0)
-                {
-                    Console.WriteLine("Discord Bot initializing....");
-                    var client = new DiscordChatV2();
-                    _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user, gpt3); }, ConfigurationManager.AppSettings["DiscordBot"]);
-                }
+                NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken"],gpt3);
+                NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken2"], gpt3);
+                NewClient(new DiscordChatV2(), ConfigurationManager.AppSettings["DiscordBot"], gpt3);
+
 
                 // Selfbot
-                var discord = ConfigurationManager.AppSettings["Discord"];
-                if (discord != null && discord.Length > 0)
-                {
-                    Console.WriteLine("Discord Self Bot initializing....");
-                    foreach (var chat in chats)
+
+
+                foreach (var chat in chats)
                     {
                         var words = chat.Split(' ');
-                        IChatSystem client;
-                        Console.WriteLine("Discord Bot Added to "+words[0]+" channel " + words[1]);
+                        Console.WriteLine("Discord Self Bot Added to " + words[0] + " channel " + words[1]);
 
-                        client = new DiscordChat(false, words[0] == "DM", words[1]/*Channel id, room or dm*/);
-                        systems.Add(client);
-                        _ = client.Initialize(async (msg, user) => { return await OnMessage(client, msg, user, gpt3); }, discord);
+                        NewClient(new DiscordChat(false, words[0] == "DM", words[1]/*Channel id, room or dm*/), ConfigurationManager.AppSettings["Discord"],gpt3);
                     }
-                }
 
                 Console.WriteLine("All initialization done");
-
-            })
+            } )
             {
                 
             }.Start();
 
             while (true) { }
-        }
-
-        static int messagesSincePost = 0;
-        
-        static DateTime breakTime;
-        /// <summary>
-        /// This is the main message handler for the bot
-        /// </summary>
-        /// <param name="client"></param>
-        /// <param name="msg"></param>
-        /// <param name="user"></param>
-        /// <returns></returns>
-        static public async Task<string> OnMessage(IChatSystem client, string msg, string user, GPT3 gpt3)
-        {
-            if (DateTime.Now < breakTime)
-                return null;
-            var m = msg.ToLower();
-            var isForBot = m.Replace("hey ", "").Replace("yo", "").StartsWith(BotName);
-            var isComment = false;
-            if ((messagesSincePost++ > 5 && (m.Length > 25 || m.StartsWith("does") || m.StartsWith("how") || m.Contains("?") || m.Contains("anyone") || m.Contains("know how") || m.Contains("why"))))
-            {
-                // We'll have the bot jump in randomly every now and then, but not in replies to others
-                if (!msg.Contains("<@"))
-                {
-                    isForBot = true;
-                    isComment = true;
-                }
-            }
-
-
-            // Do we have a message for the bot?
-            if (!isForBot)// || (c.Length > 20 && c.Contains("?")))
-                return null;
-
-            // Bot message, erase counter
-            messagesSincePost = 0;
-
-            // Commands
-            // 1. Wipe memory
-
-            if (m.StartsWith(Program.BotName + " wipe memory"))
-            {
-                client.SetChatLog("");
-                return "Memory erased";
-            }
-
-            // 2. Timeout
-            if ((m.Contains("timeout") || m.Contains("please stop") || m.Contains("take a break")))
-            {
-                breakTime = DateTime.Now.AddMinutes(10);
-                return "I will timeout for 10 minutes";
-            }
-
-
-            var txt = (await gpt3.Ask(msg, client.GetChatLog(), user, isComment ? $"{Program.BotName}'s comment (put no response if {Program.BotName} would not comment next): ": $"{Program.BotName}'s response: "));
-            if (txt == null)
-                return null;
-
-            if(txt.ToLower().Contains("no response"))
-            {
-                Console.WriteLine("No response desired!!!!");
-                return null;
-            }
-          //  txt = CleanText(txt);
-
-            if (client.GetChatLog().Contains(txt))
-            {
-                Console.WriteLine("Already said that. Should not happen");
-                return null;// "I've answered that question, already";
-            }
-
-
-            // if (lastBotMsg.Length > 0 && lastBotMsg == txt)
-            //     txt = "I was going to say something repeititive. I'm sorry";
-            //  lastBotMsg = txt;
-
-            return txt;
-
-            static string CleanText(string txt)
-            {
-                if (txt == null) return null;
-                try
-                {
-                    txt = txt.Trim();
-                    txt = txt.Replace("\"", "");
-                    // Gay stuff GPT-3 likes to return
-                    if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
-                    {
-                        txt = txt[(txt.IndexOfAny(new char[] { '.', ',' }) + 1)..];
-                        // Capitalize
-                        txt = $"{char.ToUpper(txt[0])}{txt[1..]}";
-                    }
-
-                    // Remove  There's no right or wrong answer blah blah blah at the end
-                    var last = txt.IndexOf("Ultimately,");
-                    if (last != -1)
-                        txt = txt[..last];
-
-                    
-                }
-                catch(Exception e) { }
-                return txt;
-            }
         }
 
 

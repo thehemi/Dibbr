@@ -128,7 +128,7 @@ namespace DibbrBot
         }
         
         static Dictionary<string, string> dm_map = new Dictionary<string, string>();
-        async static public Task<string> send_dm(HttpClient client, string dm_id, string content)
+        async static public Task<string> send_dm(HttpClient client, string dm_id, string content, string msgid)
         {
             if (!dm_map.ContainsKey(dm_id))
             {
@@ -238,10 +238,45 @@ namespace DibbrBot
         /// <param name="channel_id"></param>
         /// <param name="user_id"></param>
         /// <returns> Returns a JToken with the message data </returns>
+        async static public Task<JArray> getLatestDMs(HttpClient client, string channel_id, string user_id = "")
+        {
+            if (!dm_map.ContainsKey(channel_id))
+            {
+                var (s, _) = await send_request(
+                client,
+                "POST",
+                $"/users/@me/channels",
+                new StringContent($"{{\"recipient_id\":\"{channel_id}\"}}", Encoding.UTF8, "application/json"));
+
+                JToken m = JsonConvert.DeserializeObject<JObject>(s);
+                dm_map.Add(channel_id, m["id"].ToString());
+            }
+            
+            var (str, _) = await send_request(client, "GET", $"channels/{dm_map[channel_id]}/messages?limit=1");
+  
+            try
+            {
+                var messages = JsonConvert.DeserializeObject<JArray>(str);
+                return messages;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                Console.Beep();
+                await Task.Delay(10000);
+                return null;
+            }
+        }
+
+
+
+        /// <param name="channel_id"></param>
+        /// <param name="user_id"></param>
+        /// <returns> Returns a JToken with the message data </returns>
         async static public Task<JArray> getLatestMessages(HttpClient client, string channel_id, string user_id = "")
         {
             var (str, _) = await send_request(client, "GET", $"channels/{channel_id}/messages?limit=5");
-  
+
             try
             {
                 var messages = JsonConvert.DeserializeObject<JArray>(str);

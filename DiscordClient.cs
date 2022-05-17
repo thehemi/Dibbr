@@ -41,6 +41,7 @@ namespace DibbrBot
         {
             this.dm = isdm;
             this.channel = channel;
+            
         }
         
         public override async Task Initialize(MessageRecievedCallback callback, string token = null)
@@ -78,7 +79,7 @@ namespace DibbrBot
                     // TODO: Use getLatestMessages()
                     // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
                     var msgList = new List<string>();
-                    var messages = await API.getLatestMessages(client, channel);
+                    var messages = dm?await API.getLatestDMs(client,channel):await API.getLatestMessages(client, channel);
                     if (messages == null)
                         continue;
                     // Skip messages already replied to
@@ -130,21 +131,26 @@ namespace DibbrBot
                         if ((auth == Program.BotUsername) && message["referenced_message"] != null)
                             continue;
 
+                        Console.WriteLine(c);
+                        var isReply = false;
                         // Treat replies to bot as bot messages
                         var replyUser = message["referenced_message"] != null ? message["referenced_message"]["author"]["username"] : null;
                         if (replyUser?.ToString() == Program.BotUsername && !msg.StartsWith(Program.BotName))
-                            msg = Program.BotName + " " + msg;
+                            isReply = true;
+       
 
-
-                        if (lastMsgTime == DateTime.MinValue && dm)
+                        if (dm)
                         {
+                           // if(lastMsgTime == DateTime.MinValue)
                             // First message, we don't respond to it, could be old
-                            continue;
+                              //   continue;
+                            
+                            if (DateTime.Now < lastMsgTime.AddSeconds(10))
+                                continue;
                         }
 
-
-                        Console.WriteLine(c);
-                        
+                       
+                        if (dm && !msg.StartsWith(Program.BotName)) msg = Program.BotName + " " + msg;
                         // If you wanna log context, too
                         // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
                         //  File.AppendAllText("chat_log_" + channel + ".txt", c);
@@ -167,7 +173,7 @@ namespace DibbrBot
                             ChatLog += c2;
                             lastMsg = c2;
 
-                            var response = dm ? await API.send_dm(client, channel, reply) : await API.send_message(client, channel, reply, msgid);
+                            var response = dm ? await API.send_dm(client, channel, reply,msgid) : await API.send_message(client, channel, reply, msgid);
 
                             // Write out our response, along with the question
                             File.AppendAllText("chat_log_" + channel + ".txt", c + c2);

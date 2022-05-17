@@ -50,10 +50,9 @@ class Web
 
                 page = page.Replace("{Status}", $"{Program.BotName} initialized with provided keys! Try summoning him in your server chat with {Program.BotName}, hi!");
                 var gpt3 = new GPT3(openai);
-                var client = new DiscordChatV2() { };
-                _ = client.Initialize(async (msg, user) => { return await Program.OnMessage(client, msg, user, gpt3); }, discord);
-                clients.Add(client);
+                Program.NewClient(new DiscordChatV2(), discord,gpt3);
             }
+        
             else
             {
                 page = page.Replace("{status}", "Dibbr not initialized, please provide keys for dibbr");
