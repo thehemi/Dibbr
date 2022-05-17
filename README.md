@@ -1,15 +1,21 @@
-# Dibbr
-Dibbr GPT-3 BOT WITH STYLE
-Just look at the chat logs - this is GPT-3 at its best
+# Dibbr GPT-3 Bot With Style And Personality
 
+Ideally build yourself. Release build here: https://github.com/thehemi/Dibbr/blob/master/dibbr.zip (This may be outdated - Tue May 17th Build)
+
+Chat log here 
+https://github.com/thehemi/Dibbr/blob/master/chat_log_937151566266384394.txt
+
+Beginning of log is Dibbr beta, end of log is current dibbr, he has grown a lot, and has grown since then too
+Update: Dibbr is actually even better than this, but I can't use that chat server any more.
 
 ## SUPPORTS
  * Discord selfbot (can put bot in anyone's server, but violates TOS)
  * Slack Bot
  * Discord regular bot
 
-
 ## Features
+ * Dibbr can write stories, with "tell me a story about", or "tell me a three act story about" (for longer stories)
+ * Dibbr can have his bot name changed to anything you want
  * Dibbr will interject and join in conversation, pick up questions asked, or questions just directed towards him
  * Everything is configurable via running bot commands
  * Dibbr understands replies, dibbr can work in self-bot or regular bot mode, so on any sever in any channel
