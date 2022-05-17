@@ -7,6 +7,19 @@ Just look at the chat logs - this is GPT-3 at its best
  * Discord selfbot (can put bot in anyone's server, but violates TOS)
  * Slack Bot
  * Discord regular bot
+
+
+## Features
+ * Dibbr will interject and join in conversation, pick up questions asked, or questions just directed towards him
+ * Everything is configurable via running bot commands
+ * Dibbr understands replies, dibbr can work in self-bot or regular bot mode, so on any sever in any channel
+ * Dibbr will even ask topical questions
+ * Dibbr has been tuned to give very natural replies. It may not seem like much priming text, but there have been a few tricks to get him working smoothly
+ * Dibbr will try to avoid repeating himself, by internal checks for sentence repetition
+ * Dibbr will use a variable amount of chat log (custom-4000 chars) to answer questions, using his memory of the conversation
+ * Dibbr can run in any number of channels and servers, all with their own instance
+ * Dibbr even has a web interface
+ * Much more coming soon
  
 ![Chat](https://i.imgur.com/E2qjTw3.png)
 
@@ -23,6 +36,8 @@ Please use your own OpenAI key and discord keys, the app will run you through th
 4. Deploy your slack app to the workspace
 5. Go to your slack room, and 'Add app', search for your app name e.g. dibbr
 6. Dibbr should be online and ready to go! Make sure the app is running
+
+
 ![Selfbots](https://i.imgur.com/2mvBVVC.png)
 
 # Truffle Pigs
