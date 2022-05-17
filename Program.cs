@@ -66,6 +66,14 @@ namespace DibbrBot
             Console.WriteLine($"{Program.BotName} is starting...Settings are in App.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
             Web.Run();
 
+            for (int i = 0; i < ConfigurationManager.AppSettings.Keys.Count; i++) 
+            {
+                var k = ConfigurationManager.AppSettings.Keys[i];
+                var v = ConfigurationManager.AppSettings.GetValues(i);
+                var val = v.Length > 0 ? v[0] : null;
+                Console.WriteLine($"{k} = {val}");
+            }
+
             // var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
             var primeText = ConfigurationManager.AppSettings["PrimeText"];
             if (primeText == null)
