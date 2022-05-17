@@ -22,8 +22,10 @@ namespace DibbrBot
 
     class Program
     {
+        // Must be lowercase
         public static string BotName = "dibbr";
         public static string BotUsername = "dabbr";
+        
         public static List<IChatSystem> systems = new List<IChatSystem>();
         private static void Set(string key, string value)
         {
@@ -36,12 +38,17 @@ namespace DibbrBot
         }
 
 
-        static string Prompt(string prompt)
+        static string Prompt(string prompt, string def = "")
         {
             Console.ForegroundColor = ConsoleColor.Green;       
             Console.WriteLine(prompt);
             Console.ForegroundColor = ConsoleColor.White;
-            return Console.ReadLine();
+            var line = Console.ReadLine();
+            if(line == "")
+            {
+                return def;
+            }
+            return line;
         }
 
        public static  void NewClient(IChatSystem client, string token, GPT3 gpt3)
@@ -56,15 +63,15 @@ namespace DibbrBot
         
         static void Main(string[] args)
         {
-            BotName = BotName.ToLower();
-            BotUsername = BotUsername.ToLower();
             Console.WriteLine($"{Program.BotName} is starting...Settings are in App.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
             Web.Run();
-            
+
             // var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
             var primeText = ConfigurationManager.AppSettings["PrimeText"];
             if (primeText == null)
             {
+                BotName = Prompt("\nBot Name (default is Dibbr):", "dibbr").ToLower();
+                BotUsername = Prompt("Bot Username (default is dabbr):", "dabbr").ToLower();
                 Console.WriteLine("");
 
                 Console.WriteLine("Paste your priming text here, e.g. "+Program.BotName+" is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
@@ -98,6 +105,9 @@ namespace DibbrBot
 
             // For selfbot only
             // chats.txt stores the list of channels and dms that the bot is listening to
+            if (!File.Exists("chats.txt"))
+                File.WriteAllText("chats.txt", "");
+            
             var chats = File.ReadAllLines("chats.txt").Where(l => l.Length > 0).ToList();
             if (chats.Count == 0 && ConfigurationManager.AppSettings["Discord"] != null)
             {
