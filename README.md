@@ -1,14 +1,12 @@
-# Dibbr
-Dibbr GPT-3 Bot With Style And Personality
+# Dibbr GPT-3 Bot With Style And Personality
 
-Release build here: https://github.com/thehemi/Dibbr/blob/master/dibbr.zip
+Ideally build yourself. Release build here: https://github.com/thehemi/Dibbr/blob/master/dibbr.zip (This may be outdated - Tue May 17th Build)
 
-Chat log here - beginning of log is Dibbr beta, end of log is current dibbr, he has grown a lot, and has grown since then too
-
+Chat log here 
 https://github.com/thehemi/Dibbr/blob/master/chat_log_937151566266384394.txt
 
-Dibbr is actually even better than this, but I can't use that chat server any more.
-
+Beginning of log is Dibbr beta, end of log is current dibbr, he has grown a lot, and has grown since then too
+Update: Dibbr is actually even better than this, but I can't use that chat server any more.
 
 ## SUPPORTS
  * Discord selfbot (can put bot in anyone's server, but violates TOS)
