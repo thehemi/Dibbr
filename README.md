@@ -2,7 +2,6 @@
 Dibbr GPT-3 BOT WITH STYLE
 Just look at the chat logs - this is GPT-3 at its best
 
-[Download dibbr here!](https://github.com/thehemi/Dibbr/blob/master/Dibbr-x86.zip)
 
 ## SUPPORTS
  * Discord selfbot (can put bot in anyone's server, but violates TOS)
@@ -13,9 +12,9 @@ Just look at the chat logs - this is GPT-3 at its best
 
 # Setup
 
-Download or locally build. Latest build is here
+Build locally, any build here is usually old
 
-Please use your own OpenAI key and discord keys. I created a file called MyAPIKeys.cs with a constructor for the partial class that sets the keys, I should have used the config file
+Please use your own OpenAI key and discord keys, the app will run you through the process and save to app.config
 
 ## Slack install Guide
 1. Createw a classic Slack app here https://api.slack.com/apps?new_classic_app=1
