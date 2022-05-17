@@ -14,6 +14,8 @@ Dibbr is actually even better than this, but I can't use that chat server any mo
  * Discord regular bot
 
 ## Features
+ * Dibbr can write stories, with "tell me a story about", or "tell me a three act story about" (for longer stories)
+ * Dibbr can have his bot name changed to anything you want
  * Dibbr will interject and join in conversation, pick up questions asked, or questions just directed towards him
  * Everything is configurable via running bot commands
  * Dibbr understands replies, dibbr can work in self-bot or regular bot mode, so on any sever in any channel
