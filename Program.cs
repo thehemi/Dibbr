@@ -11,10 +11,11 @@ namespace DibbrBot
 {
     public abstract class IChatSystem
     {
+        public abstract void Typing(bool start);
         public abstract void SetChatLog(string log);
-        public abstract string GetChatLog();
+        public abstract string GetChatLog(int messages = 10);
         // Declare a delegate type for processing a book:
-        public delegate Task<string> MessageRecievedCallback(string msg, string author);
+        public delegate Task<string> MessageRecievedCallback(string msg, string author, bool isReply=false);
         // public abstract Task<string> GetNewMessages();
         //   public abstract Task SendMessage(string message, string replyContext = null);
         public abstract Task Initialize(MessageRecievedCallback callback, string token);
@@ -24,7 +25,7 @@ namespace DibbrBot
     {
         // Must be lowercase
         public static string BotName = "dibbr";
-        public static string BotUsername = "dabbr";
+        public static string BotUsername = "dibbr";
         
         public static List<IChatSystem> systems = new List<IChatSystem>();
         private static void Set(string key, string value)
@@ -56,7 +57,7 @@ namespace DibbrBot
             if (token == null || token.Length == 0) return;
             Console.WriteLine($"{client.ToString()} initializing....");
             var msgHandler = new MessageHandler(client, gpt3);
-            _ = client.Initialize(async (msg, user) => { return await msgHandler.OnMessage(msg, user); }, token);
+            _ = client.Initialize(async (msg, user,isReply) => { return await msgHandler.OnMessage(msg, user,isReply); }, token);
             systems.Add(client);
         }
 

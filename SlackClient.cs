@@ -25,7 +25,12 @@ namespace DibbrBot
             ChatLog = "";
         }
 
-        public override string GetChatLog()
+        public override void Typing(bool start)
+        {
+           // API.Typing(client, channel, start);
+        }
+
+        public override string GetChatLog(int messages)
         {
             return ChatLog;
         }

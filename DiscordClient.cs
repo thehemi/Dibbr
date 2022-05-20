@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 //using DSharpPlus.CommandsNext;
 
 namespace DibbrBot
@@ -27,9 +28,15 @@ namespace DibbrBot
         public string ChatLog = "";
         private readonly int MAX_BUFFER = 5000; // Chat buffer, don't change this, change the one in GPT3
 
-        public override string GetChatLog()
+
+        public override void Typing(bool start)
         {
-            return ChatLog;
+            API.Typing(client, channel, start);
+        }
+        
+        public override string GetChatLog(int messages = 10)
+        {
+            return String.Join("\n\r", ChatLog.TakeLastLines(messages));
         }
 
         public override void SetChatLog(string log)
@@ -74,7 +81,7 @@ namespace DibbrBot
                         return false;
                     }
 
-                    await Task.Delay(3000 + (int)(new Random().NextDouble() * 500));
+                   await Task.Delay(1000);//0 + (int)(new Random().NextDouble() * 500));
                     // Read message
                     // TODO: Use getLatestMessages()
                     // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
@@ -85,17 +92,21 @@ namespace DibbrBot
                     // Skip messages already replied to
                     foreach(var msg in messages)
                     {
-                        var id = msg["referenced_message"]?["id"]?.ToString();
-                        // We're looking for a message that has not been replied to by us
-                        if (id == null || msg["author"]?["username"].ToString() != Program.BotUsername)
-                            continue;
-                        foreach(var msg2 in messages)
+                        try
                         {
-                            if (msg2["id"].ToString() == id)
+                            var id = msg["referenced_message"] != null ? msg["referenced_message"]["id"]?.ToString() : null;
+                            // We're looking for a message that has not been replied to by us
+                            if (id == null || msg["author"]?["username"].ToString().ToLower() != Program.BotUsername)
+                                continue;
+                            foreach (var msg2 in messages)
                             {
-                                msg2["skip"] = "skip";
+                                if (msg2["id"].ToString() == id)
+                                {
+                                    msg2["skip"] = "skip";
+                                }
                             }
                         }
+                        catch (Exception e) { }
                     }
                     var log = ChatLog.TakeLastLines(messages.Count);
                     for (int i = 0; i < messages.Count; i++)
@@ -106,6 +117,9 @@ namespace DibbrBot
                         var msgid = message["id"].ToString();
                         var msg = message["content"].ToString();
                         var auth = message["author"]["username"].ToString();
+                        
+                        if (auth == Program.BotUsername)
+                            auth = Program.BotName;
 
                         var c = auth + ": " + msg;
 
@@ -123,19 +137,22 @@ namespace DibbrBot
 
                         // Skip lines already parsed
                         // Skip lines sent by the bot
-                        if (c == lastMsg || (auth == Program.BotUsername && lastMsg.Contains(msg)))
+                        if (c == lastMsg || (auth == Program.BotName && lastMsg.Contains(msg)))
                             continue;
                         lastMsg = c;
 
                         // Skip our own replies
-                        if ((auth == Program.BotUsername) && message["referenced_message"] != null)
-                            continue;
+                        if (!msg.ToLower().StartsWith(Program.BotName))
+                        {
+                            if ((auth == Program.BotName))
+                                continue;
+                        }
 
                         Console.WriteLine(c);
                         var isReply = false;
                         // Treat replies to bot as bot messages
                         var replyUser = message["referenced_message"] != null ? message["referenced_message"]["author"]["username"] : null;
-                        if (replyUser?.ToString() == Program.BotUsername && !msg.StartsWith(Program.BotName))
+                        if (replyUser?.ToString().ToLower() == Program.BotName && !msg.ToLower().StartsWith(Program.BotName))
                             isReply = true;
        
 
@@ -145,24 +162,26 @@ namespace DibbrBot
                             // First message, we don't respond to it, could be old
                               //   continue;
                             
-                            if (DateTime.Now < lastMsgTime.AddSeconds(10))
-                                continue;
+                          //  if (DateTime.Now < lastMsgTime.AddSeconds(10))
+                          //      continue;
                         }
 
                        
-                        if (dm && !msg.StartsWith(Program.BotName)) msg = Program.BotName + " " + msg;
+                        if (dm && !msg.ToLower().StartsWith(Program.BotName)) msg = Program.BotName + " " + msg;
                         // If you wanna log context, too
                         // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
                         //  File.AppendAllText("chat_log_" + channel + ".txt", c);
                         string reply = null;
                         try
                         {
-                            reply = await callback(msg, auth);
+                          //  API.Typing(client, channel, true);
+                            reply = await callback(msg, auth,isReply);
+                           // API.Typing(client, channel, false);
                         }
                         catch(Exception e)
                         {
                             await Task.Delay(1000);
-                            try { reply = await callback(msg, auth); } catch (Exception) { }
+                            try { reply = await callback(msg, auth, isReply); } catch (Exception) { }
                             if(reply==null)
                                  Console.WriteLine(e.Message);
                         }
@@ -196,7 +215,7 @@ namespace DibbrBot
     {
         public string id = "";
         public string ChatLog = "";
-        public override string GetChatLog() { return ChatLog; }
+        public override string GetChatLog(int messages) { return ChatLog; }
         private readonly int MAX_BUFFER = 1000; // Chat buffer to GPT3 (memory) THIS CAN GET EXPENSIVE
 
         private DiscordClient _discordClient;
@@ -206,6 +225,11 @@ namespace DibbrBot
         public override void SetChatLog(string log)
         {
             ChatLog = log;
+        }
+
+        public override void Typing(bool start)
+        {
+           // API.Typing(client, channel, start);
         }
 
         public async override Task Initialize(MessageRecievedCallback callback, string token)

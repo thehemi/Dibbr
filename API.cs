@@ -37,6 +37,12 @@ namespace DibbrBot
                            
                             break;
                         }
+                    case "DELETE":
+                        {
+                            response = await client.DeleteAsync(API_URL + request_url);
+
+                            break;
+                        }
                     case "POST":
                         {
                             response = await client.PostAsync(API_URL + request_url, body);
@@ -57,7 +63,7 @@ namespace DibbrBot
             }       
             else
             {
-                    Console.Beep();
+                  //  Console.Beep();
                 Console.WriteLine(request_url +" "+response.ReasonPhrase);
                     return (null,response.ReasonPhrase);
                
@@ -150,8 +156,19 @@ namespace DibbrBot
                 }
                 dm_map.Add(dm_id, message["id"].ToString());
             }
+            // Discord limit without nitro
+            if (content.Length > 2000)
+                content = content[^2000..];
 
-           var (s2,e2) = await send_request(
+         
+            content = content.Replace("\n", "\\n");
+            content = content.Replace("\n", "\\n");
+            content = content.Replace("\"", "\\\"");
+            content = content.Replace("\r", "");
+            content = content.Replace("\t", "");
+            content = content.Replace("\f", "");
+            content = content.Replace("\b", "");
+            var (s2,e2) = await send_request(
             client,
             "POST",
             $"channels/{dm_map[dm_id]}/messages",
@@ -252,7 +269,7 @@ namespace DibbrBot
                 dm_map.Add(channel_id, m["id"].ToString());
             }
             
-            var (str, _) = await send_request(client, "GET", $"channels/{dm_map[channel_id]}/messages?limit=1");
+            var (str, _) = await send_request(client, "GET", $"channels/{dm_map[channel_id]}/messages?limit=5");
   
             try
             {
@@ -262,12 +279,25 @@ namespace DibbrBot
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
-                Console.Beep();
-                await Task.Delay(10000);
+              //  Console.Beep();
+                await Task.Delay(3000);
                 return null;
             }
         }
 
+
+        /// <returns> Returns a JToken with the message data </returns>
+        async static public void Typing(HttpClient client, string channel_id, bool start)
+        {
+            if(start)
+            var (str, _) = await send_request(client, "POST", $"channels/{channel_id}/typing");
+            else
+            {
+                var (str, _) = await send_request(client, "DELETE", $"channels/{channel_id}/typing");                
+            }
+
+
+        }
 
 
         /// <param name="channel_id"></param>
@@ -285,7 +315,7 @@ namespace DibbrBot
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
-                Console.Beep();
+               // Console.Beep();
                 await Task.Delay(10000);
                 return null;
             }

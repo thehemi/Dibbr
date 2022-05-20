@@ -94,6 +94,8 @@ namespace DibbrBot
                 MAX_CHARS = 4000;
             }
 
+          
+
             string MakeText()
             {
                 if (log.Length > MAX_CHARS)
@@ -108,38 +110,60 @@ namespace DibbrBot
             MAX_CHARS = oldMax;
             string r = await Q(txt,pp,fp,temp);
 
-            // If dup, try again
-            var split = r.Split(new char[] { '.' });
-            int percentMatch = 0;
-            var response = "";
-            foreach (var s in split)
-            {
-                if (log.Contains(s))
-                    percentMatch += s.Length;
-                else
-                    response += s +".";
-            }
-            if (response == "")
-                return null;
-            return response;
-            // Ask new Q if our answer was too similar to the previous one
-         /*   if (percentMatch > log.Length / 3)
-            {
-                log = "";
-                return null;// await Q(MakeText(), pp, fp, 1)+"\nDev Note: This is the second message "+Program.BotName+" came up with. The first was too repeptitive";
-            }                
-       
-            return r;*/
 
-             async Task<string> Q(string txt, float pp, float tp, float temp)
+            
+            return r;
+            // Ask new Q if our answer was too similar to the previous one
+            /*   if (percentMatch > log.Length / 3)
+               {
+                   log = "";
+                   return null;// await Q(MakeText(), pp, fp, 1)+"\nDev Note: This is the second message "+Program.BotName+" came up with. The first was too repeptitive";
+               }                
+
+               return r;*/
+            string Last(string log, int MAX_CHARS)
+            {
+                if (log.Length > MAX_CHARS)
+                    log = log[^MAX_CHARS..];
+                log = log.Trim();
+                return log;
+            }
+
+            (int dupePercent, string uniquePart) Deduplicate(string r)
+            {
+                var split = r.Split(new char[] { '.', ',' });
+                int percentMatch = 0;
+                var response = "";
+                foreach (var s in split)
+                {
+                    if (Last(log, 300).Contains(s))
+                        percentMatch += s.Length;
+                    else
+                        response += s + ".";
+                }
+
+                return (percentMatch, response);
+            }
+            async Task<string> Q(string txt, float pp, float tp, float temp)
             {
                 var result = await api.Completions.CreateCompletionAsync(txt,
                                 temperature: temp, top_p: 1,frequencyPenalty:tp,presencePenalty:pp, max_tokens: 1000, stopSequences: new string[] { Program.BotName + ":" });
                 // var r = CleanText(result.ToString());
-		var r = result.ToString();
+		        var r = result.ToString();
                 Console.WriteLine("GPT3 response: " + r);
                 r = r.Trim(); ;
-                return r;
+
+                // If dup, try again
+                var (percentDupe, response) = Deduplicate(r);
+                if (percentDupe > r.Length / 3)
+                {
+                    log = "";
+                    return await Q(MakeText(), pp, fp, 1);
+                }
+                if (response == "")
+                    return null;
+
+                return response;
             }
         }
 
