@@ -155,7 +155,7 @@ namespace DibbrBot
                 if (percentDupe > r.Length / 3)
                 {
                     log = "";
-                  //  return await Q(MakeText(), pp, fp, 1);
+                    return await Q(MakeText(), pp, fp, 1);
                 }
                 if (response == "")
                     return null;

@@ -1,10 +1,15 @@
-﻿using System;
+﻿//
+// Handles messages from any client (slack, discord, etc)
+// And returns a reply, if desired
+//
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace DibbrBot
 {
+    // I started working on this, haven't finished it yet
     class ICommand
     {
         public virtual string[] Triggers()
@@ -20,7 +25,9 @@ namespace DibbrBot
 
 
 
-
+    /// <summary>
+    /// This is the main message handler for chat
+    /// </summary>
     class MessageHandler
     {
         int talkInterval = 10; // How often to talk unprompted (in messages in chat)
@@ -33,7 +40,10 @@ namespace DibbrBot
         int MESSAGE_HISTORY = 10; // how many messages to keep in history to pass to GPT3
         int MESSAGE_HISTORY_LIMIT = 50;
         Speech speech = new Speech();
-
+        int runs = 0;
+        // Store chat for each user, useful for future bot functionality
+        Dictionary<string, string> Usernames = new Dictionary<string, string>();
+        
         /*   class Timeout : ICommand
            {
                public override string[] Triggers() => new string[] { "timeout", "please stop", "take a break" };
@@ -56,12 +66,14 @@ namespace DibbrBot
             }
         }
 
+        // Encapsulates a dice roll
         bool Die(int odds)
         {
             return (new Random().Next(odds) < 1);
         }
-        int runs = 0;
-        Dictionary<string, string> Usernames = new Dictionary<string, string>();
+        
+        
+        
         /// <summary>
         /// This is the main message handler for the bot
         /// </summary>
@@ -71,14 +83,15 @@ namespace DibbrBot
         /// <returns></returns>
         public async Task<(bool isReply, string msg)> OnMessage(string msg, string user, bool isForBot = false)
         {
+           // Store per user logs
+            if (!Usernames.ContainsKey(user))
+                Usernames.Add(user, msg + Program.NewLogLine);
+            else Usernames[user] += msg + Program.NewLogLine;
+
+            
+
             // Hey DIBBR what's the time => what's the time
             var m = msg.ToLower().Replace("hey ", "").Replace("yo ", "").Trim();
-
-            if (!Usernames.ContainsKey(user))
-                Usernames.Add(user, msg);
-            else Usernames[user] += msg;
-
-            var bAskQuestion = false;
             m = m.Replace(Program.BotName.ToLower(), "").Trim();
             if (m.StartsWith(","))
                 m = m.Substring(1).Trim();
@@ -86,6 +99,7 @@ namespace DibbrBot
             if (m == null)
                 return (false, null); ;
 
+            var bAskQuestion = false;
             var isComment = false; //198225782156427265
 
             // All messages are replies unless marked otherwise
@@ -103,6 +117,7 @@ namespace DibbrBot
             //var qMode1 = (!isForBot && (messagesSincePost++ > talkInterval) && !msg.Contains("<@") && !isReply);
             if (!isForBot && chattyMode)// && (messagesSincePost++ > talkInterval))
             {
+                // Intercept some not for bot messages randomly
                 var isQuestion = m.StartsWith("what") || m.StartsWith("does") || m.StartsWith("would") || m.StartsWith("can") || m.StartsWith("does") || m.StartsWith("how") || m.Contains("?") || m.StartsWith("why") || m.StartsWith("how") || m.StartsWith("what") || m.Contains("can someone");
 
                 // 1. Randomly answer some questions
@@ -178,14 +193,13 @@ namespace DibbrBot
             if (m == "unmute")
                 muted = false;
 
-
-            if (muted)
+            if (!m.ToLower().StartsWith("define "))
+                if (muted)
                 return (false, null);// breakTime = DateTime.Now.AddMinutes(5); // Muted mode allows 1 message every 5 miuns
 
 
 
-            var suffix = isComment ? $"{Program.BotName}'s comment (put no response if {Program.BotName} would not comment next): " : $"{Program.BotName}'s response: ";
-
+          
             // 4. Ask Mode
             if (Is("ask questions"))
                 chattyMode = true;
@@ -201,6 +215,7 @@ namespace DibbrBot
                 return (isReply, "Interval set to " + talkInterval);
             }
 
+            var suffix = isComment ? $"{Program.BotName}'s comment (put no response if {Program.BotName} would not comment next): " : $"{Program.BotName}'s response: ";
             if (chattyMode && bAskQuestion)
             {
                 suffix = $"{Program.BotName} should ask an interesting question, about an interesting topic: {Program.BotName}: ";
@@ -212,68 +227,66 @@ namespace DibbrBot
             {
                 history = MESSAGE_HISTORY_LIMIT;
             }
+            var log = client.GetChatLog(history);
 
-
+            // Typing indicator before long process
             client.Typing(true);
-            var log = client.GetChatLog(MESSAGE_HISTORY);
+            
             var txt = (await gpt3.Ask(msg, log, user, suffix, log.Length));
 
             // If repetitive, try again
-            if (Usernames.ContainsKey(Program.BotUsername) && LevenshteinDistance.Get(Usernames[Program.BotUsername].TakeLastLines(1)?[0], txt) > 0.4)
+            if (client.GetChatLog(4).Contains(txt) || (Usernames.ContainsKey(Program.BotUsername) && LevenshteinDistance.Get(Usernames[Program.BotUsername].TakeLastLines(1)?[0], txt) > 0.4))
+            {
                 txt = (await gpt3.Ask(msg, "", user, suffix, log.Length));
+                if (txt != null)
+                    txt += "\nDev Note: Second response. First had a Levenshtein distance too low";
+            }                
 
             if (txt == null)
                 return (false, null); ;
 
-            // Bot may not respond sometimes
+            // Bot may decide to not respond sometimes
             var c = txt.ToLower().Remove(Program.BotName).Remove(":");
             if (c.StartsWith("no response") || c.StartsWith("would not comment") || c.StartsWith("would not respond"))
             {
                 Console.WriteLine("No response desired!!!!");
                 return (false, null);
             }
-            //  txt = CleanText(txt);
-
-            if (client.GetChatLog(4).Contains(txt))
-            {
-                Console.WriteLine("Already said that. Should not happen");
-                txt = await gpt3.Ask(msg, "", user, suffix);
-                return (isReply, txt);// "I've answered that question, already";
-            }
-
-
-            // if (lastBotMsg.Length > 0 && lastBotMsg == txt)
-            //     txt = "I was going to say something repeititive. I'm sorry";
-            //  lastBotMsg = txt;
-            if((client as DiscordChat)?.channel == "978095250474164224")
-               await speech.Speak(txt);
+    
+            // Speak in voice channels
+            // TODO: Need to pass in whether this is a voice chanel or not
+            //if((client as DiscordChat)?.channel == "978095250474164224")
+            //   await speech.Speak(txt);
             return (isReply, txt);
 
-            string CleanText(string txt)
-            {
-                if (txt == null) return null;
-                try
-                {
-                    txt = txt.Trim();
-                    txt = txt.Replace("\"", "");
-                    // Gay stuff GPT-3 likes to return
-                    if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
-                    {
-                        txt = txt[(txt.IndexOfAny(new char[] { '.', ',' }) + 1)..];
-                        // Capitalize
-                        txt = $"{char.ToUpper(txt[0])}{txt[1..]}";
-                    }
-
-                    // Remove  There's no right or wrong answer blah blah blah at the end
-                    var last = txt.IndexOf("Ultimately,");
-                    if (last != -1)
-                        txt = txt[..last];
-
-
-                }
-                catch (Exception e) { }
-                return txt;
-            }
+           
         }
+
+        // GPT-3 says these pharses a lot, so you might want to parse them out...
+        string CleanText(string txt)
+        {
+            if (txt == null) return null;
+            try
+            {
+                txt = txt.Trim();
+                txt = txt.Replace("\"", "");
+                // Gay stuff GPT-3 likes to return
+                if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
+                {
+                    txt = txt[(txt.IndexOfAny(new char[] { '.', ',' }) + 1)..];
+                    // Capitalize
+                    txt = $"{char.ToUpper(txt[0])}{txt[1..]}";
+                }
+
+                // Remove  There's no right or wrong answer blah blah blah at the end
+                var last = txt.IndexOf("Ultimately,");
+                if (last != -1)
+                    txt = txt[..last];
+
+
+            }
+            catch (Exception e) { }
+            return txt;
+        }        
     }
 }
