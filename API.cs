@@ -105,7 +105,7 @@ namespace DibbrBot
             for (int i = 0; i < 5; i++)
             {
                 var msg_ref = "";
-                if (msgid != null)
+                if (msgid != null && msgid.Length > 0)
                 {
                     msg_ref = $",\n\"message_reference\": {{ \"message_id\": \"{msgid}\" }}";
                 }

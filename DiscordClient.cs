@@ -231,8 +231,15 @@ namespace DibbrBot
                         }
                         else
                         {
-                            var (isReply1, reply) = await callback("dibbr ask", "dibbr", true);
-                            var response = dm ? await API.send_dm(client, channel, reply, null) : await API.send_message(client, channel, reply, null);
+                            try
+                            {
+                                var (isReply1, reply) = await callback("dibbr ask", "dibbr", true);
+                                var response = dm ? await API.send_dm(client, channel, reply, null) : await API.send_message(client, channel, reply, null);
+                            }
+                            catch(Exception e)
+                            {
+                                Console.Write(e.Message);
+                            }
                         }
 
 

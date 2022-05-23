@@ -61,7 +61,7 @@ namespace DibbrBot
             // Bot is not allowed here
             if (client2?.channel == "937151566266384394")
             {
-                muted = true;
+                muted = false;
                 chattyMode = false;
             }
         }
@@ -104,15 +104,14 @@ namespace DibbrBot
 
             // All messages are replies unless marked otherwise
             var isReply = true;
+            var muted = this.muted;
+         //   if (m.ToLower().StartsWith("define ") || user.ToLower() == "rightofreply")
+            {
+          //      isForBot = true;
+            //    muted = false;
+            }
 
-            if (m.ToLower().StartsWith("define "))
-                isForBot = true;
-
-            // TODO:
-            // Bot replies preferentiably to friends
-            runs++;
-            if (user == "bobert" && runs < 5) isForBot = true;
-
+         
 
             //var qMode1 = (!isForBot && (messagesSincePost++ > talkInterval) && !msg.Contains("<@") && !isReply);
             if (!isForBot && chattyMode)// && (messagesSincePost++ > talkInterval))
@@ -193,8 +192,8 @@ namespace DibbrBot
             if (m == "unmute")
                 muted = false;
 
-            if (!m.ToLower().StartsWith("define "))
-                if (muted)
+
+           if (muted)
                 return (false, null);// breakTime = DateTime.Now.AddMinutes(5); // Muted mode allows 1 message every 5 miuns
 
 
@@ -235,8 +234,7 @@ namespace DibbrBot
             var txt = (await gpt3.Ask(msg, log, user, suffix));
 
             // If repetitive, try again
-            if (client.GetChatLog(4).Contains(txt) || (Usernames.ContainsKey(Program.BotUsername) && LevenshteinDistance.Get(Usernames[Program.BotUsername].TakeLastLines(1)?[0], txt) > 0.4))
-            {
+            if (client.GetChatLog(4).Contains(txt) || ((Usernames.ContainsKey(Program.BotUsername) && LevenshteinDistance.Get(Usernames[Program.BotUsername].TakeLastLines(1)?[0], txt) > 0.4))){
                 txt = (await gpt3.Ask(msg, "", user, suffix, log.Length));
                 if (txt != null)
                     txt += "\nDev Note: Second response. First had a Levenshtein distance too low";
