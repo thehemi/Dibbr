@@ -6,9 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DSharpPlus" Version="4.3.0-nightly-01130" />
+    <PackageReference Include="DSharpPlus" Version="4.3.0-nightly-01135" />
+    <PackageReference Include="NAudio" Version="2.1.0" />
     <PackageReference Include="OpenAI" Version="1.2.0" />
-    <PackageReference Include="ServiceStack" Version="6.0.2" />
+    <PackageReference Include="ServiceStack" Version="6.1.0" />
     <PackageReference Include="SlackNet.Bot" Version="0.10.6" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="7.0.0-preview.4.22229.4" />
   </ItemGroup>

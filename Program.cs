@@ -15,7 +15,7 @@ namespace DibbrBot
         public abstract void SetChatLog(string log);
         public abstract string GetChatLog(int messages = 10);
         // Declare a delegate type for processing a book:
-        public delegate Task<string> MessageRecievedCallback(string msg, string author, bool isReply=false);
+        public delegate Task<(bool reply, string msg)> MessageRecievedCallback(string msg, string author, bool isReply = false);
         // public abstract Task<string> GetNewMessages();
         //   public abstract Task SendMessage(string message, string replyContext = null);
         public abstract Task Initialize(MessageRecievedCallback callback, string token);
@@ -26,7 +26,8 @@ namespace DibbrBot
         // Must be lowercase
         public static string BotName = "dibbr";
         public static string BotUsername = "dibbr";
-        
+        public static string NewLogLine = "\n\r"; // Must be different from \n to seperate multi-line messages from new chats. Can't be \r\n because that's a newline in a reply.
+
         public static List<IChatSystem> systems = new List<IChatSystem>();
         private static void Set(string key, string value)
         {
@@ -41,33 +42,34 @@ namespace DibbrBot
 
         static string Prompt(string prompt, string def = "")
         {
-            Console.ForegroundColor = ConsoleColor.Green;       
+            Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine(prompt);
             Console.ForegroundColor = ConsoleColor.White;
             var line = Console.ReadLine();
-            if(line == "")
+            if (line == "")
             {
                 return def;
             }
             return line;
         }
 
-       public static  void NewClient(IChatSystem client, string token, GPT3 gpt3)
+        public static void NewClient(IChatSystem client, string token, GPT3 gpt3)
         {
             if (token == null || token.Length == 0) return;
             Console.WriteLine($"{client.ToString()} initializing....");
             var msgHandler = new MessageHandler(client, gpt3);
-            _ = client.Initialize(async (msg, user,isReply) => { return await msgHandler.OnMessage(msg, user,isReply); }, token);
+            _ = client.Initialize(async (msg, user, isReply) => { return await msgHandler.OnMessage(msg, user, isReply); }, token);
             systems.Add(client);
         }
 
-        
+
         static void Main(string[] args)
         {
             Console.WriteLine($"{Program.BotName} is starting...Settings are in dibbr.dll.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
             Web.Run();
 
-            for (int i = 0; i < ConfigurationManager.AppSettings.Keys.Count; i++) 
+
+            for (int i = 0; i < ConfigurationManager.AppSettings.Keys.Count; i++)
             {
                 var k = ConfigurationManager.AppSettings.Keys[i];
                 var v = ConfigurationManager.AppSettings.GetValues(i);
@@ -83,7 +85,7 @@ namespace DibbrBot
                 BotUsername = Prompt("Bot Username (default is dabbr):", "dabbr").ToLower();
                 Console.WriteLine("");
 
-                Console.WriteLine("Paste your priming text here, e.g. "+Program.BotName+" is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
+                Console.WriteLine("Paste your priming text here, e.g. " + Program.BotName + " is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
                 primeText = Prompt("\nPriming Text (Or Press Enter for default):");
                 if (primeText == null || primeText == "")
                 {
@@ -96,18 +98,18 @@ namespace DibbrBot
                 Set("PrimeText", primeText + "\n");
             }
 
-     
+
             if (ConfigurationManager.AppSettings["DiscordBot"] == null && ConfigurationManager.AppSettings["Discord"] == null)
             {
                 Console.WriteLine("How to find your discord token: https://youtu.be/YEgFvgg7ZPI . OR you can use a Discord bot token, available on the developer discord page.");
                 var discord = Prompt("\nToken (or leave blank for none):").Replace("Bot ", "");
-                if (discord!=null&&discord.Length > 10)
+                if (discord != null && discord.Length > 10)
                 {
-                        var isBot = Prompt("Is this a bot token? Y/N: ");
-                        if(isBot.ToLower() == "y")
-                             Set("DiscordBot", discord);
-                        else
-                            Set("Discord", discord);
+                    var isBot = Prompt("Is this a bot token? Y/N: ");
+                    if (isBot.ToLower() == "y")
+                        Set("DiscordBot", discord);
+                    else
+                        Set("Discord", discord);
                 }
 
             }
@@ -116,7 +118,7 @@ namespace DibbrBot
             // chats.txt stores the list of channels and dms that the bot is listening to
             if (!File.Exists("chats.txt"))
                 File.WriteAllText("chats.txt", "");
-            
+
             var chats = File.ReadAllLines("chats.txt").Where(l => l.Length > 0).ToList();
             if (chats.Count == 0 && ConfigurationManager.AppSettings["Discord"] != null)
             {
@@ -140,7 +142,7 @@ namespace DibbrBot
                 Console.WriteLine("Then go to the app's page, and click on the 'OAuth & Permissions' tab");
                 Console.WriteLine("Then click on the 'Add Bot User' button");
                 var token = Prompt("Please enter youy Slack bot API token, or press enter to skip:");
-                if (token!=null&&token.Length > 10)
+                if (token != null && token.Length > 10)
                     Set("SlackBotApiToken", token);
             }
             if (ConfigurationManager.AppSettings["OpenAI"] == null)
@@ -161,10 +163,10 @@ namespace DibbrBot
                 Console.WriteLine("GPT3 initializing....");
                 var gpt3 = new GPT3(ConfigurationManager.AppSettings["OpenAI"]);
 
-               
+
 
                 var clients = new List<IChatSystem>();
-                NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken"],gpt3);
+                NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken"], gpt3);
                 NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken2"], gpt3);
                 NewClient(new DiscordChatV2(), ConfigurationManager.AppSettings["DiscordBot"], gpt3);
 
@@ -173,17 +175,17 @@ namespace DibbrBot
 
 
                 foreach (var chat in chats)
-                    {
-                        var words = chat.Split(' ');
-                        Console.WriteLine("Discord Self Bot Added to " + words[0] + " channel " + words[1]);
+                {
+                    var words = chat.Split(' ');
+                    Console.WriteLine("Discord Self Bot Added to " + words[0] + " channel " + words[1]);
 
-                        NewClient(new DiscordChat(false, words[0] == "DM", words[1]/*Channel id, room or dm*/), ConfigurationManager.AppSettings["Discord"],gpt3);
-                    }
+                    NewClient(new DiscordChat(false, words[0] == "DM", words[1]/*Channel id, room or dm*/), ConfigurationManager.AppSettings["Discord"], gpt3);
+                }
 
                 Console.WriteLine("All initialization done");
-            } )
+            })
             {
-                
+
             }.Start();
 
             while (true) { }

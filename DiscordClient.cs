@@ -3,10 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Linq;
 //using DSharpPlus.CommandsNext;
 
 namespace DibbrBot
@@ -33,10 +31,10 @@ namespace DibbrBot
         {
             API.Typing(client, channel, start);
         }
-        
+
         public override string GetChatLog(int messages = 10)
         {
-            return String.Join("\n\r", ChatLog.TakeLastLines(messages));
+            return String.Join(Program.NewLogLine, ChatLog.TakeLastLines(messages));
         }
 
         public override void SetChatLog(string log)
@@ -48,9 +46,12 @@ namespace DibbrBot
         {
             this.dm = isdm;
             this.channel = channel;
-            
+
         }
-        
+
+        DateTime lastQuestionTime = DateTime.Now;
+        DateTime lastMessageTime = DateTime.Now;
+
         public override async Task Initialize(MessageRecievedCallback callback, string token = null)
         {
             if (client == null)
@@ -74,23 +75,27 @@ namespace DibbrBot
                 string lastMsg = "";
                 while (true)
                 {
-                    bool Contains(List<string> lines, string str)
+                    bool Contains(List<string> messages, string str)
                     {
-                        foreach (var l in lines) if (l.Contains(str))
+                        str = str.Replace("\n", "").Replace("\r", "").Trim();
+                        foreach (var l in messages)
+                            if (l.Replace("\n", "").Replace("\r", "").Contains(str))
                                 return true;
                         return false;
                     }
 
-                   await Task.Delay(1000);//0 + (int)(new Random().NextDouble() * 500));
                     // Read message
                     // TODO: Use getLatestMessages()
                     // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
                     var msgList = new List<string>();
-                    var messages = dm?await API.getLatestDMs(client,channel):await API.getLatestMessages(client, channel);
+                    var messages = dm ? await API.getLatestDMs(client, channel) : await API.getLatestMessages(client, channel, numMessages: lastMsg == "" ? 10 : 4);
                     if (messages == null)
-                        continue;
+                    {
+                        // Channel is bad, stop wtching this channel
+                        return;
+                    }
                     // Skip messages already replied to
-                    foreach(var msg in messages)
+                    foreach (var msg in messages)
                     {
                         try
                         {
@@ -108,27 +113,30 @@ namespace DibbrBot
                         }
                         catch (Exception e) { }
                     }
+
                     var log = ChatLog.TakeLastLines(messages.Count);
-                    for (int i = 0; i < messages.Count; i++)
+                    for (int i = messages.Count - 1; i >= 0; i--)
                     {
                         var message = messages[i];
-                        if (message["skip"] != null)
-                            continue;
+
                         var msgid = message["id"].ToString();
                         var msg = message["content"].ToString();
                         var auth = message["author"]["username"].ToString();
-                        
+
+                        // So GPT-3 doesn't get confused, in case these differ
                         if (auth == Program.BotUsername)
                             auth = Program.BotName;
 
-                        var c = auth + ": " + msg;
+                        var c = auth + ": " + msg + Program.NewLogLine;
 
                         // FIXME: Will block repeating messages
                         if (Contains(log, c))
                             continue;
 
-                        c += "\n\r";
                         ChatLog += c;
+
+                        if (message["skip"] != null)
+                            continue;
 
                         // Make bot recognize the user as itself
                         // if (auth == Program.BotUsername && !msg.ToLower().StartsWith(Program.BotName))
@@ -141,63 +149,95 @@ namespace DibbrBot
                             continue;
                         lastMsg = c;
 
-                        // Skip our own replies
-                        if (!msg.ToLower().StartsWith(Program.BotName))
+                        var isForBot = false;
+
+                        // Skip our own messages, unless they start with botname, AND aren't replies
+                        if (auth == Program.BotName)
                         {
-                            if ((auth == Program.BotName))
+                            if (!msg.ToLower().StartsWith(Program.BotName) && message["referenced_message"] == null)
                                 continue;
                         }
+                        else
+                        {
+                            // Is for bot if it's a reply to the bot
+                            var replyingTo = message["referenced_message"] != null ? message["referenced_message"]["author"]["username"].ToString() : null;
+                            if (replyingTo == Program.BotName)
+                                isForBot = true;
+                            // Is for bot if bot mentioned in first 1/3rd
+                            var idx = msg.ToLower().IndexOf(Program.BotName);
+                            if (idx != -1 && idx < msg.Length / 3)
+                                isForBot = true;
+                        }
 
-                        Console.WriteLine(c);
-                        var isReply = false;
-                        // Treat replies to bot as bot messages
-                        var replyUser = message["referenced_message"] != null ? message["referenced_message"]["author"]["username"] : null;
-                        if (replyUser?.ToString().ToLower() == Program.BotName && !msg.ToLower().StartsWith(Program.BotName))
-                            isReply = true;
-       
+                        if (isForBot)
+                            lastMessageTime = DateTime.Now;
 
                         if (dm)
                         {
-                           // if(lastMsgTime == DateTime.MinValue)
+                            // if(lastMsgTime == DateTime.MinValue)
                             // First message, we don't respond to it, could be old
-                              //   continue;
-                            
-                          //  if (DateTime.Now < lastMsgTime.AddSeconds(10))
-                          //      continue;
+                            //   continue;
+
+                            //  if (DateTime.Now < lastMsgTime.AddSeconds(10))
+                            //      continue;
                         }
 
-                       
-                        if (dm && !msg.ToLower().StartsWith(Program.BotName)) msg = Program.BotName + " " + msg;
+
+                        if (dm && !msg.ToLower().StartsWith(Program.BotName)) msg = Program.BotName + ": " + msg;
                         // If you wanna log context, too
                         // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
                         //  File.AppendAllText("chat_log_" + channel + ".txt", c);
                         string reply = null;
+                        bool isReply1 = true;
                         try
                         {
-                          //  API.Typing(client, channel, true);
-                            reply = await callback(msg, auth,isReply);
-                           // API.Typing(client, channel, false);
+                            //  API.Typing(client, channel, true);
+                            (isReply1, reply) = await callback(msg, auth, isForBot);
+                            // API.Typing(client, channel, false);
                         }
-                        catch(Exception e)
+                        catch (Exception e)
                         {
                             await Task.Delay(1000);
-                            try { reply = await callback(msg, auth, isReply); } catch (Exception) { }
-                            if(reply==null)
-                                 Console.WriteLine(e.Message);
+                            try { (isReply1, reply) = await callback(msg, auth, isForBot); } catch (Exception) { }
+                            if (reply == null)
+                                Console.WriteLine(e.Message);
                         }
                         if (reply != null && reply.Length > 0)
                         {
                             lastMsgTime = DateTime.Now;
-                            var c2 = Program.BotName + ": " + reply + "\n\r";
+                            var c2 = Program.BotName + ": " + reply + Program.NewLogLine;
                             ChatLog += c2;
                             lastMsg = c2;
 
-                            var response = dm ? await API.send_dm(client, channel, reply,msgid) : await API.send_message(client, channel, reply, msgid);
+                            var response = dm ? await API.send_dm(client, channel, reply, msgid) : await API.send_message(client, channel, reply, isReply1 ? msgid : null);
 
                             // Write out our response, along with the question
                             File.AppendAllText("chat_log_" + channel + ".txt", c + c2);
                         }
                     }
+
+                    //
+                    // Ask random questions mode
+                    //
+                    if (DateTime.Now > lastQuestionTime.AddMinutes(30) && channel == "973997494893707324")
+                    {
+                        lastQuestionTime = DateTime.Now;
+                        if (DateTime.Now > lastMessageTime.AddMinutes(90))
+                            break;
+                        else if (DateTime.Now > lastMessageTime.AddMinutes(60))
+                        {
+                            await API.send_message(client, channel, "hello? anyone?", null);
+                        }
+                        else
+                        {
+                            var (isReply1, reply) = await callback("dibbr ask", "dibbr", true);
+                            var response = dm ? await API.send_dm(client, channel, reply, null) : await API.send_message(client, channel, reply, null);
+                        }
+
+
+                    }
+                    await Task.Delay(1000);//0 + (int)(new Random().NextDouble() * 500));
+
                 }
 
                 Console.WriteLine("How did I get here?");
@@ -229,7 +269,7 @@ namespace DibbrBot
 
         public override void Typing(bool start)
         {
-           // API.Typing(client, channel, start);
+            // API.Typing(client, channel, start);
         }
 
         public async override Task Initialize(MessageRecievedCallback callback, string token)
@@ -292,7 +332,7 @@ namespace DibbrBot
                 File.AppendAllText("chat_log_" + e.Channel.Name + ".txt", c);
 
 
-                var str = await Callback(e.Message.Content, e.Author.Username);
+                var (reply, str) = await Callback(e.Message.Content, e.Author.Username);
                 if (str != null)
                     await sender.SendMessageAsync(e.Channel, str);
             }).Start();
@@ -321,9 +361,14 @@ namespace DibbrBot
 
     public static class StringHelp
     {
+
+        public static string Remove(this string str, string s)
+        {
+            return str.Replace(s, "").Trim();
+        }
         public static List<string> TakeLastLines(this string text, int count)
         {
-            var lines = text.Split("\n\r");
+            var lines = text.Split(Program.NewLogLine);
 
             return new List<string>(lines);
         }

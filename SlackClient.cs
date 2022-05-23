@@ -18,7 +18,7 @@ namespace DibbrBot
         {
             ChatLog = str;
         }
-        
+
         public MessageRecievedCallback Callback;
         public SlackChat()
         {
@@ -27,7 +27,7 @@ namespace DibbrBot
 
         public override void Typing(bool start)
         {
-           // API.Typing(client, channel, start);
+            // API.Typing(client, channel, start);
         }
 
         public override string GetChatLog(int messages)
@@ -48,30 +48,30 @@ namespace DibbrBot
                 {
                     var txt = message.Text;
 
-                // Change @bot to bot, query
+                    // Change @bot to bot, query
                     if (message.MentionsBot && !txt.ToLower().StartsWith(Program.BotName))
                     {
                         txt = Program.BotName + " " + txt[(txt.IndexOf(">") + 1)..];
                     }
 
-                    @ChatLog += message.User.Name + ": " + message.Text + "\n";
+                    @ChatLog += message.User.Name + ": " + message.Text + Program.NewLogLine;
 
                     if (txt.ToLower().StartsWith(Program.BotName))
                     {
                         message.ReplyWith(async () =>
                     {
-                                var msg = await callback(txt, message.User.Name);
-                                if (msg == null)
-                                    return null;
-                                else
-                                {
+                        var (reply, msg) = await callback(txt, message.User.Name, true);
+                        if (msg == null)
+                            return null;
+                        else
+                        {
 
-                                    @ChatLog += Program.BotName+": " + msg + "\n";
-                                    return new BotMessage { Text = msg };
-                                }
-                            });
+                            @ChatLog += Program.BotName + ": " + msg + Program.NewLogLine;
+                            return new BotMessage { Text = msg };
+                        }
+                    });
                     }
-                /* handle message */
+                    /* handle message */
                 };
                 //  bot.Messages.Subscribe(( message) => {
                 //     Console.WriteLine(message.Text);
