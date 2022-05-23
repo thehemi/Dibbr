@@ -67,6 +67,7 @@ namespace DibbrBot
         {
             Console.WriteLine($"{Program.BotName} is starting...Settings are in dibbr.dll.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
             Web.Run();
+          //  Assistant2.Start();
 
 
             for (int i = 0; i < ConfigurationManager.AppSettings.Keys.Count; i++)

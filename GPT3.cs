@@ -49,7 +49,7 @@ namespace DibbrBot
         /// <param name="q"></param>
         /// <param name="user"></param>
         /// <returns></returns>
-        public async Task<string> Ask(string msg, string log, string user = "", string endtxt = "dibbr's response: ", int MAX_CHARS = 4000)
+        public async Task<string> Ask(string msg, string log, string user = "", string endtxt = "dibbr's response: ", int MAX_CHARS = 2000)
         {
             if (api == null)
             {
@@ -97,8 +97,10 @@ namespace DibbrBot
 
                 if (log == "")
                     log += user + ": " + msg + "\r\n";
-
-                return ConfigurationManager.AppSettings["PrimeText"] + "\n"
+                
+                if (e.EngineName == "code-davinci-002")
+                    return log.TakeLastLines(1)[0];
+                else return ConfigurationManager.AppSettings["PrimeText"] + "\n"
                     + log + "\n" + endtxt;
             }
             // Setup context, insert chat history

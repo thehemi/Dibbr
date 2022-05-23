@@ -232,7 +232,7 @@ namespace DibbrBot
             // Typing indicator before long process
             client.Typing(true);
             
-            var txt = (await gpt3.Ask(msg, log, user, suffix, log.Length));
+            var txt = (await gpt3.Ask(msg, log, user, suffix));
 
             // If repetitive, try again
             if (client.GetChatLog(4).Contains(txt) || (Usernames.ContainsKey(Program.BotUsername) && LevenshteinDistance.Get(Usernames[Program.BotUsername].TakeLastLines(1)?[0], txt) > 0.4))

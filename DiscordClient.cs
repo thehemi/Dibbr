@@ -5,6 +5,7 @@ using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 //using DSharpPlus.CommandsNext;
 
 namespace DibbrBot
@@ -370,7 +371,12 @@ namespace DibbrBot
         {
             var lines = text.Split(Program.NewLogLine);
 
-            return new List<string>(lines);
+            var l = new List<string>(lines);
+            var s = l.Count - count;
+            if (s < 0)
+                return l;
+            l.RemoveRange(0, s);
+            return l;
         }
     }
 }
