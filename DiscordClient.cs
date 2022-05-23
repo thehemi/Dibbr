@@ -115,7 +115,7 @@ namespace DibbrBot
                         catch (Exception e) { }
                     }
 
-                    var log = ChatLog.TakeLastLines(messages.Count);
+                    var log = ChatLog.TakeLastLines(messages.Count+1);
                     for (int i = messages.Count - 1; i >= 0; i--)
                     {
                         var message = messages[i];
