@@ -57,6 +57,8 @@ namespace DibbrBot
                 api = new OpenAI_API.OpenAIAPI(apiKeys: token, engine: e);
             }
 
+            Console.WriteLine("GPT3 Query: " + msg);
+
 
             // Set variables like this
             // dibbr hey ?fp=1&pp=2
@@ -96,12 +98,12 @@ namespace DibbrBot
                 log = log.Trim();
 
                 if (log == "")
-                    log += user + ": " + msg + "\r\n";
+                    log += user + ": " + msg;
                 
                 if (e.EngineName == "code-davinci-002")
-                    return log.TakeLastLines(1)[0];
-                else return ConfigurationManager.AppSettings["PrimeText"] + "\n"
-                    + log + "\n" + endtxt;
+                    return log.TakeLastLines(1)[0] + "\n" + endtxt;
+                else return ConfigurationManager.AppSettings["PrimeText"] + "\n\n"
+                    + log + "\n\r" + endtxt;
             }
             // Setup context, insert chat history
             var txt = MakeText();
@@ -133,13 +135,13 @@ namespace DibbrBot
                 var response = "";
                 foreach (var s in split)
                 {
-                    if (Last(log, 2000).Contains(s))
+                    if (Last(log, 2000).Contains(s) && s.Length > 15)
                         percentMatch += s.Length;
                     else
-                        response += s + ". ";
+                        response += s + ".";
                 }
                 if (!r.EndsWith(".") && response.Length > 0)
-                    response = response.Substring(0, response.Length - 2);
+                    response = response.Substring(0, response.Length - 1);
 
                 return (percentMatch, response);
             }

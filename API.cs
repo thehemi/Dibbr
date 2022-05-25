@@ -128,10 +128,10 @@ namespace DibbrBot
                     if (i == 2)
                         content = Regex.Escape(c);
                     if (i == 3)
-                        content = content[..(content.Length / 2)] + "...(snipped due to send failure)";
+                        content =  content[..(content.Length / 2)] + "...(snipped due to send failure)";
                     if (i == 4)
-                        content = "The message I was trying to send failed for some reason. Maybe it was too big or had funny characters in? First 100 chars: " + c[..20].Replace("\n", "");
-                    await Task.Delay(3000);
+                        content = "The message I was trying to send failed for some reason.";// Maybe it was too big or had funny characters in? First 100 chars: " + c[..20].Replace("\n", "");
+                    await Task.Delay(4000);
                 }
             }
             return null;
@@ -169,7 +169,7 @@ namespace DibbrBot
             content = content.Replace("\n", "\\n");
             content = content.Replace("\n", "\\n");
             content = content.Replace("\"", "\\\"");
-            content = content.Replace("\r", "");
+            content = content.Replace("\r", "\\n");
             content = content.Replace("\t", "");
             content = content.Replace("\f", "");
             content = content.Replace("\b", "");
@@ -260,7 +260,7 @@ namespace DibbrBot
         /// <param name="channel_id"></param>
         /// <param name="user_id"></param>
         /// <returns> Returns a JToken with the message data </returns>
-        async static public Task<JArray> getLatestDMs(HttpClient client, string channel_id, string user_id = "")
+        async static public Task<List<Message>> getLatestDMs(HttpClient client, string channel_id, string user_id = "")
         {
             if (!dm_map.ContainsKey(channel_id))
             {
@@ -278,8 +278,15 @@ namespace DibbrBot
 
             try
             {
-                var messages = JsonConvert.DeserializeObject<JArray>(str);
-                return messages;
+                var messages = JsonConvert.DeserializeObject<List<DM>>(str);
+                var dms = new List<Message>();
+                foreach(var m in messages)
+                {
+                    var dm = new Message() { author = m.author, content = m.content, id = m.id,timestamp=m.timestamp };
+                    dms.Add(dm);
+                }
+                //if (messages != null)
+                  return dms;
             }
             catch (Exception e)
             {
@@ -308,7 +315,7 @@ namespace DibbrBot
         /// <param name="channel_id"></param>
         /// <param name="user_id"></param>
         /// <returns> Returns a JToken with the message data </returns>
-        async static public Task<JArray> getLatestMessages(HttpClient client, string channel_id, string user_id = "", int numMessages = 5)
+        async static public Task<List<Message>> getLatestMessages(HttpClient client, string channel_id, string user_id = "", int numMessages = 5)
         {
             while (true)
             {
@@ -316,6 +323,37 @@ namespace DibbrBot
                 if (str == null)
                 {
                     Console.WriteLine("Probably channel " + channel_id + " does not exist");
+                    await Task.Delay(2000);
+                }
+                try
+                {
+                    var messages = JsonConvert.DeserializeObject<List<Message>>(str);
+                    if(messages!=null)
+                     return messages;
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.Message);
+                    // Console.Beep();
+                    await Task.Delay(2000);
+                    // return null;
+                }
+            }
+
+        }
+
+
+        /// <param name="channel_id"></param>
+        /// <param name="user_id"></param>
+        /// <returns> Returns a JToken with the message data </returns>
+        async static public Task<JArray> getNewDMs(HttpClient client,  string user_id = "")
+        {
+            while (true)
+            {
+                var (str, _) = await send_request(client, "GET", $"users/{user_id}/channels");
+                if (str == null)
+                {
+                   // Console.WriteLine("Probably channel " + channel_id + " does not exist");
                     await Task.Delay(2000);
                 }
                 try
@@ -334,4 +372,97 @@ namespace DibbrBot
 
         }
     }
+
+  
+
+    public class DM
+    {
+        public string id { get; set; }
+        public int type { get; set; }
+        public string content { get; set; }
+        public string channel_id { get; set; }
+        public Author author { get; set; }
+        public List<object> attachments { get; set; }
+        public List<object> embeds { get; set; }
+        public List<object> mentions { get; set; }
+        public List<object> mention_roles { get; set; }
+        public bool pinned { get; set; }
+        public bool mention_everyone { get; set; }
+        public bool tts { get; set; }
+        public DateTime timestamp { get; set; }
+        public object edited_timestamp { get; set; }
+        public int flags { get; set; }
+        public List<object> components { get; set; }
+    }
+
+
+    public class Author
+    {
+        public string id { get; set; }
+        public string username { get; set; }
+        public string avatar { get; set; }
+        public object avatar_decoration { get; set; }
+        public string discriminator { get; set; }
+        public int public_flags { get; set; }
+    }
+
+    public class Mention
+    {
+        public string id { get; set; }
+        public string username { get; set; }
+        public string avatar { get; set; }
+        public object avatar_decoration { get; set; }
+        public string discriminator { get; set; }
+        public int public_flags { get; set; }
+    }
+
+    public class MessageReference
+    {
+        public string channel_id { get; set; }
+        public string guild_id { get; set; }
+        public string message_id { get; set; }
+    }
+
+    public class ReferencedMessage
+    {
+        public string id { get; set; }
+        public int type { get; set; }
+        public string content { get; set; }
+        public string channel_id { get; set; }
+        public Author author { get; set; }
+        public List<object> attachments { get; set; }
+        public List<object> embeds { get; set; }
+        public List<object> mentions { get; set; }
+        public List<object> mention_roles { get; set; }
+        public bool pinned { get; set; }
+        public bool mention_everyone { get; set; }
+        public bool tts { get; set; }
+        public DateTime timestamp { get; set; }
+        public object edited_timestamp { get; set; }
+        public int flags { get; set; }
+        public List<object> components { get; set; }
+    }
+
+    public class Message
+    {
+        public string id { get; set; }
+        public int type { get; set; }
+        public string content { get; set; }
+        public string channel_id { get; set; }
+        public Author author { get; set; }
+        public List<object> attachments { get; set; }
+        public List<object> embeds { get; set; }
+        public List<Mention> mentions { get; set; }
+        public List<object> mention_roles { get; set; }
+        public bool pinned { get; set; }
+        public bool mention_everyone { get; set; }
+        public bool tts { get; set; }
+        public DateTime timestamp { get; set; }
+        public object edited_timestamp { get; set; }
+        public int flags { get; set; }
+        public List<object> components { get; set; }
+        public MessageReference message_reference { get; set; }
+        public ReferencedMessage referenced_message { get; set; }
+    }
+
 }

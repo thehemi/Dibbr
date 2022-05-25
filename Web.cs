@@ -42,7 +42,7 @@ class Web
                 else
                 {
 
-                    Program.NewClient(new DiscordChat(false, false, channel/*Channel id, room or dm*/), discord, gpt3);
+                    Program.NewClient(new DiscordChat(false),discord,gpt3);
                 }
 
                 page = page.Replace("{Status}", $"{Program.BotName} initialized with provided keys! Try summoning him in your server chat with {Program.BotName}, hi!");

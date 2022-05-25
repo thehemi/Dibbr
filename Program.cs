@@ -173,15 +173,26 @@ namespace DibbrBot
 
 
                 // Selfbot
-
-
-                foreach (var chat in chats)
+                var token = ConfigurationManager.AppSettings["Discord"];
+                if (token != null && token.Length > 0)
                 {
-                    var words = chat.Split(' ');
-                    Console.WriteLine("Discord Self Bot Added to " + words[0] + " channel " + words[1]);
+                    var client = new DiscordChat(false);
+                    Console.WriteLine($"{client.ToString()} initializing....");
 
-                    NewClient(new DiscordChat(false, words[0] == "DM", words[1]/*Channel id, room or dm*/), ConfigurationManager.AppSettings["Discord"], gpt3);
+                    foreach (var chat in chats)
+                    {
+                        var words = chat.Split(' ');
+                        Console.WriteLine("Discord Self Bot Added to " + words[0] + " channel " + words[1]);
+
+                        client.AddChannel(words[1], words[0] == "DM", new MessageHandler(client, gpt3));
+                    }                    
+
+             
+                    _ = client.Initialize(async (msg, user, isReply) => { return (false,null); }, token);
+                    systems.Add(client);
                 }
+
+               
 
                 Console.WriteLine("All initialization done");
             })

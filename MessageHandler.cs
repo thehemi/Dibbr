@@ -28,13 +28,15 @@ namespace DibbrBot
     /// <summary>
     /// This is the main message handler for chat
     /// </summary>
-    class MessageHandler
+    public class MessageHandler
     {
+        public string Log = "";
+        
         int talkInterval = 10; // How often to talk unprompted (in messages in chat)
         int messagesSincePost = 0; // How many messages have been posted since last talk
-        bool muted = false;
-        bool chattyMode = true; // Will ask questions randomly
-        GPT3 gpt3;
+        public bool muted = false;
+        public bool chattyMode = true; // Will ask questions randomly
+        public GPT3 gpt3;
         IChatSystem client;
         DateTime breakTime;
         int MESSAGE_HISTORY = 10; // how many messages to keep in history to pass to GPT3
@@ -58,12 +60,7 @@ namespace DibbrBot
             this.gpt3 = gpt3;
             breakTime = DateTime.Now;
             var client2 = client as DiscordChat;
-            // Bot is not allowed here
-            if (client2?.channel == "937151566266384394")
-            {
-                muted = false;
-                chattyMode = false;
-            }
+
         }
 
         // Encapsulates a dice roll
@@ -81,14 +78,15 @@ namespace DibbrBot
         /// <param name="msg"></param>
         /// <param name="user"></param>
         /// <returns></returns>
-        public async Task<(bool isReply, string msg)> OnMessage(string msg, string user, bool isForBot = false)
+        public async Task<(bool isReply, string msg)> OnMessage(string msg, string user, bool isForBot = false, bool testRun = false)
         {
            // Store per user logs
             if (!Usernames.ContainsKey(user))
                 Usernames.Add(user, msg + Program.NewLogLine);
             else Usernames[user] += msg + Program.NewLogLine;
 
-            
+            // log is injected
+            //Log += msg + ": " + user + "\n\r"; 
 
             // Hey DIBBR what's the time => what's the time
             var m = msg.ToLower().Replace("hey ", "").Replace("yo ", "").Trim();
@@ -105,12 +103,6 @@ namespace DibbrBot
             // All messages are replies unless marked otherwise
             var isReply = true;
             var muted = this.muted;
-         //   if (m.ToLower().StartsWith("define ") || user.ToLower() == "rightofreply")
-            {
-          //      isForBot = true;
-            //    muted = false;
-            }
-
          
 
             //var qMode1 = (!isForBot && (messagesSincePost++ > talkInterval) && !msg.Contains("<@") && !isReply);
@@ -123,14 +115,14 @@ namespace DibbrBot
                 if (isQuestion && Die(15))
                     isForBot = true;
                 // 2. Randomly comment on some posts
-                if (Die(30))
+                else if (Die(15))
                 {
                     isComment = true;
                     isForBot = true;
                     isReply = false;
                 }
                 // 3. Randomly ask questions
-                if (Die(30))
+                else if (Die(30))
                 {
                     isForBot = true;
                     isReply = false;
@@ -174,7 +166,7 @@ namespace DibbrBot
             // 1. Wipe memory
             if (Is("wipe memory"))
             {
-                client.SetChatLog("");
+                Log = "";
                 return (isReply, "Memory erased");
             }
 
@@ -194,7 +186,8 @@ namespace DibbrBot
 
 
            if (muted)
-                return (false, null);// breakTime = DateTime.Now.AddMinutes(5); // Muted mode allows 1 message every 5 miuns
+                if(user != "dabbr")
+                     return (false, null);// breakTime = DateTime.Now.AddMinutes(5); // Muted mode allows 1 message every 5 miuns
 
 
 
@@ -214,10 +207,10 @@ namespace DibbrBot
                 return (isReply, "Interval set to " + talkInterval);
             }
 
-            var suffix = isComment ? $"{Program.BotName}'s comment (put no response if {Program.BotName} would not comment next): " : $"{Program.BotName}'s response: ";
+            var suffix = isComment ? $"{Program.BotName}'s comment:" : $"{Program.BotName}'s response: ";
             if (chattyMode && bAskQuestion)
             {
-                suffix = $"{Program.BotName} should ask an interesting question, about an interesting topic: {Program.BotName}: ";
+                suffix = $"{Program.BotName} should ask an interesting question, about an interesting topic, related to the chat log: {Program.BotName}'s question: ";
             }
 
             // Feed GPT-3 history of longer length if we're asking it how old a chatter is, or if it remembers something in the chat
@@ -226,15 +219,19 @@ namespace DibbrBot
             {
                 history = MESSAGE_HISTORY_LIMIT;
             }
-            var log = client.GetChatLog(history);
+            var log = String.Join(Program.NewLogLine, Log.TakeLastLines(history));
 
+            if (testRun)
+            {
+                return (true, "Would Respond");
+            }
             // Typing indicator before long process
             client.Typing(true);
             
             var txt = (await gpt3.Ask(msg, log, user, suffix));
 
             // If repetitive, try again
-            if (client.GetChatLog(4).Contains(txt) || ((Usernames.ContainsKey(Program.BotUsername) && LevenshteinDistance.Get(Usernames[Program.BotUsername].TakeLastLines(1)?[0], txt) > 0.4))){
+            if (Log.TakeLastLines(4).Contains(txt) || ((Usernames.ContainsKey(Program.BotUsername) && LevenshteinDistance.Get(Usernames[Program.BotUsername].TakeLastLines(1)?[0], txt) > 0.4))){
                 txt = (await gpt3.Ask(msg, "", user, suffix, log.Length));
                 if (txt != null)
                     txt += "\nDev Note: Second response. First had a Levenshtein distance too low";
@@ -256,8 +253,6 @@ namespace DibbrBot
             //if((client as DiscordChat)?.channel == "978095250474164224")
             //   await speech.Speak(txt);
             return (isReply, txt);
-
-           
         }
 
         // GPT-3 says these pharses a lot, so you might want to parse them out...
