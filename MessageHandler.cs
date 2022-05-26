@@ -103,13 +103,14 @@ namespace DibbrBot
             // All messages are replies unless marked otherwise
             var isReply = true;
             var muted = this.muted;
-         
-
+            var useSteps = m.Contains("use steps") || m.Contains("usesteps");
+            if (useSteps)
+                m = m.Replace("use steps", "").Replace("usesteps", "").Trim();
+            bool isQuestion = m.StartsWith("calculate") || m.StartsWith("what") || m.EndsWith("?") || m.StartsWith("where") || m.StartsWith("would") || m.StartsWith("can") || m.StartsWith("does") || m.StartsWith("how") || m.Contains("?") || m.StartsWith("why") || m.StartsWith("how") || m.StartsWith("what") || m.Contains("can someone");
+       
             //var qMode1 = (!isForBot && (messagesSincePost++ > talkInterval) && !msg.Contains("<@") && !isReply);
             if (!isForBot && chattyMode)// && (messagesSincePost++ > talkInterval))
             {
-                // Intercept some not for bot messages randomly
-                var isQuestion = m.StartsWith("what") || m.StartsWith("does") || m.StartsWith("would") || m.StartsWith("can") || m.StartsWith("does") || m.StartsWith("how") || m.Contains("?") || m.StartsWith("why") || m.StartsWith("how") || m.StartsWith("what") || m.Contains("can someone");
 
                 // 1. Randomly answer some questions
                 if (isQuestion && Die(15))
@@ -212,6 +213,8 @@ namespace DibbrBot
             {
                 suffix = $"{Program.BotName} should ask an interesting question, about an interesting topic, related to the chat log: {Program.BotName}'s question: ";
             }
+            if(useSteps || isQuestion)
+                suffix = $"{Program.BotName}: Let's think step by step.";
 
             // Feed GPT-3 history of longer length if we're asking it how old a chatter is, or if it remembers something in the chat
             var history = MESSAGE_HISTORY;
