@@ -31,7 +31,7 @@ namespace DibbrBot
     public class MessageHandler
     {
         public string Log = "";
-        
+        int ANGER_ODDS = 10; // 1 in ANGER_ODDS chance of being angry
         int talkInterval = 10; // How often to talk unprompted (in messages in chat)
         int messagesSincePost = 0; // How many messages have been posted since last talk
         public bool muted = false;
@@ -39,12 +39,20 @@ namespace DibbrBot
         public GPT3 gpt3;
         IChatSystem client;
         DateTime breakTime;
-        int MESSAGE_HISTORY = 10; // how many messages to keep in history to pass to GPT3
-        int MESSAGE_HISTORY_LIMIT = 50;
+        public int MESSAGE_HISTORY = 10; // how many messages to keep in history to pass to GPT3
+        public int MESSAGE_HISTORY_LIMIT = 50;
         Speech speech = new Speech();
         int runs = 0;
         // Store chat for each user, useful for future bot functionality
         Dictionary<string, string> Usernames = new Dictionary<string, string>();
+        public string lastMsgUser = ""; // Last user to be replied to by bot
+        public DateTime lastMessageTime = DateTime.MinValue; // Last response by bot
+
+
+        // For randomly asking questions
+        DateTime lastQuestionTime = DateTime.Now;
+
+
         
         /*   class Timeout : ICommand
            {
@@ -67,6 +75,39 @@ namespace DibbrBot
         bool Die(int odds)
         {
             return (new Random().Next(odds) < 1);
+        }
+
+        public async Task OnUpdate(Action<string> sendMsg)
+        {
+            //
+            // Ask random questions mode
+            // TODO: Move this to MessageHandler function
+            //
+            if (DateTime.Now > lastQuestionTime.AddMinutes(30) && chattyMode)
+            {
+                lastQuestionTime = DateTime.Now;
+                if (DateTime.Now > lastMessageTime.AddMinutes(90))
+                    return;
+                else if (DateTime.Now > lastMessageTime.AddMinutes(60))
+                {
+                    sendMsg("hello? anyone?");
+                }
+                else
+                {
+                    try
+                    {
+                        var (isReply1, reply) = await OnMessage(Program.BotName + " ask", "dibbr", true);
+                        sendMsg(reply);
+                       
+                        
+                    }
+                    catch (Exception e)
+                    {
+                        Console.Write(e.Message);
+                    }
+                }
+
+            }
         }
         
         
@@ -96,6 +137,20 @@ namespace DibbrBot
 
             if (m == null)
                 return (false, null); ;
+
+
+            // Is for bot if we were the last ones to talk to bot, and this message is very recent
+            isForBot |= lastMsgUser == user && (lastMessageTime.AddSeconds(40) > DateTime.Now);
+
+            // Is for bot if bot mentioned in first 1/4th
+            var idx = msg.ToLower().IndexOf(Program.BotName);
+            isForBot |= (idx != -1 && idx < msg.Length / 4);
+
+            if (isForBot)
+            {
+                lastMessageTime = DateTime.Now;
+                lastMsgUser = user;
+            }
 
             var bAskQuestion = false;
             var isComment = false; //198225782156427265
@@ -216,6 +271,9 @@ namespace DibbrBot
             if(useSteps || isQuestion)
                 suffix = $"{Program.BotName}: Let's think step by step.";
 
+            if (Die(ANGER_ODDS))
+                suffix += $"({Program.BotName} is furious)";
+
             // Feed GPT-3 history of longer length if we're asking it how old a chatter is, or if it remembers something in the chat
             var history = MESSAGE_HISTORY;
             if (Is("remember") || Has("you remember") || Has("what was the") || Has("what did i") || Has("how old") || Has("what i said"))
@@ -231,13 +289,13 @@ namespace DibbrBot
             // Typing indicator before long process
             client.Typing(true);
             
-            var txt = (await gpt3.Ask(msg, log, user, suffix));
+            var txt = await gpt3.Ask(msg, log, user, suffix, log.Length);
 
             // If repetitive, try again
-            if (Log.TakeLastLines(4).Contains(txt) || ((Usernames.ContainsKey(Program.BotUsername) && LevenshteinDistance.Get(Usernames[Program.BotUsername].TakeLastLines(1)?[0], txt) > 0.4))){
+            if (Log.TakeLastLines(4).Contains(txt) || ((Usernames.ContainsKey(Program.BotUsername) && StringHelpers.Get(Usernames[Program.BotUsername].TakeLastLines(1)?[0], txt) > 0.7))){
                 txt = (await gpt3.Ask(msg, "", user, suffix, log.Length));
                 if (txt != null)
-                    txt += "\nDev Note: Second response. First had a Levenshtein distance too low";
+                    txt += "\nDev Note: Second response. First had a Levenshtein distance too high";
             }                
 
             if (txt == null)

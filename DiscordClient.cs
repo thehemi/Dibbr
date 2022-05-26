@@ -24,8 +24,8 @@ namespace DibbrBot
     {
         public bool IsBot;
         static HttpClient client; // Shared
-        //private string ChatLog = "";
-        private readonly int MAX_BUFFER = 5000; // Chat buffer, don't change this, change the one in GPT3
+                                  //private string ChatLog = "";
+                                  // private readonly int MAX_BUFFER = 5000; // Chat buffer, don't change this, change the one in GPT3
         public List<Channel> channels = new List<Channel>();
 
 
@@ -51,6 +51,11 @@ namespace DibbrBot
             }
             if (c.id == "572387680235683861")
                 handler.chattyMode = false;
+            /// dibbr pro, better memory
+            if (c.id == "979230826346709032")
+            {
+                handler.MESSAGE_HISTORY *= 3;
+            }
         }
 
         public override string GetChatLog(int messages = 10)
@@ -83,7 +88,7 @@ namespace DibbrBot
                 // SSL Certificate Bypass
                 System.Net.ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
                 // 2 secs for headers to take
-                 await Task.Delay(1000);
+                await Task.Delay(1000);
             }
 
             new Thread(async delegate ()
@@ -122,10 +127,11 @@ namespace DibbrBot
             public string id;
             public string name;
             public string lastMsg = "";
-            public DateTime lastMsgTime;
+
             public MessageHandler handler;
-            DateTime lastQuestionTime = DateTime.Now;
-            DateTime lastMessageTime = DateTime.Now;
+
+          
+            
             public bool first = true;
 
             public async Task Update()
@@ -193,7 +199,7 @@ namespace DibbrBot
                         auth = Program.BotName;
 
                     var c = auth + ": " + msg + Program.NewLogLine;
- 
+
                     // FIXME: Will block repeating messages
                     if (Contains(log, c))
                         continue;
@@ -217,25 +223,11 @@ namespace DibbrBot
 
                     var isForBot = false;
 
-                    // Skip our own messages, unless they start with botname, AND aren't replies
-                    if (auth == Program.BotName && (!msg.ToLower().StartsWith(Program.BotName) && message.referenced_message == null))
-                    {
-                        continue; // Check this is never hit, then remove this old code
-                    }
-                    else
-                    {
-                        // Is for bot if it's a reply to the bot
-                        var replyingTo = message.referenced_message?.author.username;
-                        isForBot |= (replyingTo == Program.BotName);
-                        // Is for bot if bot mentioned in first 1/4th
-                        var idx = msg.ToLower().IndexOf(Program.BotName);
-                        isForBot |= (idx != -1 && idx < msg.Length / 4);
-                    }
+                    // Is for bot if it's a reply to the bot
+                    isForBot |= (message.referenced_message?.author.username == Program.BotName);
 
-                    if (isForBot)
-                        lastMessageTime = DateTime.Now;
-
-                    isForBot |= dm ;
+        
+                    isForBot |= dm;
 
                     // If you wanna log context, too
                     // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
@@ -260,8 +252,6 @@ namespace DibbrBot
                     if (reply == null || reply.Length == 0)
                         continue;
 
-
-                    lastMsgTime = DateTime.Now;
                     var c2 = Program.BotName + ": " + reply + Program.NewLogLine;
                     Log += c2;
                     lastMsg = c2;
@@ -272,34 +262,11 @@ namespace DibbrBot
                     File.AppendAllText("chat_log_" + channel + ".txt", c + c2);
 
                 }
-
-                //
-                // Ask random questions mode
-                // TODO: Move this to MessageHandler function
-                //
-                if (DateTime.Now > lastQuestionTime.AddMinutes(30) && handler.chattyMode)
-                {
-                    lastQuestionTime = DateTime.Now;
-                    if (DateTime.Now > lastMessageTime.AddMinutes(90))
-                        return;
-                    else if (DateTime.Now > lastMessageTime.AddMinutes(60))
-                    {
-                        await API.send_message(client, channel, "hello? anyone?", null);
-                    }
-                    else
-                    {
-                        try
-                        {
-                            var (isReply1, reply) = await handler.OnMessage(Program.BotName + " ask", "dibbr", true);
-                            var response = dm ? await API.send_dm(client, channel, reply, null) : await API.send_message(client, channel, reply, null);
-                        }
-                        catch (Exception e)
-                        {
-                            Console.Write(e.Message);
-                        }
-                    }
-
-                }
+                
+                await handler.OnUpdate(async (s) => {  // FIXME: Need generic handler for all client types
+                   var x = dm ? await API.send_dm(client, channel, s, null) : await API.send_message(client, channel, s, null);
+                   
+                });
             }
             //0 + (int)(new Random().NextDouble() * 500));
         }

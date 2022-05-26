@@ -12,37 +12,17 @@ namespace DibbrBot
     /// </summary>
     public class GPT3
     {
+        string token;
+        private OpenAIAPI api;
+        float fp = 0, pp = 0.5f, temp = 1;
+        string engine = "text-davinci-002";
+        Engine e;
+        
         public GPT3(string token)
         {
             this.token = token;
         }
 
-        string token;
-        private OpenAIAPI api;
-        private int MAX_CHARS = 2000; // GPT-3 working memory (chat log)
-
-        static string CleanText(string txt)
-        {
-            if (txt == null) return null;
-            txt = txt.Trim();
-            txt = txt.Replace("\"", "");
-            // Gay stuff GPT-3 likes to return
-            if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
-            {
-                txt = txt[(txt.IndexOfAny(new char[] { '.', ',' }) + 1)..];
-            }
-
-            // Remove  There's no right or wrong answer blah blah blah at the end
-            var last = txt.IndexOf("Ultimately,");
-            if (last != -1)
-                txt = txt[..last];
-            return txt;
-        }
-
-
-        float fp = 0, pp = 0.5f, temp = 1;
-        string engine = "text-davinci-002";
-        Engine e;
         /// <summary>
         /// Asks OpenAI
         /// </summary>
@@ -68,7 +48,11 @@ namespace DibbrBot
                 string[] query = line.Split('?');
                 if (query.Length == 2)
                 {
-                    foreach (string pairs in query[1].Split('&'))
+                    var q = query[1];
+                    if (!q.Contains("&"))
+                        q += "&";
+                    
+                    foreach (string pairs in q.Split('&'))
                     {
                         string[] values = pairs.Split('=');
                         if (values[0] == "pp")
@@ -82,21 +66,25 @@ namespace DibbrBot
                         if (values[0] == "engine")
                         {
                             engine = values[1];
+                            if (engine.Contains("code"))
+                                engine = "code-davinci-002";
+                            else
+                                engine = "text-davinci-002";
+                            
                             e = new Engine(engine) { Owner = "openai", Ready = true };
                             api = new OpenAI_API.OpenAIAPI(apiKeys: token, engine: e);
                         }
                     }
 
-                    return $"Changes made. Now, fp={fp} pp={pp} temp={temp} engine={engine}";
+                    return $"Changes made. Now, fp={fp} pp={pp} buffer={MAX_CHARS} temp={temp} engine={engine}";
                 }
             }
 
             string MakeText()
             {
                 if (log.Length > MAX_CHARS)
-                    log = log[^MAX_CHARS..];
-                log = log.Trim();
-
+                    log = log[^MAX_CHARS..].Trim();
+  
                 if (log == "")
                     log += user + ": " + msg;
                 
@@ -105,64 +93,26 @@ namespace DibbrBot
                 else return ConfigurationManager.AppSettings["PrimeText"] + "\n\n"
                     + log + "\n\r" + endtxt;
             }
+            
             // Setup context, insert chat history
             var txt = MakeText();
             string r = await Q(txt, pp, fp, temp);
 
-
-
             return r;
-            // Ask new Q if our answer was too similar to the previous one
-            /*   if (percentMatch > log.Length / 3)
-               {
-                   log = "";
-                   return null;// await Q(MakeText(), pp, fp, 1)+"\nDev Note: This is the second message "+Program.BotName+" came up with. The first was too repeptitive";
-               }                
 
-               return r;*/
-            string Last(string log, int MAX_CHARS)
-            {
-                if (log.Length > MAX_CHARS)
-                    log = log[^MAX_CHARS..];
-                log = log.Trim();
-                return log;
-            }
-
-            (int dupePercent, string uniquePart) Deduplicate(string r)
-            {
-                var split = r.Split(new char[] { '.' });
-                int percentMatch = 0;
-                var response = "";
-                foreach (var s in split)
-                {
-                    if (Last(log, 2000).Contains(s) && s.Length > 15)
-                        percentMatch += s.Length;
-                    else
-                        response += s + ".";
-                }
-                if (!r.EndsWith(".") && response.Length > 0)
-                    response = response.Substring(0, response.Length - 1);
-
-                return (percentMatch, response);
-            }
+            
             async Task<string> Q(string txt, float pp, float tp, float temp)
             {
                 var result = await api.Completions.CreateCompletionAsync(txt,
                                 temperature: temp, top_p: 1, frequencyPenalty: tp, presencePenalty: pp, max_tokens: 1000, stopSequences: new string[] { Program.BotName + ":" });
                 // var r = CleanText(result.ToString());
-                var r = result.ToString();
+                var r = result.ToString().Trim();
                 Console.WriteLine("GPT3 response: " + r);
-                r = r.Trim();
 
-                // If dup, try again
-                var (percentDupe, response) = Deduplicate(r);
-                if (percentDupe > r.Length / 3)
-                {
-                    log = "";
-                    return await Q(MakeText(), pp, fp, 1);
-                }
-                if (response == "")
-                    return null;
+                var (percentDupe, response) = r.Deduplicate(log);
+                // If dup, try again                
+                //if (percentDupe > r.Length / 3)
+                // return await Q(MakeText(), pp, fp, 1);
 
                 return response;
             }
@@ -193,9 +143,30 @@ namespace DibbrBot
         }
     }
 
-
-    static class LevenshteinDistance
+    /// <summary>
+    /// LevenshteinDistance and other string functions
+    /// </summary>
+    static class StringHelpers
     {
+        public static (int dupePercent, string uniquePart) Deduplicate(this string r, string log)
+        {
+            var split = r.Split(new char[] { '.' });
+            int percentMatch = 0;
+            var response = "";
+            foreach (var s in split)
+            {
+                if (log.Contains(s) && s.Length > 10)
+                    percentMatch += s.Length;
+                else
+                    response += s + ".";
+            }
+            if (!r.EndsWith(".") && response.Length > 0)
+                response = response.Substring(0, response.Length - 1);
+
+            return (percentMatch, response);
+        }
+
+        
         public static float Get(string s, string t)
         {
             if (t == null || s == null)
