@@ -126,12 +126,10 @@ namespace DibbrBot
             public bool dm;
             public string id;
             public string name;
-            public string lastMsg = "";
-
             public MessageHandler handler;
 
-          
-            
+
+
             public bool first = true;
 
             public async Task Update()
@@ -152,37 +150,35 @@ namespace DibbrBot
                 // TODO: Use getLatestMessages()
                 // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
                 var msgList = new List<string>();
-                var messages = dm ? await API.getLatestDMs(client, channel) : await API.getLatestMessages(client, channel, numMessages: lastMsg == "" ? 10 : 5);
+                var messages = dm ? await API.getLatestDMs(client, channel) : await API.getLatestMessages(client, channel, numMessages: 8);
                 if (messages == null)
                     return;
-                // Skip messages already replied to
-                var repliedTo = false;
-                foreach (var msg in messages)
-                {
 
+                // Skip messages already replied to
+                for (int i = 0; i < messages.Count; i++)
+                {
+                    Message msg = messages[i];
+                    
+                    // Most recent DM is from bot, so all other messages are replied to
                     if (dm && msg.author.username == Program.BotUsername)
                     {
-                        repliedTo = true; // We've already replied to this message, and all other messages are older
+                        // Set flags, but don't remove message, as we might want to add to log
+                        for (int k = i; k < messages.Count; k++) messages[k].flags = 69;
+                        break;
                     }
-
-                    if (repliedTo)
-                    {
-                        msg.flags = 69; // Set flags, but don't remove message, as we might want to add to log
-                        continue;
-                    }
+                    
                     var id = msg.referenced_message?.id;
-                    // If this is a bot reply message, mark the referenced message as skipped
-                    if (msg.author.username == Program.BotUsername && id != null)
+                    
+                    // If this is not a bot reply message, ignore
+                    if (msg.author.username != Program.BotUsername || id == null)
+                        continue;
+                    
+                    foreach (var msg2 in from msg2 in messages
+                                         where msg2.id == id
+                                         select msg2)
                     {
-                        /// Find referenced message
-                        foreach (var msg2 in messages)
-                        {
-                            if (msg2.id == id)
-                            {
-                                msg2.flags = 69; // skip
-                                msg.flags = 69; // skip this too
-                            }
-                        }
+                        msg2.flags = 69;// skip
+                        msg.flags = 69;// skip this too
                     }
                 }
 
@@ -192,24 +188,20 @@ namespace DibbrBot
                     var message = messages[i];
                     var msgid = message.id;
                     var msg = message.content;
-                    var auth = message.author.username;
+                    var auth = message.author.username.Replace("????", "Q");
 
                     // So GPT-3 doesn't get confused, in case these differ
                     if (auth == Program.BotUsername)
                         auth = Program.BotName;
 
                     var c = auth + ": " + msg + Program.NewLogLine;
-
+                    
                     // FIXME: Will block repeating messages
-                    if (Contains(log, c))
+                    bool AddToLog(string msg) { if (!Contains(log, msg)) { Log += msg; return false; } return true; } // true if already added to log
+
+
+                    if (AddToLog(c) || message.flags == 69 || (auth.ToLower() == Program.BotName && !msg.ToLower().StartsWith(Program.BotName)))
                         continue;
-
-                    Log += c;
-
-                    if (message.flags == 69 || c == lastMsg || (auth.ToLower() == Program.BotName && !msg.ToLower().StartsWith(Program.BotName)))
-                        continue;
-
-                    auth = auth.Replace("????", "Q"); // Crap usernames
 
 
                     // FIXME: This is a hack that'll probably break on other timezones. mostly for DM bugs
@@ -219,56 +211,45 @@ namespace DibbrBot
                         continue;
                     }
 
-                    lastMsg = c;
-
                     var isForBot = false;
+
+                    // dibbr demo channel
+                    isForBot |= channel == "972018566834565124";
 
                     // Is for bot if it's a reply to the bot
                     isForBot |= (message.referenced_message?.author.username == Program.BotName);
-
-        
+                    // or DM
                     isForBot |= dm;
 
                     // If you wanna log context, too
                     // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
                     //  File.AppendAllText("chat_log_" + channel + ".txt", c);
-                    string reply = null;
-                    bool isReply1 = true;
-                    try
-                    {
-                        handler.Log = Log;
 
-                        if (isForBot)
-                            API.Typing(client, channel, true);
+                    if (isForBot)
+                        API.Typing(client, channel, true);
+                    handler.Log = Log;
+                    var (isReply1, reply) = await handler.OnMessage(msg, auth, isForBot);
 
-                        (isReply1, reply) = await handler.OnMessage(msg, auth, isForBot);
 
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e.Message);
-                        await Task.Delay(1000);
-                    }
                     if (reply == null || reply.Length == 0)
                         continue;
 
                     var c2 = Program.BotName + ": " + reply + Program.NewLogLine;
                     Log += c2;
-                    lastMsg = c2;
-
+            
                     var response = dm ? await API.send_dm(client, channel, reply, msgid) : await API.send_message(client, channel, reply, isReply1 ? msgid : null);
 
                     // Write out our response, along with the question
                     File.AppendAllText("chat_log_" + channel + ".txt", c + c2);
 
                 }
-                
-                await handler.OnUpdate(async (s) => {  // FIXME: Need generic handler for all client types
-                   var x = dm ? await API.send_dm(client, channel, s, null) : await API.send_message(client, channel, s, null);
-                   
+
+                await handler.OnUpdate(async (s) =>
+                {  // FIXME: Need generic handler for all client types
+                    var x = dm ? await API.send_dm(client, channel, s, null) : await API.send_message(client, channel, s, null);
+
                 });
             }
-            //0 + (int)(new Random().NextDouble() * 500));
         }
 
     }

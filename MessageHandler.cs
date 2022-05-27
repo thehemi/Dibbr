@@ -97,7 +97,8 @@ namespace DibbrBot
                     try
                     {
                         var (isReply1, reply) = await OnMessage(Program.BotName + " ask", "dibbr", true);
-                        sendMsg(reply);
+                        if(reply.Length > 0)
+                            sendMsg(reply);
                        
                         
                     }
@@ -130,13 +131,11 @@ namespace DibbrBot
             //Log += msg + ": " + user + "\n\r"; 
 
             // Hey DIBBR what's the time => what's the time
-            var m = msg.ToLower().Replace("hey ", "").Replace("yo ", "").Trim();
-            m = m.Replace(Program.BotName.ToLower(), "").Trim();
-            if (m.StartsWith(","))
-                m = m.Substring(1).Trim();
+            var m = msg.ToLower().Replace("hey ", "").Replace("yo ", "").Trim().Replace(Program.BotName.ToLower(), "").Trim();
+            if (m.StartsWith(",")) m = m.Substring(1).Trim();
 
             if (m == null)
-                return (false, null); ;
+                return (false, null); // never happen right?
 
 
             // Is for bot if we were the last ones to talk to bot, and this message is very recent
@@ -152,17 +151,17 @@ namespace DibbrBot
                 lastMsgUser = user;
             }
 
-            var bAskQuestion = false;
+            
             var isComment = false; //198225782156427265
 
             // All messages are replies unless marked otherwise
-            var isReply = true;
-            var muted = this.muted;
-            var useSteps = m.Contains("use steps") || m.Contains("usesteps");
-            if (useSteps)
-                m = m.Replace("use steps", "").Replace("usesteps", "").Trim();
+            
+            var muted = this.muted; // so we can change locally temporarily
+            var useSteps = m.Contains("steps") || m.Contains("??");
             bool isQuestion = m.StartsWith("calculate") || m.StartsWith("what") || m.EndsWith("?") || m.StartsWith("where") || m.StartsWith("would") || m.StartsWith("can") || m.StartsWith("does") || m.StartsWith("how") || m.Contains("?") || m.StartsWith("why") || m.StartsWith("how") || m.StartsWith("what") || m.Contains("can someone");
-       
+
+            var bAskQuestion = false;
+            var isReply = true;
             //var qMode1 = (!isForBot && (messagesSincePost++ > talkInterval) && !msg.Contains("<@") && !isReply);
             if (!isForBot && chattyMode)// && (messagesSincePost++ > talkInterval))
             {
@@ -268,8 +267,8 @@ namespace DibbrBot
             {
                 suffix = $"{Program.BotName} should ask an interesting question, about an interesting topic, related to the chat log: {Program.BotName}'s question: ";
             }
-            if(useSteps || isQuestion)
-                suffix = $"{Program.BotName}: Let's think step by step.";
+            if(useSteps)
+                suffix = $"{Program.BotName}'s response: Let's think step by step.";
 
             if (Die(ANGER_ODDS))
                 suffix += $"({Program.BotName} is furious)";
@@ -290,19 +289,17 @@ namespace DibbrBot
             client.Typing(true);
             
             var txt = await gpt3.Ask(msg, log, user, suffix, log.Length);
-
+            if (txt == "") return (false, null);
+            
             // If repetitive, try again
             if (Log.TakeLastLines(4).Contains(txt) || ((Usernames.ContainsKey(Program.BotUsername) && StringHelpers.Get(Usernames[Program.BotUsername].TakeLastLines(1)?[0], txt) > 0.7))){
                 txt = (await gpt3.Ask(msg, "", user, suffix, log.Length));
-                if (txt != null)
-                    txt += "\nDev Note: Second response. First had a Levenshtein distance too high";
+                txt += "\nDev Note: Second response. First had a Levenshtein distance too high";
             }                
 
-            if (txt == null)
-                return (false, null); ;
-
+            
             // Bot may decide to not respond sometimes
-            var c = txt.ToLower().Remove(Program.BotName).Remove(":");
+            var c = txt.ToLower().Remove(Program.BotName).Remove(":").Trim();
             if (c.StartsWith("no response") || c.StartsWith("would not comment") || c.StartsWith("would not respond"))
             {
                 Console.WriteLine("No response desired!!!!");
@@ -315,32 +312,5 @@ namespace DibbrBot
             //   await speech.Speak(txt);
             return (isReply, txt);
         }
-
-        // GPT-3 says these pharses a lot, so you might want to parse them out...
-        string CleanText(string txt)
-        {
-            if (txt == null) return null;
-            try
-            {
-                txt = txt.Trim();
-                txt = txt.Replace("\"", "");
-                // Gay stuff GPT-3 likes to return
-                if (txt.StartsWith("There is no") || txt.StartsWith("There's no"))
-                {
-                    txt = txt[(txt.IndexOfAny(new char[] { '.', ',' }) + 1)..];
-                    // Capitalize
-                    txt = $"{char.ToUpper(txt[0])}{txt[1..]}";
-                }
-
-                // Remove  There's no right or wrong answer blah blah blah at the end
-                var last = txt.IndexOf("Ultimately,");
-                if (last != -1)
-                    txt = txt[..last];
-
-
-            }
-            catch (Exception e) { }
-            return txt;
-        }        
     }
 }
