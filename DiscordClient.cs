@@ -1,387 +1,354 @@
-﻿using DSharpPlus;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.IO;
+using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Linq;
-using Newtonsoft.Json;
-using System.Configuration;
+using DSharpPlus;
+using DSharpPlus.EventArgs;
+
 //using DSharpPlus.CommandsNext;
 
-namespace DibbrBot
+namespace DibbrBot;
+
+/// <summary>
+///     Discord chat system
+///     TODO: This will replace the messy code below, like this
+///     var discord = new DiscordChat(true,true,"channelid");
+///     discord.Initialize(GPTHandleMessage);
+/// </summary>
+public class DiscordChat : ChatSystem
 {
+    static HttpClient _client; // Shared
 
-    /// <summary>
-    /// Discord chat system
-    /// TODO: This will replace the messy code below, like this
-    /// var discord = new DiscordChat(true,true,"channelid");
-    /// discord.Initialize(GPTHandleMessage);
-    /// 
-    /// </summary>
-    public class DiscordChat : IChatSystem
+    //private string ChatLog = "";
+    // private readonly int MAX_BUFFER = 5000; // Chat buffer, don't change this, change the one in GPT3
+    public List<Channel> Channels = new();
+    public bool IsBot;
+
+    public DiscordChat(bool isBot) { }
+
+
+    public override void Typing(bool start)
     {
-        public bool IsBot;
-        static HttpClient client; // Shared
-                                  //private string ChatLog = "";
-                                  // private readonly int MAX_BUFFER = 5000; // Chat buffer, don't change this, change the one in GPT3
-        public List<Channel> channels = new List<Channel>();
+        // API.Typing(client, channel, start);
+    }
 
+    public void AddChannel(string channel, bool dm, MessageHandler handler)
+    {
+        var c = new Channel {Id = channel, Dm = dm};
+        c.Handler = handler;
+        Channels.Add(c);
+        if (c.Dm) handler.ChattyMode = false;
 
-
-        public override void Typing(bool start)
+        // Bot is not allowed here
+        if (c.Id == "937151566266384394")
         {
-            // API.Typing(client, channel, start);
+            //H  handler.muted = true;
+            handler.ChattyMode = false;
         }
 
-        public void AddChannel(string channel, bool dm, MessageHandler handler)
-        {
+        if (c.Id == "572387680235683861") handler.ChattyMode = false;
 
-            var c = new Channel { id = channel, dm = dm };
-            c.handler = handler;
-            channels.Add(c);
-            if (c.dm)
-                handler.chattyMode = false;
-            // Bot is not allowed here
-            if (c.id == "937151566266384394")
+        /// dibbr pro, better memory
+        if (c.Id == "979230826346709032") handler.MessageHistory *= 3;
+    }
+
+    public override async Task Initialize(MessageRecievedCallback callback, string token = null)
+    {
+        if (_client == null)
+        {
+            _client = new();
+            // set the headers
+            _client.DefaultRequestHeaders.Add("Accept", "*/*");
+            _client.DefaultRequestHeaders.Add("Accept-Language", "en-US");
+            _client.DefaultRequestHeaders.Add("Authorization", token);
+            _client.DefaultRequestHeaders.Add("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) discord/0.0.309 Chrome/83.0.4103.122 Electron/9.3.5 Safari/537.36");
+
+            // SSL Certificate Bypass
+            ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
+            // 2 secs for headers to take
+            await Task.Delay(1000);
+        }
+
+        new Thread(async delegate()
+        {
+            while (true)
             {
-                //H  handler.muted = true;
-                handler.chattyMode = false;
-            }
-            if (c.id == "572387680235683861")
-                handler.chattyMode = false;
-            /// dibbr pro, better memory
-            if (c.id == "979230826346709032")
-            {
-                handler.MESSAGE_HISTORY *= 3;
-            }
-        }
-
-        public override string GetChatLog(int messages = 10)
-        {
-            return "";//String.Join(Program.NewLogLine, ChatLog.TakeLastLines(messages));
-        }
-
-        public override void SetChatLog(string log)
-        {
-            //ChatLog = log;
-        }
-
-        public DiscordChat(bool IsBot)
-        {
-
-
-        }
-
-        public override async Task Initialize(MessageRecievedCallback callback, string token = null)
-        {
-            if (client == null)
-            {
-                client = new HttpClient();
-                // set the headers
-                client.DefaultRequestHeaders.Add("Accept", "*/*");
-                client.DefaultRequestHeaders.Add("Accept-Language", "en-US");
-                client.DefaultRequestHeaders.Add("Authorization", token);
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) discord/0.0.309 Chrome/83.0.4103.122 Electron/9.3.5 Safari/537.36");
-
-                // SSL Certificate Bypass
-                System.Net.ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
-                // 2 secs for headers to take
-                await Task.Delay(1000);
-            }
-
-            new Thread(async delegate ()
-            {
-                while (true)
+                //
+                // Parse new DMs - a hack because I dunno how to get the discord user id
+                //
+                var hack = ConfigurationManager.AppSettings["hack"];
+                if (hack is "true")
                 {
-                    //
-                    // Parse new DMs - a hack because I dunno how to get the discord user id
-                    //
-                    var hack = ConfigurationManager.AppSettings["hack"];
-                    if (hack != null && hack == "true")
+                    var dms = await Api.GetNewDMs(_client,
+                        "884911258413989978"); // <--- Replace with discordapi.getuserid()
+                    foreach (var dm in dms)
                     {
-                        var dms = await API.getNewDMs(client, "884911258413989978"); // <--- Replace with discordapi.getuserid()
-                        foreach (var dm in dms)
-                        {
-                            var id = dm["recipients"][0]["id"].ToString();
-                            var found = channels.Where(c => c.id == id).Count();
-                            if (found == 0 && id != "948792559017283659") // Don't add the discord bot
-                                AddChannel(id, true, new MessageHandler(this, channels[0].handler.gpt3));
-                        }
-                    }
-
-                    foreach (var channel in channels)
-                    {
-                        await channel.Update();
-                        await Task.Delay(300);
+                        var id = dm["recipients"][0]["id"].ToString();
+                        var found = Channels.Where(c => c.Id == id).Count();
+                        if (found == 0 && id != "948792559017283659") // Don't add the discord bot
+                            AddChannel(id, true, new(this, Channels[0].Handler.Gpt3));
                     }
                 }
-            }).Start();
-        }
 
-        public class Channel
-        {
-            public string Log = "";
-            public bool dm;
-            public string id;
-            public string name;
-            public MessageHandler handler;
-
-
-
-            public bool first = true;
-
-            public async Task Update()
-            {
-                var channel = id;
-                //  await Task.Delay(1000);
-
-                bool Contains(List<string> messages, string str)
+                foreach (var channel in Channels)
                 {
-                    str = str.Replace("\n", "").Replace("\r", "").Trim();
-                    foreach (var l in messages)
-                        if (l.Replace("\n", "").Replace("\r", "").Contains(str))
-                            return true;
+                    await channel.Update();
+                    await Task.Delay(300);
+                }
+            }
+        }).Start();
+    }
+
+    public class Channel
+    {
+        public bool Dm;
+
+
+        public bool First = true;
+        public MessageHandler Handler;
+        public string Id;
+        public string Log = "";
+        public string Name;
+
+        public async Task Update()
+        {
+            var channel = Id;
+            //  await Task.Delay(1000);
+
+            bool Contains(List<string> messages, string str)
+            {
+                str = str.Replace("\n", "").Replace("\r", "").Trim();
+                foreach (var l in messages)
+                {
+                    if (l.Replace("\n", "").Replace("\r", "").Contains(str)) return true;
+                }
+
+                return false;
+            }
+
+            // Read message
+            // TODO: Use getLatestMessages()
+            // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
+            new List<string>();
+            var messages = Dm ? await Api.GetLatestDMs(_client, channel)
+                : await Api.GetLatestMessages(_client, channel, numMessages: 8);
+            if (messages == null) return;
+
+            // Skip messages already replied to
+            for (var i = 0; i < messages.Count; i++)
+            {
+                var msg = messages[i];
+
+                // Most recent DM is from bot, so all other messages are replied to
+                if (Dm && msg.Author.Username == Program.BotUsername)
+                {
+                    // Set flags, but don't remove message, as we might want to add to log
+                    for (var k = i; k < messages.Count; k++) messages[k].Flags = 69;
+
+                    break;
+                }
+
+                var id = msg.ReferencedMessage?.Id;
+
+                // If this is not a bot reply message, ignore
+                if (msg.Author.Username != Program.BotUsername || id == null) continue;
+
+                foreach (var msg2 in from msg2 in messages where msg2.Id == id select msg2)
+                {
+                    msg2.Flags = 69; // skip
+                    msg.Flags = 69; // skip this too
+                }
+            }
+
+            var log = Log.TakeLastLines(messages.Count * 2); // assume extra replies
+            for (var i = messages.Count - 1; i >= 0; i--)
+            {
+                var message = messages[i];
+                var msgid = message.Id;
+                var msg = message.Content;
+                var auth = message.Author.Username.Replace("????", "Q");
+
+                // So GPT-3 doesn't get confused, in case these differ
+                if (auth == Program.BotUsername) auth = Program.BotName;
+
+                var c = auth + ": " + msg + Program.NewLogLine;
+
+                // FIXME: Will block repeating messages
+                bool AddToLog(string msg)
+                {
+                    if (Contains(log, msg)) return true;
+                    Log += msg;
                     return false;
-                }
+                } // true if already added to log
 
-                // Read message
-                // TODO: Use getLatestMessages()
-                // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
-                var msgList = new List<string>();
-                var messages = dm ? await API.getLatestDMs(client, channel) : await API.getLatestMessages(client, channel, numMessages: 8);
-                if (messages == null)
-                    return;
 
-                // Skip messages already replied to
-                for (int i = 0; i < messages.Count; i++)
+                if (AddToLog(c) || message.Flags == 69 ||
+                    (auth.ToLower() == Program.BotName && !msg.ToLower().StartsWith(Program.BotName)))
+                    continue;
+
+
+                // FIXME: This is a hack that'll probably break on other timezones. mostly for DM bugs
+                if (message.Timestamp.AddSeconds(60).AddHours(2) < DateTime.Now)
                 {
-                    Message msg = messages[i];
-                    
-                    // Most recent DM is from bot, so all other messages are replied to
-                    if (dm && msg.author.username == Program.BotUsername)
-                    {
-                        // Set flags, but don't remove message, as we might want to add to log
-                        for (int k = i; k < messages.Count; k++) messages[k].flags = 69;
-                        break;
-                    }
-                    
-                    var id = msg.referenced_message?.id;
-                    
-                    // If this is not a bot reply message, ignore
-                    if (msg.author.username != Program.BotUsername || id == null)
-                        continue;
-                    
-                    foreach (var msg2 in from msg2 in messages
-                                         where msg2.id == id
-                                         select msg2)
-                    {
-                        msg2.flags = 69;// skip
-                        msg.flags = 69;// skip this too
-                    }
+                    Console.WriteLine("Skipped old message: " + msg);
+                    continue;
                 }
 
-                var log = Log.TakeLastLines(messages.Count * 2); // assume extra replies
-                for (int i = messages.Count - 1; i >= 0; i--)
-                {
-                    var message = messages[i];
-                    var msgid = message.id;
-                    var msg = message.content;
-                    var auth = message.author.username.Replace("????", "Q");
+                var isForBot = false;
 
-                    // So GPT-3 doesn't get confused, in case these differ
-                    if (auth == Program.BotUsername)
-                        auth = Program.BotName;
+                // dibbr demo channel
+                isForBot |= channel == "972018566834565124";
 
-                    var c = auth + ": " + msg + Program.NewLogLine;
-                    
-                    // FIXME: Will block repeating messages
-                    bool AddToLog(string msg) { if (!Contains(log, msg)) { Log += msg; return false; } return true; } // true if already added to log
+                // Is for bot if it's a reply to the bot
+                isForBot |= message.ReferencedMessage?.Author.Username == Program.BotName;
+                // or DM
+                isForBot |= Dm;
 
+                // If you wanna log context, too
+                // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
+                //  File.AppendAllText("chat_log_" + channel + ".txt", c);
 
-                    if (AddToLog(c) || message.flags == 69 || (auth.ToLower() == Program.BotName && !msg.ToLower().StartsWith(Program.BotName)))
-                        continue;
+                if (isForBot) Api.Typing(_client, channel, true);
+
+                Handler.Log = Log;
+                var (isReply1, reply) = await Handler.OnMessage(msg, auth, isForBot);
 
 
-                    // FIXME: This is a hack that'll probably break on other timezones. mostly for DM bugs
-                    if (message.timestamp.AddSeconds(60).AddHours(2) < DateTime.Now)
-                    {
-                        Console.WriteLine("Skipped old message: " + msg);
-                        continue;
-                    }
+                if (reply is not {Length: not 0}) continue;
 
-                    var isForBot = false;
+                var c2 = Program.BotName + ": " + reply + Program.NewLogLine;
+                Log += c2;
 
-                    // dibbr demo channel
-                    isForBot |= channel == "972018566834565124";
+                _ = Dm ? await Api.send_dm(_client, channel, reply, msgid)
+                    : await Api.send_message(_client, channel, reply, isReply1 ? msgid : null);
 
-                    // Is for bot if it's a reply to the bot
-                    isForBot |= (message.referenced_message?.author.username == Program.BotName);
-                    // or DM
-                    isForBot |= dm;
-
-                    // If you wanna log context, too
-                    // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
-                    //  File.AppendAllText("chat_log_" + channel + ".txt", c);
-
-                    if (isForBot)
-                        API.Typing(client, channel, true);
-                    handler.Log = Log;
-                    var (isReply1, reply) = await handler.OnMessage(msg, auth, isForBot);
-
-
-                    if (reply == null || reply.Length == 0)
-                        continue;
-
-                    var c2 = Program.BotName + ": " + reply + Program.NewLogLine;
-                    Log += c2;
-            
-                    var response = dm ? await API.send_dm(client, channel, reply, msgid) : await API.send_message(client, channel, reply, isReply1 ? msgid : null);
-
-                    // Write out our response, along with the question
-                    File.AppendAllText("chat_log_" + channel + ".txt", c + c2);
-
-                }
-
-                await handler.OnUpdate(async (s) =>
-                {  // FIXME: Need generic handler for all client types
-                    var x = dm ? await API.send_dm(client, channel, s, null) : await API.send_message(client, channel, s, null);
-
-                });
+                // Write out our response, along with the question
+                File.AppendAllText("chat_log_" + channel + ".txt", c + c2);
             }
+
+            await Handler.OnUpdate(async s =>
+            {
+                // FIXME: Need generic handler for all client types
+                _ = Dm ? await Api.send_dm(_client, channel, s, null)
+                    : await Api.send_message(_client, channel, s, null);
+            });
+        }
+    }
+}
+
+/// <summary>
+///     API Client based discord access. More features than DiscordV1, notably you can use with bots
+///     Doesn't support selfbots
+/// </summary>
+class DiscordChatV2 : ChatSystem, IDisposable
+{
+    readonly bool _disposed = false;
+    readonly int _maxBuffer = 1000; // Chat buffer to GPT3 (memory) THIS CAN GET EXPENSIVE
+
+    DiscordClient _discordClient;
+    MessageRecievedCallback _callback;
+    public string ChatLog = "";
+    public string Id = "";
+
+    string _lastMsg = "";
+
+
+    /* DISPOSE OF MANAGED RESOURCES */
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    public override void Typing(bool start)
+    {
+        //  API.Typing(client, channel, start);
+    }
+
+    public override async Task Initialize(MessageRecievedCallback callback, string token)
+    {
+        Id = token;
+        _callback = callback;
+        try
+        {
+            var clientConfig = new DiscordConfiguration
+            {
+                //  MinimumLogLevel = LogLevel.Critical,
+                Token = token, TokenType = TokenType.Bot
+                //  UseInternalLogHandler = true
+            };
+
+            /* INSTANTIATE DISCORDCLIENT */
+            _discordClient = new(clientConfig);
+            _discordClient.MessageCreated += MessageCreated;
+
+            await _discordClient.ConnectAsync();
+            Console.WriteLine("V 2.0 Discord Bot Client Online");
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+            Thread.Sleep(5000);
         }
 
+        await Task.Delay(-1);
     }
 
     /// <summary>
-    /// API Client based discord access. More features than DiscordV1, notably you can use with bots
-    /// Doesn't support selfbots
+    ///     Me
     /// </summary>
-    class DiscordChatV2 : IChatSystem, IDisposable
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
+    /// <returns></returns>
+    Task<Task> MessageCreated(DiscordClient sender, MessageCreateEventArgs e)
     {
-        public string id = "";
-        public string ChatLog = "";
-        public override string GetChatLog(int messages) { return ChatLog; }
-        private readonly int MAX_BUFFER = 1000; // Chat buffer to GPT3 (memory) THIS CAN GET EXPENSIVE
-
-        private DiscordClient _discordClient;
-        readonly bool disposed = false;
-        MessageRecievedCallback Callback;
-
-        public override void SetChatLog(string log)
+        new Thread(async delegate()
         {
-            ChatLog = log;
-        }
+            var c = e.Author.Username + ": " + e.Message.Content + "\n";
+            ChatLog += c;
+            if (ChatLog.Length > _maxBuffer) ChatLog = ChatLog[^_maxBuffer..];
 
-        public override void Typing(bool start)
-        {
-            //  API.Typing(client, channel, start);
-        }
+            var first = _lastMsg == "";
+            if (c == _lastMsg) return;
 
-        public async override Task Initialize(MessageRecievedCallback callback, string token)
-        {
-            id = token;
-            Callback = callback;
-            try
-            {
-                var clientConfig = new DiscordConfiguration
-                {
-                    //  MinimumLogLevel = LogLevel.Critical,
-                    Token = token,
-                    TokenType = TokenType.Bot,
-                    //  UseInternalLogHandler = true
-                };
+            _lastMsg = c;
+            if (first) return;
 
-                /* INSTANTIATE DISCORDCLIENT */
-                _discordClient = new DiscordClient(clientConfig);
-                _discordClient.MessageCreated += MessageCreated;
-
-                await _discordClient.ConnectAsync();
-                Console.WriteLine("V 2.0 Discord Bot Client Online");
-
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-                System.Threading.Thread.Sleep(5000);
-
-            }
-            await Task.Delay(-1);
-        }
-
-        string lastMsg = "";
-
-        /// <summary>
-        /// Me
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        /// <returns></returns>
-        private Task<Task> MessageCreated(DiscordClient sender, DSharpPlus.EventArgs.MessageCreateEventArgs e)
-        {
-            new Thread(async delegate ()
-            {
-                var c = e.Author.Username + ": " + e.Message.Content + "\n";
-                ChatLog += c;
-                if (ChatLog.Length > MAX_BUFFER)
-                    ChatLog = ChatLog[^MAX_BUFFER..];
-
-                var first = lastMsg == "";
-                if (c == lastMsg)
-                {
-                    return;
-                }
-                lastMsg = c;
-                if (first) return;
-
-                Console.WriteLine(c);
-                File.AppendAllText("chat_log_" + e.Channel.Name + ".txt", c);
+            Console.WriteLine(c);
+            File.AppendAllText("chat_log_" + e.Channel.Name + ".txt", c);
 
 
-                var (reply, str) = await Callback(e.Message.Content, e.Author.Username);
-                if (str != null)
-                    await sender.SendMessageAsync(e.Channel, str);
-            }).Start();
-            return Task.FromResult(Task.CompletedTask);
-        }
-
-
-        /* DISPOSE OF MANAGED RESOURCES */
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (disposed)
-                return;
-            if (disposing)
-            {
-                Initialize(null, null).Dispose();
-            }
-
-        }
+            var (_, str) = await _callback(e.Message.Content, e.Author.Username);
+            if (str != null) await sender.SendMessageAsync(e.Channel, str);
+        }).Start();
+        return Task.FromResult(Task.CompletedTask);
     }
 
-    public static class StringHelp
+    protected virtual void Dispose(bool disposing)
     {
+        if (_disposed) return;
 
-        public static string Remove(this string str, string s)
-        {
-            return str.Replace(s, "").Trim();
-        }
-        public static List<string> TakeLastLines(this string text, int count)
-        {
-            var lines = text.Split(Program.NewLogLine).ToArray();
-            if (lines.Last().Trim() == "")
-                lines = lines[..(lines.Length - 1)];
+        if (disposing) Initialize(null, null).Dispose();
+    }
+}
 
-            if (lines.Length > count)
-                return lines[^count..].ToList();
-            return lines.ToList();
-        }
+public static class StringHelp
+{
+    public static string Remove(this string str, string s) => str.Replace(s, "").Trim();
+
+    public static List<string> TakeLastLines(this string text, int count)
+    {
+        var lines = text.Split(Program.NewLogLine).ToArray();
+        if (lines.Last().Trim() == "") lines = lines[..(lines.Length - 1)];
+
+        if (lines.Length > count) return lines[^count..].ToList();
+
+        return lines.ToList();
     }
 }

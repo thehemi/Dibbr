@@ -1,20 +1,22 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.IO;
 using System.Threading;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 
 namespace DibbrBot;
 
 class Web
 {
-    public static List<IChatSystem> clients = new List<IChatSystem>();
-    static WebApplication app;
+    public static List<ChatSystem> Clients = new();
+    static WebApplication _app;
+
     public static void Run()
     {
         var builder = WebApplication.CreateBuilder();
-        var txt = System.IO.File.ReadAllText("index.html");
-        app = builder.Build();
-        app.UseStaticFiles();
+        var txt = File.ReadAllText("index.html");
+        _app = builder.Build();
+        _app.UseStaticFiles();
         //app.MapGet("/", () => "Hello World!");
 
         string MakePage(string openai = "", string discord = "", string channel = "")
@@ -26,39 +28,35 @@ class Web
 
             if (discord.Length > 0 && openai.Length > 0)
             {
-                var gpt3 = new GPT3(openai);
+                var gpt3 = new Gpt3(openai);
                 if (channel == "")
                 {
-                    foreach (var c in clients)
-                        if ((c as DiscordChatV2).id == discord)
-                        {
-                            page = page.Replace("{Status}", $"{Program.BotName} is already running with your key");
-                            return page;
-                        }
+                    foreach (var c in Clients)
+                    {
+                        if ((c as DiscordChatV2).Id != discord) continue;
+
+                        page = page.Replace("{Status}", $"{Program.BotName} is already running with your key");
+                        return page;
+                    }
 
 
                     Program.NewClient(new DiscordChatV2(), discord, gpt3);
                 }
                 else
-                {
+                    Program.NewClient(new DiscordChat(false), discord, gpt3);
 
-                    Program.NewClient(new DiscordChat(false),discord,gpt3);
-                }
-
-                page = page.Replace("{Status}", $"{Program.BotName} initialized with provided keys! Try summoning him in your server chat with {Program.BotName}, hi!");
-
+                page = page.Replace("{Status}",
+                    $"{Program.BotName} initialized with provided keys! Try summoning him in your server chat with {Program.BotName}, hi!");
             }
             else
-            {
                 page = page.Replace("{status}", "Dibbr not initialized, please provide keys for dibbr");
-            }
-            return page;
 
+            return page;
         }
         // app.MapGet("/index.html", () => Results.Text(txt, "text/html"));
 
-        _ = app.MapGet("/", () => Results.Text(MakePage(), "text/html"));
-        _ = app.MapPost("/", (HttpContext ctx) =>
+        _ = _app.MapGet("/", () => Results.Text(MakePage(), "text/html"));
+        _ = _app.MapPost("/", (HttpContext ctx) =>
         {
             var openai = ctx.Request.Form["OpenAI"];
             var discord = ctx.Request.Form["Discord"];
@@ -74,6 +72,6 @@ class Web
         //   app.UseHttpsRedirection();
         //  }
 
-        new Thread(() => { app.Run(); }).Start();
+        new Thread(() => { _app.Run(); }).Start();
     }
 }
