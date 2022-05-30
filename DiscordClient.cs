@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using DSharpPlus;
@@ -22,14 +23,20 @@ namespace DibbrBot;
 /// </summary>
 public class DiscordChat : ChatSystem
 {
-    static HttpClient _client; // Shared
+    public HttpClient _client;
+
+    public string BotUsername, BotName;
 
     //private string ChatLog = "";
     // private readonly int MAX_BUFFER = 5000; // Chat buffer, don't change this, change the one in GPT3
     public List<Channel> Channels = new();
     public bool IsBot;
 
-    public DiscordChat(bool isBot) { }
+    public DiscordChat(bool isBot, string BotName, string BotUsername)
+    {
+        this.BotUsername = this.BotName = BotName;
+        if (BotUsername != null) BotUsername = BotUsername;
+    }
 
 
     public override void Typing(bool start)
@@ -37,21 +44,22 @@ public class DiscordChat : ChatSystem
         // API.Typing(client, channel, start);
     }
 
-    public void AddChannel(string channel, bool dm, MessageHandler handler)
+    public void AddChannel(string channel, bool dm, MessageHandler handler, bool sayHi = false)
     {
         var c = new Channel {Id = channel, Dm = dm};
         c.Handler = handler;
+
+        handler.BotName = BotName;
         Channels.Add(c);
         if (c.Dm) handler.ChattyMode = false;
 
         // Bot is not allowed here
-        if (c.Id == "937151566266384394")
+        if (c.Id == "937151566266384394" || c.Id == "572387680235683861")
         {
             //H  handler.muted = true;
             handler.ChattyMode = false;
         }
-
-        if (c.Id == "572387680235683861") handler.ChattyMode = false;
+        else { handler.SayHelo = sayHi; }
 
         /// dibbr pro, better memory
         if (c.Id == "979230826346709032") handler.MessageHistory *= 3;
@@ -72,7 +80,7 @@ public class DiscordChat : ChatSystem
             // SSL Certificate Bypass
             ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
             // 2 secs for headers to take
-            await Task.Delay(1000);
+            //  await Task.Delay(1000);
         }
 
         new Thread(async delegate()
@@ -96,10 +104,18 @@ public class DiscordChat : ChatSystem
                     }
                 }
 
-                foreach (var channel in Channels)
+                try
                 {
-                    await channel.Update();
-                    await Task.Delay(300);
+                    foreach (var channel in Channels)
+                    {
+                        await channel.Update(this);
+                        await Task.Delay(100);
+                    }
+                }
+                catch (System.InvalidOperationException e)
+                {
+                    // We added a channel, ignore
+                    continue;
                 }
             }
         }).Start();
@@ -116,17 +132,17 @@ public class DiscordChat : ChatSystem
         public string Log = "";
         public string Name;
 
-        public async Task Update()
+        public async Task Update(DiscordChat client)
         {
             var channel = Id;
             //  await Task.Delay(1000);
 
             bool Contains(List<string> messages, string str)
             {
-                str = str.Replace("\n", "").Replace("\r", "").Trim();
+                str = str.Remove(Program.NewLogLine).Trim();
                 foreach (var l in messages)
                 {
-                    if (l.Replace("\n", "").Replace("\r", "").Contains(str)) return true;
+                    if (l.Remove(Program.NewLogLine).Contains(str)) return true;
                 }
 
                 return false;
@@ -136,8 +152,8 @@ public class DiscordChat : ChatSystem
             // TODO: Use getLatestMessages()
             // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
             new List<string>();
-            var messages = Dm ? await Api.GetLatestDMs(_client, channel)
-                : await Api.GetLatestMessages(_client, channel, numMessages: 8);
+            var messages = Dm ? await Api.GetLatestDMs(client._client, channel)
+                : await Api.GetLatestMessages(client._client, channel, numMessages: 8);
             if (messages == null) return;
 
             // Skip messages already replied to
@@ -146,9 +162,9 @@ public class DiscordChat : ChatSystem
                 var msg = messages[i];
 
                 // Most recent DM is from bot, so all other messages are replied to
-                if (Dm && msg.Author.Username == Program.BotUsername)
+                if (Dm && msg.Author.Username == client.BotUsername)
                 {
-                    // Set flags, but don't remove message, as we might want to add to log
+                    // Set flags to ignore all, but don't remove message, as we might want to add to log
                     for (var k = i; k < messages.Count; k++) messages[k].Flags = 69;
 
                     break;
@@ -156,9 +172,16 @@ public class DiscordChat : ChatSystem
 
                 var id = msg.ReferencedMessage?.Id;
 
-                // If this is not a bot reply message, ignore
-                if (msg.Author.Username != Program.BotUsername || id == null) continue;
+                if (id != null && msg.ReferencedMessage.Author.ToString() != client.BotName)
+                {
+                    // Ignore, was for someone else
+                    msg.Flags = 69;
+                }
 
+                // If this is not a bot reply message, ignore
+                if (msg.Author.Username != client.BotUsername || id == null) continue;
+
+                // Bot reply, so flag the replied message as replied to
                 foreach (var msg2 in from msg2 in messages where msg2.Id == id select msg2)
                 {
                     msg2.Flags = 69; // skip
@@ -173,9 +196,12 @@ public class DiscordChat : ChatSystem
                 var msgid = message.Id;
                 var msg = message.Content;
                 var auth = message.Author.Username.Replace("????", "Q");
+                string editMsg = null;
+
+                if (msg.StartsWith("!!")) editMsg = msg.After("!! ");
 
                 // So GPT-3 doesn't get confused, in case these differ
-                if (auth == Program.BotUsername) auth = Program.BotName;
+                if (auth == client.BotUsername) auth = client.BotName;
 
                 var c = auth + ": " + msg + Program.NewLogLine;
 
@@ -188,13 +214,10 @@ public class DiscordChat : ChatSystem
                 } // true if already added to log
 
 
-                if (AddToLog(c) || message.Flags == 69 ||
-                    (auth.ToLower() == Program.BotName && !msg.ToLower().StartsWith(Program.BotName)))
-                    continue;
+                if (AddToLog(c) || message.Flags == 69) continue;
 
-
-                // FIXME: This is a hack that'll probably break on other timezones. mostly for DM bugs
-                if (message.Timestamp.AddSeconds(60).AddHours(2) < DateTime.Now)
+                // Skip older messages, or if bot restarts he may spam
+                if (message.Timestamp.AddSeconds(1600) < DateTime.Now)
                 {
                     Console.WriteLine("Skipped old message: " + msg);
                     continue;
@@ -202,11 +225,14 @@ public class DiscordChat : ChatSystem
 
                 var isForBot = false;
 
+                // Is for bot if it's an edit message
+                isForBot |= editMsg != null && auth == client.BotUsername;
+
                 // dibbr demo channel
                 isForBot |= channel == "972018566834565124";
 
                 // Is for bot if it's a reply to the bot
-                isForBot |= message.ReferencedMessage?.Author.Username == Program.BotName;
+                isForBot |= message.ReferencedMessage?.Author.Username == client.BotName;
                 // or DM
                 isForBot |= Dm;
 
@@ -214,7 +240,7 @@ public class DiscordChat : ChatSystem
                 // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
                 //  File.AppendAllText("chat_log_" + channel + ".txt", c);
 
-                if (isForBot) Api.Typing(_client, channel, true);
+                if (isForBot) Api.Typing(client._client, channel, true);
 
                 Handler.Log = Log;
                 var (isReply1, reply) = await Handler.OnMessage(msg, auth, isForBot);
@@ -222,11 +248,11 @@ public class DiscordChat : ChatSystem
 
                 if (reply is not {Length: not 0}) continue;
 
-                var c2 = Program.BotName + ": " + reply + Program.NewLogLine;
+                var c2 = client.BotName + ": " + reply + Program.NewLogLine;
                 Log += c2;
 
-                _ = Dm ? await Api.send_dm(_client, channel, reply, msgid)
-                    : await Api.send_message(_client, channel, reply, isReply1 ? msgid : null);
+                _ = Dm ? await Api.send_dm(client._client, channel, reply, msgid)
+                    : await Api.send_message(client._client, channel, reply, isReply1 ? msgid : null, editMsg);
 
                 // Write out our response, along with the question
                 File.AppendAllText("chat_log_" + channel + ".txt", c + c2);
@@ -235,8 +261,8 @@ public class DiscordChat : ChatSystem
             await Handler.OnUpdate(async s =>
             {
                 // FIXME: Need generic handler for all client types
-                _ = Dm ? await Api.send_dm(_client, channel, s, null)
-                    : await Api.send_message(_client, channel, s, null);
+                _ = Dm ? await Api.send_dm(client._client, channel, s, null)
+                    : await Api.send_message(client._client, channel, s, null);
             });
         }
     }
@@ -273,6 +299,13 @@ class DiscordChatV2 : ChatSystem, IDisposable
 
     public override async Task Initialize(MessageRecievedCallback callback, string token)
     {
+        bool bot = false;
+        if (token.StartsWith("BOT"))
+        {
+            token = token.After("BOT ");
+            bot = true;
+        }
+
         Id = token;
         _callback = callback;
         try
@@ -340,7 +373,15 @@ class DiscordChatV2 : ChatSystem, IDisposable
 
 public static class StringHelp
 {
-    public static string Remove(this string str, string s) => str.Replace(s, "").Trim();
+    public static string Rem(this string input, string search, string replacement = "")
+    {
+        var result = Regex.Replace(input, Regex.Escape(search), replacement.Replace("$", "$$"),
+            RegexOptions.IgnoreCase);
+        return result;
+    }
+
+    public static string Remove(this string str, string s) =>
+        Regex.Replace(str, Regex.Escape(s), "", RegexOptions.IgnoreCase);
 
     public static List<string> TakeLastLines(this string text, int count)
     {

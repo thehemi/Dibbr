@@ -1,8 +1,10 @@
 ﻿using System.Collections.Generic;
+using System.Configuration;
 using System.IO;
 using System.Threading;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+
 
 namespace DibbrBot;
 
@@ -43,7 +45,8 @@ class Web
                     Program.NewClient(new DiscordChatV2(), discord, gpt3);
                 }
                 else
-                    Program.NewClient(new DiscordChat(false), discord, gpt3);
+                    Program.NewClient(new DiscordChat(false, ConfigurationManager.AppSettings["BotName"], null),
+                        discord, gpt3);
 
                 page = page.Replace("{Status}",
                     $"{Program.BotName} initialized with provided keys! Try summoning him in your server chat with {Program.BotName}, hi!");

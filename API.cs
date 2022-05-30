@@ -24,8 +24,8 @@ class Api
     /// <param name="requestUrl"></param>
     /// <param name="body"></param>
     /// <returns> Returns a HttpResponseMessage </returns>
-    public static async Task<(string str, string err)> send_request(HttpClient client, string method,
-                                                                    string requestUrl, HttpContent body = null)
+    public static async Task<(string str, string err)> send_request(HttpClient client, string method, string requestUrl,
+                                                                    HttpContent body = null)
     {
         HttpResponseMessage response = null;
         try
@@ -35,6 +35,12 @@ class Api
                 case "GET":
                 {
                     response = await client.GetAsync(ApiUrl + requestUrl);
+
+                    break;
+                }
+                case "PATCH":
+                {
+                    response = await client.PatchAsync(ApiUrl + requestUrl, body);
 
                     break;
                 }
@@ -75,7 +81,8 @@ class Api
     /// <param name="channelId"></param>
     /// <param name="content"></param>
     /// <returns> Returns a HttpResponseMessage </returns>
-    public static async Task<string> send_message(HttpClient client, string channelId, string content, string msgid)
+    public static async Task<string> send_message(HttpClient client, string channelId, string content, string msgid,
+                                                  string editMsgID = null)
     {
         /*  if (lastMsg == content)
           {
@@ -103,8 +110,15 @@ class Api
 
             var str = $"{{\n\"content\": \"{content}\"{msgRef} \n}}";
 
-            string reply, err;
-            (reply, err) = await send_request(client, "POST", $"channels/{channelId}/messages",
+            string err;
+            if (editMsgID != null)
+            {
+                var res = await send_request(client, "PATCH", $"channels/{channelId}/messages/{editMsgID}",
+                    new StringContent(str, Encoding.UTF8, "application/json"));
+                return res.err;
+            }
+
+            (var reply, err) = await send_request(client, "POST", $"channels/{channelId}/messages",
                 new StringContent(str, Encoding.UTF8, "application/json"));
 
             if (reply != null) return reply;
@@ -245,7 +259,8 @@ class Api
                 new StringContent($"{{\"recipient_id\":\"{channelId}\"}}", Encoding.UTF8, "application/json"));
 
             JToken m = JsonConvert.DeserializeObject<JObject>(s);
-            DmMap.Add(channelId, m["id"].ToString());
+
+            DmMap.TryAdd(channelId, m["id"].ToString());
         }
 
         var (str, _) = await send_request(client, "GET", $"channels/{DmMap[channelId]}/messages?limit=5");
@@ -272,6 +287,11 @@ class Api
         }
     }
 
+    /// <returns>  
+    public static async void EditMessage(HttpClient client, string channelId, bool start)
+    {
+        if (start) { var (_, _) = await send_request(client, "POST", $"channels/{channelId}/typing"); }
+    }
 
     /// <returns> Returns a JToken with the message data </returns>
     public static async void Typing(HttpClient client, string channelId, bool start)

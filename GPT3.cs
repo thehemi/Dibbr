@@ -3,8 +3,11 @@
 
 using System;
 using System.Configuration;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using OpenAI_API;
+
+// ReSharper disable StringIndexOfIsCultureSpecific.1
 
 namespace DibbrBot;
 
@@ -42,38 +45,42 @@ public class Gpt3
         // Set variables like this
         // dibbr hey ?fp=1&pp=2
         var line = msg;
-        if (line.Contains("=") && line.Contains("?"))
+        try
         {
-            var query = line.Split('?');
-            if (query.Length == 2)
+            if (line.Contains("=") && line.Contains("?"))
             {
-                var q = query[1];
-                if (!q.Contains("&")) q += "&";
-
-                foreach (var pairs in q.Split('&'))
+                var query = line.Split('?');
+                if (query.Length == 2)
                 {
-                    var values = pairs.Split('=');
-                    if (values[0] == "pp") _pp = float.Parse(values[1]);
+                    var q = query[1];
+                    if (!q.Contains("&")) q += "&";
 
-                    if (values[0] == "buffer") maxChars = int.Parse(values[1]);
-
-                    if (values[0] == "fp") _fp = float.Parse(values[1]);
-
-                    if (values[0] == "temp") _temp = float.Parse(values[1]);
-
-                    if (values[0] == "engine")
+                    foreach (var pairs in q.Split('&'))
                     {
-                        _engine = values[1];
-                        _engine = _engine.Contains("code") ? "code-davinci-002" : "text-davinci-002";
+                        var values = pairs.Split('=');
+                        if (values[0] == "pp") _pp = float.Parse(values[1]);
 
-                        _e = new(_engine) {Owner = "openai", Ready = true};
-                        _api = new(_token, _e);
+                        if (values[0] == "buffer") maxChars = int.Parse(values[1]);
+
+                        if (values[0] == "fp") _fp = float.Parse(values[1]);
+
+                        if (values[0] == "temp") _temp = float.Parse(values[1]);
+
+                        if (values[0] == "engine")
+                        {
+                            _engine = values[1];
+                            _engine = _engine.Contains("code") ? "code-davinci-002" : "text-davinci-002";
+
+                            _e = new(_engine) {Owner = "openai", Ready = true};
+                            _api = new(_token, _e);
+                        }
                     }
-                }
 
-                return $"Changes made. Now, fp={_fp} pp={_pp} buffer={maxChars} temp={_temp} engine={_engine}";
+                    return $"Changes made. Now, fp={_fp} pp={_pp} buffer={maxChars} temp={_temp} engine={_engine}";
+                }
             }
         }
+        catch (Exception e) { return $"Nice try mr hacker {user}, you can't give me a \"{e.Message}\" that easily"; }
 
         string MakeText()
         {
@@ -83,7 +90,7 @@ public class Gpt3
 
             if (_e.EngineName == "code-davinci-002") return log.TakeLastLines(1)[0] + "\n" + endtxt;
 
-            return ConfigurationManager.AppSettings["PrimeText"] + "\n\n" + log + "\n\r" + endtxt;
+            return ConfigurationManager.AppSettings["PrimeText"] + "\n\n" + log + endtxt;
         }
 
         // Setup context, insert chat history
@@ -96,10 +103,9 @@ public class Gpt3
         async Task<string> Q(string txt, float pp, float tp, float temp)
         {
             var result = await _api.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
-                frequencyPenalty: tp, presencePenalty: pp, max_tokens: 1000,
-                stopSequences: new[] {Program.BotName + ":"});
+                frequencyPenalty: tp, presencePenalty: pp, max_tokens: 1000, stopSequences: new[] {Program.NewLogLine});
             // var r = CleanText(result.ToString());
-            var r = result.ToString().Trim();
+            var r = result.ToString().Trim().Rem($"{Program.BotUsername}:");
             Console.WriteLine("GPT3 response: " + r);
 
             var (_, response) = r.Deduplicate(log);
@@ -141,9 +147,17 @@ public class Gpt3
 /// </summary>
 static class StringHelpers
 {
+    public static string After(this string str, string s)
+    {
+        var idx = str.IndexOf(s);
+        if (idx == -1) return str;
+        return str.Substring(idx + s.Length);
+    }
+
     public static (int dupePercent, string uniquePart) Deduplicate(this string r, string log)
     {
-        var split = r.Split(new[] {'.'});
+        // Split on !?,.
+        var split = Regex.Split(r, @"(?<=[.?!]\s+)");
         var percentMatch = 0;
         var response = "";
         foreach (var s in split)
@@ -151,10 +165,8 @@ static class StringHelpers
             if (log.Contains(s) && s.Length > 10)
                 percentMatch += s.Length;
             else
-                response += s + ".";
+                response += s;
         }
-
-        if (!r.EndsWith(".") && response.Length > 0) response = response[..^1];
 
         return (percentMatch, response);
     }

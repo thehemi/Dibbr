@@ -32,7 +32,7 @@ class Program
 
     public static string
         NewLogLine =
-            "\n\r"; // Must be different from \n to seperate multi-line messages from new chats. Can't be \r\n because that's a newline in a reply.
+            "\n\r@@"; // Must be different from \n to seperate multi-line messages from new chats. Can't be \r\n because that's a newline in a reply.
 
     public static List<ChatSystem> Systems = new();
 
@@ -89,11 +89,10 @@ class Program
         var primeText = ConfigurationManager.AppSettings["PrimeText"];
         if (primeText == null)
         {
-            BotName = Prompt("\nBot Name (default is Dibbr):", "dibbr").ToLower();
-            BotUsername = Prompt("Bot Username (default is dabbr):", "dabbr").ToLower();
-            Console.WriteLine("");
+            Set("BotName", Prompt("\nBot Name (default is Dibbr):", "dibbr").ToLower());
+            //  BotUsername = Prompt("Bot Username (default is dabbr):", "dabbr").ToLower();
 
-            Console.WriteLine("Paste your priming text here, e.g. " + BotName +
+            Console.WriteLine("\nPaste your priming text here, e.g. " + BotName +
                               " is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
             primeText = Prompt("\nPriming Text (Or Press Enter for default):");
             if (primeText is null or "")
@@ -181,7 +180,7 @@ class Program
             var token = ConfigurationManager.AppSettings["Discord"];
             if (token is {Length: > 0})
             {
-                var client = new DiscordChat(false);
+                var client = new DiscordChat(false, BotName, BotName);
                 Console.WriteLine($"{client} initializing....");
 
                 foreach (var words in chats.Select(chat => chat.Split(' ')))
@@ -196,6 +195,24 @@ class Program
                 Systems.Add(client);
             }
 
+            // Selfbot #2
+            /*   token = ConfigurationManager.AppSettings["Discord_dabbr"];
+               if (token is {Length: > 0})
+               {
+                   var client = new DiscordChat(false, "dabbr", "dabbr");
+                   Console.WriteLine($"{client} initializing....");
+   
+                   foreach (var words in chats.Select(chat => chat.Split(' ')))
+                   {
+                       Console.WriteLine("Discord Self Bot Added to " + words[0] + " channel " + words[1]);
+   
+                       client.AddChannel(words[1], words[0] == "DM", new(client, gpt3));
+                   }
+   
+   
+                   _ = client.Initialize(async (msg, user, isReply) => { return (false, null); }, token);
+                   Systems.Add(client);
+               }*/
 
             Console.WriteLine("All initialization done");
         }).Start();

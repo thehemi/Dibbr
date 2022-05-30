@@ -5,8 +5,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Threading.Tasks;
+using ServiceStack;
+
+// ReSharper disable StringIndexOfIsCultureSpecific.1
 
 namespace DibbrBot;
 
@@ -25,6 +29,9 @@ public class MessageHandler
 {
     public readonly int AngerOdds = 10; // 1 in ANGER_ODDS chance of being angry
     public readonly ChatSystem Client;
+    public bool SayHelo = false;
+    public DateTime HelloTimer = DateTime.MaxValue;
+    public string BotName;
 
     // Store chat for each user, useful for future bot functionality
     public readonly Dictionary<string, string> Usernames = new();
@@ -65,6 +72,21 @@ public class MessageHandler
 
     public async Task OnUpdate(Action<string> sendMsg)
     {
+        if (SayHelo && (HelloTimer == DateTime.MaxValue || MessageCount < 20))
+        {
+            HelloTimer = DateTime.Now.AddSeconds(120);
+            SayHelo = false;
+        }
+
+        if (HelloTimer < DateTime.Now)
+        {
+            var str = ConfigurationManager.AppSettings["Hello"];
+            var msg = await Gpt3.Ask("", Log + $"{Program.NewLogLine}{BotName}: " + str, "", "");
+            sendMsg(str + msg);
+            HelloTimer = DateTime.MaxValue;
+        }
+
+
         //
         // Ask random questions mode
         // TODO: Move this to MessageHandler function
@@ -80,8 +102,8 @@ public class MessageHandler
             {
                 try
                 {
-                    var (_, reply) = await OnMessage(Program.BotName + " ask", Program.BotName, true);
-                    if (reply.Length > 0) sendMsg(reply);
+                    var (_, reply) = await OnMessage(BotName + " ask", BotName, true);
+                    if (reply?.Length > 0) sendMsg(reply);
                 }
                 catch (Exception e) { Console.Write(e.Message); }
             }
@@ -105,25 +127,36 @@ public class MessageHandler
         else
             Usernames[user] += msg + Program.NewLogLine;
 
+        MessageCount++;
+        if (user == BotName) { LastMessageTime = DateTime.Now; }
+
+        if (user.ToLower() == BotName && !msg.ToLower().StartsWith(BotName)) return (false, null);
+
+
         // log is injected
         //Log += msg + ": " + user + "\n\r"; 
 
         // Hey DIBBR what's the time => what's the time
-        var m = msg.ToLower().Replace("hey ", "").Replace("yo ", "").Trim().Replace(Program.BotName.ToLower(), "")
-            .Trim();
+        var m = msg.ToLower().Remove("hey ").Remove("hi ").Remove("yo ").Remove("hello ").Trim()
+            .Replace(BotName.ToLower(), "").Trim();
         if (m.StartsWith(",")) m = m[1..].Trim();
 
-        // Is for bot if we were the last ones to talk to bot, and this message is very recent
-        isForBot |= LastMsgUser == user && LastMessageTime.AddSeconds(40) > DateTime.Now;
+        // This handles people replying quickly, where it should be assumed it is a reply, even though they don't say botname,
+        // eg bot: hey
+        // user: hey!
+        // (bot should know that is a reply)
+        // Is for bot if we were the last ones to talk to bot, or nobody has yet, and this message is very recent
+        isForBot |= LastMsgUser == BotName || (LastMsgUser == user && LastMessageTime.AddSeconds(60) > DateTime.Now);
 
         // Is for bot if bot mentioned in first 1/4th
-        var idx = msg.ToLower().IndexOf(Program.BotName);
+        var idx = msg.ToLower().IndexOf(BotName);
         isForBot |= idx != -1 && idx < msg.Length / 4;
 
         if (isForBot)
         {
             LastMessageTime = DateTime.Now;
-            LastMsgUser = user;
+            // 
+            if (user != BotName) LastMsgUser = user;
         }
 
 
@@ -180,14 +213,14 @@ public class MessageHandler
         if (m == "help")
         {
             return (isReply,
-                @$"{Program.BotName} interval 3 // how many chat messages befoire he will ask his own question or reply to a comment, depending on whether the comment is a quesiton or not. Default is 10\n
-{Program.BotName} ask questions // ask questions or not. Default is true
-{Program.BotName} stop asking  // stop asking questions
-{Program.BotName} mute // mute the bot
-{Program.BotName} unmute // unmute the bot
-{Program.BotName} timeout / please stop / take a break // break the bot for 10 minutes
-{Program.BotName} wake // wake the bot up
-{Program.BotName} wipe memory // wipe the bot's memory
+                @$"{BotName} interval 3 // how many chat messages befoire he will ask his own question or reply to a comment, depending on whether the comment is a quesiton or not. Default is 10\n
+{BotName} ask questions // ask questions or not. Default is true
+{BotName} stop asking  // stop asking questions
+{BotName} mute // mute the bot
+{BotName} unmute // unmute the bot
+{BotName} timeout / please stop / take a break // break the bot for 10 minutes
+{BotName} wake // wake the bot up
+{BotName} wipe memory // wipe the bot's memory
 
 ");
         }
@@ -195,6 +228,13 @@ public class MessageHandler
         bool Is(string str) => m.StartsWith(str) || m == str;
 
         bool Has(string str) => m.StartsWith(str) || m == str;
+
+        if (Is("join "))
+        {
+            var channel = m.After("join ");
+            (Client as DiscordChat).AddChannel(channel, false, new MessageHandler(Client, Gpt3), true);
+            return (true, "Joined channel!");
+        }
 
         // 1. Wipe memory
         if (Is("wipe memory"))
@@ -237,16 +277,16 @@ public class MessageHandler
             return (isReply, "Interval set to " + TalkInterval);
         }
 
-        var suffix = isComment ? $"{Program.BotName}'s comment:" : $"{Program.BotName}'s response: ";
+        var suffix = isComment ? $"{BotName}'s comment:" : $"{BotName}'s response: ";
         if (ChattyMode && bAskQuestion)
         {
             suffix =
-                $"{Program.BotName} should ask an interesting question, about an interesting topic, related to the chat log: {Program.BotName}'s question: ";
+                $"{BotName} should ask an interesting question, about an interesting topic, related to the chat log: {BotName}'s question: ";
         }
 
-        if (useSteps) suffix = $"{Program.BotName}'s response: Let's think step by step.";
+        if (useSteps) suffix = $"{BotName}'s response: Let's think step by step.";
 
-        if (Die(AngerOdds)) suffix += $"({Program.BotName} is furious)";
+        if (Die(AngerOdds)) suffix += $"{BotName}: [Bot State=Angry] ";
 
         // Feed GPT-3 history of longer length if we're asking it how old a chatter is, or if it remembers something in the chat
         var history = MessageHistory;
@@ -261,13 +301,13 @@ public class MessageHandler
         // Typing indicator before long process
         Client.Typing(true);
 
-        var txt = await Gpt3.Ask(msg, log, user, suffix, log.Length);
+        var txt = await Gpt3.Ask(msg, log, user, Program.NewLogLine + suffix, log.Length);
         if (txt == "") return (false, null);
 
         // If repetitive, try again
-        if (Log.TakeLastLines(4).Contains(txt) || (Usernames.ContainsKey(Program.BotUsername) &&
-                                                   StringHelpers.Get(
-                                                       Usernames[Program.BotUsername].TakeLastLines(1)?[0], txt) > 0.7))
+        if (Log.TakeLastLines(4).Contains(txt) || (Usernames.ContainsKey(BotName) &&
+                                                   StringHelpers.Get(Usernames[BotName].TakeLastLines(1)?[0], txt) >
+                                                   0.7))
         {
             txt = await Gpt3.Ask(msg, "", user, suffix, log.Length);
             txt += "\nDev Note: Second response. First had a Levenshtein distance too high";
@@ -275,7 +315,7 @@ public class MessageHandler
 
 
         // Bot may decide to not respond sometimes
-        var c = txt.ToLower().Remove(Program.BotName).Remove(":").Trim();
+        var c = txt.ToLower().Remove(BotName).Remove(":").Trim();
         if (c.StartsWith("no response") || c.StartsWith("would not comment") || c.StartsWith("would not respond"))
         {
             Console.WriteLine("No response desired!!!!");
@@ -288,4 +328,6 @@ public class MessageHandler
         //   await speech.Speak(txt);
         return (isReply, txt);
     }
+
+    public int MessageCount { get; set; }
 }
