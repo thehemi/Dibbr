@@ -94,6 +94,13 @@ class Api
         // Discord limit without nitro
         if (content.Length > 2000) content = content[^2000..];
 
+        // Stop
+        //
+        // Dibbr
+        //
+        // Writing songs like this
+        if (Regex.Matches(content, "\r\n").Count > 15) { content = content.Replace("\r\n\r\n", "\\n"); }
+
         var c = content;
         content = content.Replace("\n", "\\n");
         content = content.Replace("\n", "\\n");
@@ -263,7 +270,8 @@ class Api
             DmMap.TryAdd(channelId, m["id"].ToString());
         }
 
-        var (str, _) = await send_request(client, "GET", $"channels/{DmMap[channelId]}/messages?limit=5");
+        var (str, err) = await send_request(client, "GET", $"channels/{DmMap[channelId]}/messages?limit=5");
+        if (err != null) return null;
 
         try
         {
@@ -282,7 +290,7 @@ class Api
         {
             Console.WriteLine(e.Message);
             //  Console.Beep();
-            await Task.Delay(3000);
+            //  await Task.Delay(3000);
             return null;
         }
     }
@@ -312,7 +320,8 @@ class Api
             if (str == null)
             {
                 Console.WriteLine("Probably channel " + channelId + " does not exist");
-                await Task.Delay(2000);
+                // await Task.Delay(2000);
+                return null;
             }
 
             try
@@ -324,7 +333,7 @@ class Api
             {
                 Console.WriteLine(e.Message);
                 // Console.Beep();
-                await Task.Delay(2000);
+                //  await Task.Delay(2000);
                 // return null;
             }
         }
@@ -342,7 +351,8 @@ class Api
             if (str == null)
             {
                 // Console.WriteLine("Probably channel " + channel_id + " does not exist");
-                await Task.Delay(2000);
+                // await Task.Delay(2000);
+                return null;
             }
 
             try
@@ -354,7 +364,7 @@ class Api
             {
                 Console.WriteLine(e.Message);
                 // Console.Beep();
-                await Task.Delay(2000);
+                // await Task.Delay(2000);
                 // return null;
             }
         }
@@ -430,6 +440,8 @@ public class ReferencedMessage
 
 public class Message
 {
+    public int ReplyScore;
+    public bool Replied;
     public string Id { get; set; }
     public int Type { get; set; }
     public string Content { get; set; }

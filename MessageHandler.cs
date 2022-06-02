@@ -44,7 +44,7 @@ public class MessageHandler
     // For randomly asking questions
     public DateTime LastQuestionTime = DateTime.Now;
     public string Log = "";
-    public int MessageHistory = 10; // how many messages to keep in history to pass to GPT3
+    public int MessageHistory = 2; // how many messages to keep in history to pass to GPT3
     public int MessageHistoryLimit = 50;
     public bool Muted = false;
     public Speech Speech = new();
@@ -70,6 +70,7 @@ public class MessageHandler
     // Encapsulates a dice roll
     bool Die(int odds) => new Random().Next(odds) < 1;
 
+
     public async Task OnUpdate(Action<string> sendMsg)
     {
         if (SayHelo && (HelloTimer == DateTime.MaxValue || MessageCount < 20))
@@ -77,6 +78,7 @@ public class MessageHandler
             HelloTimer = DateTime.Now.AddSeconds(120);
             SayHelo = false;
         }
+
 
         if (HelloTimer < DateTime.Now)
         {
@@ -91,6 +93,7 @@ public class MessageHandler
         // Ask random questions mode
         // TODO: Move this to MessageHandler function
         //
+
         if (DateTime.Now > LastQuestionTime.AddMinutes(30) && ChattyMode)
         {
             LastQuestionTime = DateTime.Now;
@@ -102,8 +105,11 @@ public class MessageHandler
             {
                 try
                 {
-                    var (_, reply) = await OnMessage(BotName + " ask", BotName, true);
-                    if (reply?.Length > 0) sendMsg(reply);
+                    var msg = await Gpt3.Ask("",
+                        Log + $"{Program.NewLogLine}{BotName} should ask an interesting question:", "", "");
+                    sendMsg(msg);
+                    ///var (_, reply) = await OnMessage(BotName + " ask", BotName, true);
+                    //  if (reply?.Length > 0) sendMsg(reply);
                 }
                 catch (Exception e) { Console.Write(e.Message); }
             }
@@ -119,7 +125,7 @@ public class MessageHandler
     /// <param name="user"></param>
     /// <returns></returns>
     public async Task<(bool isReply, string msg)> OnMessage(string msg, string user, bool isForBot = false,
-                                                            bool testRun = false)
+                                                            bool isReply = false)
     {
         // Store per user logs
         if (!Usernames.ContainsKey(user))
@@ -127,7 +133,15 @@ public class MessageHandler
         else
             Usernames[user] += msg + Program.NewLogLine;
 
-        MessageCount++;
+
+        // If baby is around, go to sleep silently
+        if (user.ToLower() == "baby")
+        {
+            BreakTime = DateTime.Now.AddHours(1);
+            return (false, null);
+        }
+
+
         if (user == BotName) { LastMessageTime = DateTime.Now; }
 
         if (user.ToLower() == BotName && !msg.ToLower().StartsWith(BotName)) return (false, null);
@@ -141,6 +155,7 @@ public class MessageHandler
             .Replace(BotName.ToLower(), "").Trim();
         if (m.StartsWith(",")) m = m[1..].Trim();
 
+
         // This handles people replying quickly, where it should be assumed it is a reply, even though they don't say botname,
         // eg bot: hey
         // user: hey!
@@ -150,7 +165,7 @@ public class MessageHandler
 
         // Is for bot if bot mentioned in first 1/4th
         var idx = msg.ToLower().IndexOf(BotName);
-        isForBot |= idx != -1 && idx < msg.Length / 4;
+        isForBot |= idx != -1 && idx < msg.Length / 3;
 
         if (isForBot)
         {
@@ -166,46 +181,63 @@ public class MessageHandler
 
         var muted = this.Muted; // so we can change locally temporarily
         var useSteps = m.Contains("steps") || m.Contains("??");
-        var isQuestion = m.StartsWith("calculate") || m.StartsWith("what") || m.EndsWith("?") ||
-                         m.StartsWith("where") || m.StartsWith("would") || m.StartsWith("can") ||
-                         m.StartsWith("does") || m.StartsWith("how") || m.Contains("?") || m.StartsWith("why") ||
-                         m.StartsWith("how") || m.StartsWith("what") || m.Contains("can someone");
+        var isQuestion = m.Contains("calculate") || m.Contains("when ") || m.Contains("?") || m.Contains("where ") ||
+                         m.Contains("would ") || m.Contains("can ") || m.Contains("does ") || m.Contains("could ") ||
+                         m.Contains("?") || m.Contains("why ") || m.Contains("how ") || m.Contains("what ") ||
+                         m.Contains("can someone") || m.Contains("me a ") || m.Contains("") || m.Contains("what's") ||
+                         m.Contains("did you");
 
+        // If this is a reply, and not a quesiton, ignore it as it could be the end of a discussion
+        if (isReply && !isQuestion) return (false, null);
         var bAskQuestion = false;
-        var isReply = true;
         //var qMode1 = (!isForBot && (messagesSincePost++ > talkInterval) && !msg.Contains("<@") && !isReply);
-        if (!isForBot && ChattyMode) // && (messagesSincePost++ > talkInterval))
+        if (!isReply && !isForBot) // && (messagesSincePost++ > talkInterval))
         {
             // 1. Randomly answer some questions
-            if (isQuestion && Die(15))
+            if (isQuestion && Die(ChattyMode ? 30 : 35))
+            {
                 isForBot = true;
+                isReply = false;
+            }
             // 2. Randomly comment on some posts
-            else if (Die(15))
-            {
-                isComment = true;
-                isForBot = true;
-                isReply = false;
-            }
+            /*  else if (Die(15))
+              {
+                  isComment = true;
+                  isForBot = true;
+                  isReply = false;
+              }*/
             // 3. Randomly ask questions
-            else if (Die(30))
-            {
-                isForBot = true;
-                isReply = false;
-                bAskQuestion = true;
-            }
+            /*  else if (Die(30))
+               {
+                   isForBot = true;
+                   isReply = false;
+                   bAskQuestion = true;
+               }*/
         }
+        else
+            isReply = true;
 
         if (!isForBot) return (false, null);
 
-
         if (DateTime.Now < BreakTime)
         {
-            if (m.Contains("wake"))
-                BreakTime = DateTime.MinValue;
+            if (m.StartsWith("come back")) return (true, "I can't, it's too late");
+            if (m.StartsWith("wake") || m.StartsWith("awake")) { BreakTime = DateTime.MinValue; }
             else
                 return (false, null);
+        }
 
-            ;
+        // All potential trigger words for sleeping
+        if (m.Length < 14)
+        {
+            if (m.Contains("go away") || m.Contains("fuck off") || m.Contains("silence") || m.Contains("shut up") ||
+                m.Contains("stop talking") || m.StartsWith("stop") || m.Contains("sleep") || m.Contains("quiet") ||
+                m.StartsWith("off") || m.StartsWith("turn off") || m.StartsWith("shutdown") || m.Contains("banned") ||
+                m.Contains("timeout") || Is("timeout") || Is("please stop") || Is("take a break"))
+            {
+                BreakTime = DateTime.Now.AddMinutes(30);
+                return (isReply, "I will timeout for 30 minutes. You can wake me with the wake keyword");
+            }
         }
 
         // Commands
@@ -243,12 +275,6 @@ public class MessageHandler
             return (isReply, "Memory erased");
         }
 
-        // 2. Timeout
-        if (Is("timeout") || Is("please stop") || Is("take a break"))
-        {
-            BreakTime = DateTime.Now.AddMinutes(10);
-            return (isReply, "I will timeout for 10 minutes. You can wake me with the wake keyword");
-        }
 
         // 3. Muting
 
@@ -281,12 +307,12 @@ public class MessageHandler
         if (ChattyMode && bAskQuestion)
         {
             suffix =
-                $"{BotName} should ask an interesting question, about an interesting topic, related to the chat log: {BotName}'s question: ";
+                $"{BotName} should ask an interesting question, about an interesting topic, related to the chat log: {BotName}'s question:";
         }
 
-        if (useSteps) suffix = $"{BotName}'s response: Let's think step by step.";
+        if (useSteps) suffix = $"{BotName}: Let's think step by step.";
 
-        if (Die(AngerOdds)) suffix += $"{BotName}: [Bot State=Angry] ";
+        //   if (Die(AngerOdds)) suffix += $"{BotName}: [Bot State=Angry] ";
 
         // Feed GPT-3 history of longer length if we're asking it how old a chatter is, or if it remembers something in the chat
         var history = MessageHistory;
@@ -294,9 +320,11 @@ public class MessageHandler
             Has("what i said"))
             history = MessageHistoryLimit;
 
+        if (msg.Contains("!!!")) history = 0;
+
         var log = string.Join(Program.NewLogLine, Log.TakeLastLines(history));
 
-        if (testRun) return (true, "Would Respond");
+        //if (testRun) return (true, "Would Respond");
 
         // Typing indicator before long process
         Client.Typing(true);
@@ -305,12 +333,13 @@ public class MessageHandler
         if (txt == "") return (false, null);
 
         // If repetitive, try again
-        if (Log.TakeLastLines(4).Contains(txt) || (Usernames.ContainsKey(BotName) &&
+        if (Log.TakeLastLines(8).Contains(txt) || (Usernames.ContainsKey(BotName) &&
                                                    StringHelpers.Get(Usernames[BotName].TakeLastLines(1)?[0], txt) >
-                                                   0.7))
+                                                   0.5))
         {
             txt = await Gpt3.Ask(msg, "", user, suffix, log.Length);
-            txt += "\nDev Note: Second response. First had a Levenshtein distance too high";
+            txt += " [r]";
+            //   txt += "\nDev Note: Second response. First had a Levenshtein distance too high";
         }
 
 

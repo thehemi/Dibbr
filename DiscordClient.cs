@@ -5,11 +5,14 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.WebSockets;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using DSharpPlus;
 using DSharpPlus.EventArgs;
+using ServiceStack;
+using ServiceStack.Text;
 
 //using DSharpPlus.CommandsNext;
 
@@ -24,6 +27,7 @@ namespace DibbrBot;
 public class DiscordChat : ChatSystem
 {
     public HttpClient _client;
+    public readonly static string mrgirl = "937151566266384394";
 
     public string BotUsername, BotName;
 
@@ -54,7 +58,7 @@ public class DiscordChat : ChatSystem
         if (c.Dm) handler.ChattyMode = false;
 
         // Bot is not allowed here
-        if (c.Id == "937151566266384394" || c.Id == "572387680235683861")
+        if (c.Id == "572387680235683861")
         {
             //H  handler.muted = true;
             handler.ChattyMode = false;
@@ -63,6 +67,7 @@ public class DiscordChat : ChatSystem
 
         /// dibbr pro, better memory
         if (c.Id == "979230826346709032") handler.MessageHistory *= 3;
+        Console.WriteLine("Joined " + c.Id);
     }
 
     public override async Task Initialize(MessageRecievedCallback callback, string token = null)
@@ -106,31 +111,41 @@ public class DiscordChat : ChatSystem
 
                 try
                 {
+                    var threads = new List<Thread>();
                     foreach (var channel in Channels)
                     {
-                        await channel.Update(this);
-                        await Task.Delay(100);
+                        if (channel.SuccessCount - channel.FailCount > -3)
+                            await channel.Update(this);
+                        else { Console.WriteLine($"Skipping {channel.Id}"); }
+                        // t.Start();
+                        //  await Task.Delay(100);
                     }
+
+                    ///while (threads.Any(t => t.IsAlive)) { Thread.Sleep(1000); }
                 }
-                catch (System.InvalidOperationException e)
+                catch (Exception e)
                 {
-                    // We added a channel, ignore
-                    continue;
+                    if (e.GetType() == typeof(System.InvalidOperationException))
+                        // We added a channel, ignore
+                        continue;
                 }
             }
         }).Start();
     }
 
+    bool backMsg = false;
+
     public class Channel
     {
         public bool Dm;
-
-
+        public int FailCount = 0;
+        public int SuccessCount = 0;
         public bool First = true;
         public MessageHandler Handler;
         public string Id;
         public string Log = "";
         public string Name;
+        public Dictionary<string, Message> Messages = new Dictionary<string, Message>();
 
         public async Task Update(DiscordChat client)
         {
@@ -148,18 +163,38 @@ public class DiscordChat : ChatSystem
                 return false;
             }
 
+            await Task.Delay(300);
             // Read message
             // TODO: Use getLatestMessages()
             // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
-            new List<string>();
             var messages = Dm ? await Api.GetLatestDMs(client._client, channel)
-                : await Api.GetLatestMessages(client._client, channel, numMessages: 8);
-            if (messages == null) return;
+                : await Api.GetLatestMessages(client._client, channel, numMessages: 7);
+            if (messages == null)
+            {
+                await Task.Delay(400);
+                FailCount++;
+                return;
+            }
 
+            SuccessCount++;
+            var newMessages = new List<Message>();
             // Skip messages already replied to
             for (var i = 0; i < messages.Count; i++)
             {
                 var msg = messages[i];
+                if (!Messages.ContainsKey(msg.Id.ToString())) { Messages.Add(msg.Id.ToString(), msg); }
+
+                else { continue; }
+
+
+                // Skip older messages, or if bot restarts he may spam
+                if (msg.Timestamp.AddSeconds(600) < DateTime.Now)
+                {
+                    msg.Flags = 69;
+                    //  Console.WriteLine($"Skipped old message: {auth}: " + msg);
+                    continue;
+                }
+
 
                 // Most recent DM is from bot, so all other messages are replied to
                 if (Dm && msg.Author.Username == client.BotUsername)
@@ -170,29 +205,44 @@ public class DiscordChat : ChatSystem
                     break;
                 }
 
-                var id = msg.ReferencedMessage?.Id;
+                newMessages.Add(msg);
+                var user = msg.ReferencedMessage?.Author.ToString();
+                var id = msg.ReferencedMessage?.Id.ToString();
+                if (msg.Mentions?.Count > 0)
+                {
+                    user = msg.Mentions?[0]?.Username.ToString();
+                    id = msg.Mentions?[0]?.Id.ToString();
+                    msg.ReferencedMessage = new ReferencedMessage {Author = new Author {Username = user}, Id = id};
+                }
 
-                if (id != null && msg.ReferencedMessage.Author.ToString() != client.BotName)
+                if (id != null && user != client.BotName)
                 {
                     // Ignore, was for someone else
                     msg.Flags = 69;
                 }
 
                 // If this is not a bot reply message, ignore
-                if (msg.Author.Username != client.BotUsername || id == null) continue;
+                // continue;
 
                 // Bot reply, so flag the replied message as replied to
-                foreach (var msg2 in from msg2 in messages where msg2.Id == id select msg2)
+                foreach (var msg2 in
+                         from msg2 in messages where (msg2.Id.ToString() == id ||
+                                                      (msg2.Author.Username == user && msg2.Timestamp < msg.Timestamp))
+                         select msg2)
                 {
-                    msg2.Flags = 69; // skip
-                    msg.Flags = 69; // skip this too
+                    msg2.ReplyScore++;
+                    if (msg.Author.Username == client.BotUsername && id != null)
+                    {
+                        msg2.Flags = 69; // skip
+                        msg.Flags = 69; // skip this too
+                    }
                 }
             }
 
-            var log = Log.TakeLastLines(messages.Count * 2); // assume extra replies
-            for (var i = messages.Count - 1; i >= 0; i--)
+            // var log = Log.TakeLastLines(messages.Count * 2); // assume extra replies
+            for (var i = newMessages.Count - 1; i >= 0; i--)
             {
-                var message = messages[i];
+                var message = newMessages[i];
                 var msgid = message.Id;
                 var msg = message.Content;
                 var auth = message.Author.Username.Replace("????", "Q");
@@ -208,23 +258,18 @@ public class DiscordChat : ChatSystem
                 // FIXME: Will block repeating messages
                 bool AddToLog(string msg)
                 {
-                    if (Contains(log, msg)) return true;
+                    //  if (Contains(log, msg)) return true;
                     Log += msg;
                     return false;
                 } // true if already added to log
 
+                Log += auth + ": " + msg + Program.NewLogLine;
+                if (message.Flags == 69) continue;
 
-                if (AddToLog(c) || message.Flags == 69) continue;
-
-                // Skip older messages, or if bot restarts he may spam
-                if (message.Timestamp.AddSeconds(1600) < DateTime.Now)
-                {
-                    Console.WriteLine("Skipped old message: " + msg);
-                    continue;
-                }
 
                 var isForBot = false;
 
+                if (msg.Contains("I relate")) msg = msg;
                 // Is for bot if it's an edit message
                 isForBot |= editMsg != null && auth == client.BotUsername;
 
@@ -236,23 +281,37 @@ public class DiscordChat : ChatSystem
                 // or DM
                 isForBot |= Dm;
 
+                isForBot |= msg.Contains("17 seconds");
+
                 // If you wanna log context, too
                 // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
                 //  File.AppendAllText("chat_log_" + channel + ".txt", c);
 
-                if (isForBot) Api.Typing(client._client, channel, true);
+                if (isForBot || msg.Contains(Program.BotName)) Api.Typing(client._client, channel, true);
 
                 Handler.Log = Log;
-                var (isReply1, reply) = await Handler.OnMessage(msg, auth, isForBot);
+                var (isReply1, reply) = await Handler.OnMessage(msg, auth, isForBot,
+                    message.ReferencedMessage?.Author.Username == client.BotName);
 
+                if (StringExtensions.IsNullOrEmpty(reply)) continue;
 
-                if (reply is not {Length: not 0}) continue;
+                if (channel == mrgirl) channel = channel;
+                if ((++Handler.MessageCount % 2) == 0 && channel == DiscordChat.mrgirl)
+                {
+                    // Handler.BreakTime = DateTime.Now.AddMinutes(3);
+                    // reply += ". AFK a few mins.";
+                }
 
                 var c2 = client.BotName + ": " + reply + Program.NewLogLine;
                 Log += c2;
+                // Handler.Log
 
                 _ = Dm ? await Api.send_dm(client._client, channel, reply, msgid)
                     : await Api.send_message(client._client, channel, reply, isReply1 ? msgid : null, editMsg);
+                if ((++Handler.MessageCount % 5) == 0 && channel == DiscordChat.mrgirl)
+                {
+                    // await Task.Delay(60 * 1 * 1000);
+                }
 
                 // Write out our response, along with the question
                 File.AppendAllText("chat_log_" + channel + ".txt", c + c2);
@@ -385,7 +444,7 @@ public static class StringHelp
 
     public static List<string> TakeLastLines(this string text, int count)
     {
-        var lines = text.Split(Program.NewLogLine).ToArray();
+        var lines = Enumerable.ToArray(text.Split(Program.NewLogLine));
         if (lines.Last().Trim() == "") lines = lines[..(lines.Length - 1)];
 
         if (lines.Length > count) return lines[^count..].ToList();

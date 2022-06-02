@@ -95,6 +95,9 @@ public class Gpt3
 
         // Setup context, insert chat history
         var txt = MakeText();
+        // Stop dibbr repeating answers
+        // txt = txt.Replace($"{Program.BotName}:", "boodlebeep:");
+        //  txt += user + ": " + msg + Program.NewLogLine;
         var r = await Q(txt, _pp, _fp, _temp);
 
         return r;
@@ -149,7 +152,7 @@ static class StringHelpers
 {
     public static string After(this string str, string s)
     {
-        var idx = str.IndexOf(s);
+        var idx = str.LastIndexOf(s);
         if (idx == -1) return str;
         return str.Substring(idx + s.Length);
     }
