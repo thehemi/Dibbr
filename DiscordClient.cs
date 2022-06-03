@@ -188,7 +188,7 @@ public class DiscordChat : ChatSystem
 
 
                 // Skip older messages, or if bot restarts he may spam
-                if (msg.Timestamp.AddSeconds(600) < DateTime.Now)
+                if (msg.Timestamp.AddSeconds(60 * 60) < DateTime.Now)
                 {
                     msg.Flags = 69;
                     //  Console.WriteLine($"Skipped old message: {auth}: " + msg);
@@ -264,6 +264,14 @@ public class DiscordChat : ChatSystem
                 } // true if already added to log
 
                 Log += auth + ": " + msg + Program.NewLogLine;
+                var txt = "";
+                if (Handler.Usernames.ContainsKey(auth))
+                {
+                    txt = Handler.Usernames[auth];
+                    txt += msg + Program.NewLogLine;
+                }
+                else { Handler.Usernames.Add(auth, msg + Program.NewLogLine); }
+
                 if (message.Flags == 69) continue;
 
 
@@ -274,14 +282,14 @@ public class DiscordChat : ChatSystem
                 isForBot |= editMsg != null && auth == client.BotUsername;
 
                 // dibbr demo channel
-                isForBot |= channel == "972018566834565124";
+                isForBot |= channel == "979230826346709032";
+
+                if (channel == "979230826346709032") channel = channel;
 
                 // Is for bot if it's a reply to the bot
                 isForBot |= message.ReferencedMessage?.Author.Username == client.BotName;
                 // or DM
                 isForBot |= Dm;
-
-                isForBot |= msg.Contains("17 seconds");
 
                 // If you wanna log context, too
                 // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
@@ -295,15 +303,14 @@ public class DiscordChat : ChatSystem
 
                 if (StringExtensions.IsNullOrEmpty(reply)) continue;
 
+                //reply = "I'm no"
                 if (channel == mrgirl) channel = channel;
-                if ((++Handler.MessageCount % 2) == 0 && channel == DiscordChat.mrgirl)
+                //  if ((++Handler.MessageCount % 2) == 0 && channel == DiscordChat.mrgirl)
                 {
-                    // Handler.BreakTime = DateTime.Now.AddMinutes(3);
+                    //  Handler.BreakTime = DateTime.Now.AddMinutes(30);
                     // reply += ". AFK a few mins.";
                 }
-
-                var c2 = client.BotName + ": " + reply + Program.NewLogLine;
-                Log += c2;
+                // Log += c2;
                 // Handler.Log
 
                 _ = Dm ? await Api.send_dm(client._client, channel, reply, msgid)
@@ -314,7 +321,8 @@ public class DiscordChat : ChatSystem
                 }
 
                 // Write out our response, along with the question
-                File.AppendAllText("chat_log_" + channel + ".txt", c + c2);
+                File.AppendAllText("chat_log_" + channel + ".txt",
+                    c + client.BotName + ": " + reply + Program.NewLogLine);
             }
 
             await Handler.OnUpdate(async s =>

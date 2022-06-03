@@ -44,7 +44,12 @@ public class MessageHandler
     // For randomly asking questions
     public DateTime LastQuestionTime = DateTime.Now;
     public string Log = "";
-    public int MessageHistory = 2; // how many messages to keep in history to pass to GPT3
+
+    /// <summary>
+    /// This is how many messages get passed to GPT-3. Sometimes, dibbr will get stuck repeating, so it's better to lower this number
+    /// </summary>
+    public int MessageHistory = 10; // how many messages to keep in history to pass to GPT3
+
     public int MessageHistoryLimit = 50;
     public bool Muted = false;
     public Speech Speech = new();
@@ -127,13 +132,6 @@ public class MessageHandler
     public async Task<(bool isReply, string msg)> OnMessage(string msg, string user, bool isForBot = false,
                                                             bool isReply = false)
     {
-        // Store per user logs
-        if (!Usernames.ContainsKey(user))
-            Usernames.Add(user, msg + Program.NewLogLine);
-        else
-            Usernames[user] += msg + Program.NewLogLine;
-
-
         // If baby is around, go to sleep silently
         if (user.ToLower() == "baby")
         {
@@ -160,8 +158,9 @@ public class MessageHandler
         // eg bot: hey
         // user: hey!
         // (bot should know that is a reply)
-        // Is for bot if we were the last ones to talk to bot, or nobody has yet, and this message is very recent
-        isForBot |= LastMsgUser == BotName || (LastMsgUser == user && LastMessageTime.AddSeconds(60) > DateTime.Now);
+        // Is for bot if the last user to ask a question is the one saying something now
+        isForBot |= /*LastMsgUser == BotName || */
+            (LastMsgUser == user && LastMessageTime.AddSeconds(40) > DateTime.Now);
 
         // Is for bot if bot mentioned in first 1/4th
         var idx = msg.ToLower().IndexOf(BotName);
@@ -330,13 +329,17 @@ public class MessageHandler
         Client.Typing(true);
 
         var txt = await Gpt3.Ask(msg, log, user, Program.NewLogLine + suffix, log.Length);
-        if (txt == "") return (false, null);
+        if (txt.IsNullOrEmpty()) return (false, null);
 
+
+        var logHasBot = Usernames.ContainsKey(BotName);
         // If repetitive, try again
-        if (Log.TakeLastLines(8).Contains(txt) || (Usernames.ContainsKey(BotName) &&
+
+        if (Log.TakeLastLines(8).Contains(txt) || (logHasBot &&
                                                    StringHelpers.Get(Usernames[BotName].TakeLastLines(1)?[0], txt) >
                                                    0.5))
         {
+            Console.WriteLine("Trying again..");
             txt = await Gpt3.Ask(msg, "", user, suffix, log.Length);
             txt += " [r]";
             //   txt += "\nDev Note: Second response. First had a Levenshtein distance too high";
@@ -351,6 +354,7 @@ public class MessageHandler
             return (false, null);
         }
 
+        //  Usernames.Add(Program.BotName, txt);
         // Speak in voice channels
         // TODO: Need to pass in whether this is a voice chanel or not
         //if((client as DiscordChat)?.channel == "978095250474164224")

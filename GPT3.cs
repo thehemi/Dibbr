@@ -95,6 +95,12 @@ public class Gpt3
 
         // Setup context, insert chat history
         var txt = MakeText();
+
+        //   txt = txt.Replace(Program.BotName + ":", "doobie" + ":");
+        //  var idx = txt.LastIndexOf("doobie:");
+        //  if (idx >= 0) txt = txt.Insert(idx, "X");
+        //   txt = txt.Replace("Xdoobie:", Program.BotName);
+
         // Stop dibbr repeating answers
         // txt = txt.Replace($"{Program.BotName}:", "boodlebeep:");
         //  txt += user + ": " + msg + Program.NewLogLine;
@@ -112,6 +118,16 @@ public class Gpt3
             Console.WriteLine("GPT3 response: " + r);
 
             var (_, response) = r.Deduplicate(log);
+
+            if (response.Length < r.Length)
+            {
+                log = "";
+                txt = MakeText();
+                response = (await _api.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
+                    frequencyPenalty: tp, presencePenalty: pp, max_tokens: 1000,
+                    stopSequences: new[] {Program.NewLogLine})).ToString();
+                // var r = CleanText(result.ToString());
+            }
             // If dup, try again                
             //if (percentDupe > r.Length / 3)
             // return await Q(MakeText(), pp, fp, 1);
@@ -181,7 +197,9 @@ static class StringHelpers
 
         float len = Math.Max(s.Length, t.Length);
         // normalize by length, high score wins
-        return (len - Compute(s, t)) / len;
+        var ret = (len - Compute(s, t)) / len;
+        Console.WriteLine($"{ret} for \n{s}\n{t}");
+        return ret;
     }
 
     public static int Compute(string s, string t)
