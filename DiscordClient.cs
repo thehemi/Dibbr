@@ -75,6 +75,7 @@ public class DiscordChat : ChatSystem
         if (_client == null)
         {
             _client = new();
+            _client.Timeout = TimeSpan.FromSeconds(10);
             // set the headers
             _client.DefaultRequestHeaders.Add("Accept", "*/*");
             _client.DefaultRequestHeaders.Add("Accept-Language", "en-US");
@@ -100,26 +101,30 @@ public class DiscordChat : ChatSystem
                 {
                     var dms = await Api.GetNewDMs(_client,
                         "884911258413989978"); // <--- Replace with discordapi.getuserid()
-                    foreach (var dm in dms)
-                    {
-                        var id = dm["recipients"][0]["id"].ToString();
-                        var found = Channels.Where(c => c.Id == id).Count();
-                        if (found == 0 && id != "948792559017283659") // Don't add the discord bot
-                            AddChannel(id, true, new(this, Channels[0].Handler.Gpt3));
-                    }
+                    if (dms != null)
+                        foreach (var dm in dms)
+                        {
+                            var id = dm["recipients"][0]["id"].ToString();
+                            var found = Channels.Where(c => c.Id == id).Count();
+                            if (found == 0 && id != "948792559017283659") // Don't add the discord bot
+                                AddChannel(id, true, new(this, Channels[0].Handler.Gpt3));
+                        }
                 }
 
                 try
                 {
-                    var threads = new List<Thread>();
+                    var threads = new List<Task>();
                     foreach (var channel in Channels)
                     {
                         if (channel.SuccessCount - channel.FailCount > -3)
-                            await channel.Update(this);
+                            threads.Add(channel.Update(this));
                         else { Console.WriteLine($"Skipping {channel.Id}"); }
+
                         // t.Start();
-                        //  await Task.Delay(100);
+                        await Task.Delay(200);
                     }
+
+                    Task.WaitAll(threads.ToArray());
 
                     ///while (threads.Any(t => t.IsAlive)) { Thread.Sleep(1000); }
                 }
@@ -146,11 +151,25 @@ public class DiscordChat : ChatSystem
         public string Log = "";
         public string Name;
         public Dictionary<string, Message> Messages = new Dictionary<string, Message>();
+        public DateTime LastMsg = DateTime.Now;
+        public int Ticks = 0;
 
         public async Task Update(DiscordChat client)
         {
             var channel = Id;
             //  await Task.Delay(1000);
+
+            // Rarely update sorta dead channels
+            var mins = (LastMsg - DateTime.Now).TotalMinutes;
+            if (mins > 2)
+            {
+                Ticks++;
+                if (mins < 5 && Ticks < 2) return;
+                if (mins < 15 && Ticks < 5) return;
+                if (mins < 25 && Ticks < 15) return;
+                if (mins < 60 && Ticks < 100) return;
+                if (mins < 160 && Ticks < 200) return;
+            }
 
             bool Contains(List<string> messages, string str)
             {
@@ -168,7 +187,7 @@ public class DiscordChat : ChatSystem
             // TODO: Use getLatestMessages()
             // var message = dm ? await API.getLatestdm(client, channel) : await API.getLatestMessage(client, channel);
             var messages = Dm ? await Api.GetLatestDMs(client._client, channel)
-                : await Api.GetLatestMessages(client._client, channel, numMessages: 7);
+                : await Api.GetLatestMessages(client._client, channel, numMessages: SuccessCount == 0 ? 25 : 5);
             if (messages == null)
             {
                 await Task.Delay(400);
@@ -186,6 +205,7 @@ public class DiscordChat : ChatSystem
 
                 else { continue; }
 
+                if (msg.Timestamp > LastMsg) LastMsg = msg.Timestamp;
 
                 // Skip older messages, or if bot restarts he may spam
                 if (msg.Timestamp.AddSeconds(60 * 60) < DateTime.Now)
@@ -263,7 +283,7 @@ public class DiscordChat : ChatSystem
                     return false;
                 } // true if already added to log
 
-                Log += auth + ": " + msg + Program.NewLogLine;
+                Log += " " + auth + ": " + msg + Program.NewLogLine;
                 var txt = "";
                 if (Handler.Usernames.ContainsKey(auth))
                 {
@@ -274,7 +294,6 @@ public class DiscordChat : ChatSystem
 
                 if (message.Flags == 69) continue;
 
-
                 var isForBot = false;
 
                 if (msg.Contains("I relate")) msg = msg;
@@ -282,12 +301,12 @@ public class DiscordChat : ChatSystem
                 isForBot |= editMsg != null && auth == client.BotUsername;
 
                 // dibbr demo channel
-                isForBot |= channel == "979230826346709032";
+                isForBot |= (channel == "972018566834565124" && (msg.Contains("?") || msg.Length > 10));
 
                 if (channel == "979230826346709032") channel = channel;
 
                 // Is for bot if it's a reply to the bot
-                isForBot |= message.ReferencedMessage?.Author.Username == client.BotName;
+                isForBot |= (message.ReferencedMessage?.Author.Username == client.BotName && msg.Length > 5);
                 // or DM
                 isForBot |= Dm;
 
@@ -297,32 +316,37 @@ public class DiscordChat : ChatSystem
 
                 if (isForBot || msg.Contains(Program.BotName)) Api.Typing(client._client, channel, true);
 
-                Handler.Log = Log;
-                var (isReply1, reply) = await Handler.OnMessage(msg, auth, isForBot,
-                    message.ReferencedMessage?.Author.Username == client.BotName);
 
-                if (StringExtensions.IsNullOrEmpty(reply)) continue;
-
-                //reply = "I'm no"
-                if (channel == mrgirl) channel = channel;
-                //  if ((++Handler.MessageCount % 2) == 0 && channel == DiscordChat.mrgirl)
+                var t = new Thread(async () =>
                 {
-                    //  Handler.BreakTime = DateTime.Now.AddMinutes(30);
-                    // reply += ". AFK a few mins.";
-                }
-                // Log += c2;
-                // Handler.Log
+                    Handler.Log = Log;
+                    var (isReply1, reply) = await Handler.OnMessage(msg, auth, isForBot,
+                        message.ReferencedMessage?.Author.Username == client.BotName);
 
-                _ = Dm ? await Api.send_dm(client._client, channel, reply, msgid)
-                    : await Api.send_message(client._client, channel, reply, isReply1 ? msgid : null, editMsg);
-                if ((++Handler.MessageCount % 5) == 0 && channel == DiscordChat.mrgirl)
-                {
-                    // await Task.Delay(60 * 1 * 1000);
-                }
+                    if (StringExtensions.IsNullOrEmpty(reply)) return;
 
-                // Write out our response, along with the question
-                File.AppendAllText("chat_log_" + channel + ".txt",
-                    c + client.BotName + ": " + reply + Program.NewLogLine);
+                    //reply = "I'm no"
+                    if (channel == mrgirl) channel = channel;
+                    //  if ((++Handler.MessageCount % 2) == 0 && channel == DiscordChat.mrgirl)
+                    {
+                        //  Handler.BreakTime = DateTime.Now.AddMinutes(30);
+                        // reply += ". AFK a few mins.";
+                    }
+                    Log += client.BotName + ": " + reply + Program.NewLogLine;
+                    // Handler.Log
+
+                    _ = Dm ? await Api.send_dm(client._client, channel, reply, msgid)
+                        : await Api.send_message(client._client, channel, reply, isReply1 ? msgid : null, editMsg);
+                    if ((++Handler.MessageCount % 5) == 0 && channel == DiscordChat.mrgirl)
+                    {
+                        // await Task.Delay(60 * 1 * 1000);
+                    }
+
+                    // Write out our response, along with the question
+                    File.AppendAllTextAsync("chat_log_" + channel + ".txt",
+                        c + client.BotName + ": " + reply + Program.NewLogLine);
+                });
+                t.Start();
             }
 
             await Handler.OnUpdate(async s =>
@@ -453,7 +477,7 @@ public static class StringHelp
     public static List<string> TakeLastLines(this string text, int count)
     {
         var lines = Enumerable.ToArray(text.Split(Program.NewLogLine));
-        if (lines.Last().Trim() == "") lines = lines[..(lines.Length - 1)];
+        if (lines.Last().Trim() == "") lines = lines[..^1];
 
         if (lines.Length > count) return lines[^count..].ToList();
 

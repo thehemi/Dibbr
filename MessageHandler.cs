@@ -48,7 +48,7 @@ public class MessageHandler
     /// <summary>
     /// This is how many messages get passed to GPT-3. Sometimes, dibbr will get stuck repeating, so it's better to lower this number
     /// </summary>
-    public int MessageHistory = 10; // how many messages to keep in history to pass to GPT3
+    public int MessageHistory = 20; // how many messages to keep in history to pass to GPT3
 
     public int MessageHistoryLimit = 50;
     public bool Muted = false;
@@ -160,7 +160,7 @@ public class MessageHandler
         // (bot should know that is a reply)
         // Is for bot if the last user to ask a question is the one saying something now
         isForBot |= /*LastMsgUser == BotName || */
-            (LastMsgUser == user && LastMessageTime.AddSeconds(40) > DateTime.Now);
+            (LastMsgUser == user && LastMessageTime.AddSeconds(120) > DateTime.Now);
 
         // Is for bot if bot mentioned in first 1/4th
         var idx = msg.ToLower().IndexOf(BotName);
@@ -216,7 +216,11 @@ public class MessageHandler
         else
             isReply = true;
 
-        if (!isForBot) return (false, null);
+        if (!isForBot)
+        {
+            Console.WriteLine($"Skipped {msg} notForBot");
+            return (false, null);
+        }
 
         if (DateTime.Now < BreakTime)
         {
@@ -312,7 +316,7 @@ public class MessageHandler
         if (useSteps) suffix = $"{BotName}: Let's think step by step.";
 
         //   if (Die(AngerOdds)) suffix += $"{BotName}: [Bot State=Angry] ";
-
+        suffix = "-------------------------------------------------------------\n" + suffix;
         // Feed GPT-3 history of longer length if we're asking it how old a chatter is, or if it remembers something in the chat
         var history = MessageHistory;
         if (Is("remember") || Has("you remember") || Has("what was the") || Has("what did i") || Has("how old") ||
@@ -337,10 +341,10 @@ public class MessageHandler
 
         if (Log.TakeLastLines(8).Contains(txt) || (logHasBot &&
                                                    StringHelpers.Get(Usernames[BotName].TakeLastLines(1)?[0], txt) >
-                                                   0.5))
+                                                   0.4))
         {
             Console.WriteLine("Trying again..");
-            txt = await Gpt3.Ask(msg, "", user, suffix, log.Length);
+            txt = await Gpt3.Ask(msg, "", user, suffix);
             txt += " [r]";
             //   txt += "\nDev Note: Second response. First had a Levenshtein distance too high";
         }

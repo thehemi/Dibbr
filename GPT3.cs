@@ -6,6 +6,7 @@ using System.Configuration;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using OpenAI_API;
+using ServiceStack;
 
 // ReSharper disable StringIndexOfIsCultureSpecific.1
 
@@ -20,7 +21,7 @@ public class Gpt3
     OpenAIAPI _api;
     Engine _e;
     string _engine = "text-davinci-002";
-    float _fp, _pp = 0.5f, _temp = 1;
+    float _fp = 2.0f, _pp = 2.0f, _temp = 1;
 
     public Gpt3(string token) => this._token = token;
 
@@ -39,7 +40,7 @@ public class Gpt3
             _api = new(_token, _e);
         }
 
-        Console.WriteLine("GPT3 Query: " + msg);
+        Console.WriteLine("GPT3 Query: " + (msg.IsNullOrEmpty() ? log[^50..] : msg));
 
 
         // Set variables like this
@@ -105,6 +106,7 @@ public class Gpt3
         // txt = txt.Replace($"{Program.BotName}:", "boodlebeep:");
         //  txt += user + ": " + msg + Program.NewLogLine;
         var r = await Q(txt, _pp, _fp, _temp);
+        if (r.Contains("filthy, woke")) { r = await Q(txt, _pp, _fp, _temp); }
 
         return r;
 
@@ -119,7 +121,7 @@ public class Gpt3
 
             var (_, response) = r.Deduplicate(log);
 
-            if (response.Length < r.Length)
+            if (response.Length < r.Length || r.Length == 0)
             {
                 log = "";
                 txt = MakeText();
@@ -128,10 +130,11 @@ public class Gpt3
                     stopSequences: new[] {Program.NewLogLine})).ToString();
                 // var r = CleanText(result.ToString());
             }
+
             // If dup, try again                
             //if (percentDupe > r.Length / 3)
             // return await Q(MakeText(), pp, fp, 1);
-
+            //  response = response.After(":");
             return response;
         }
     }

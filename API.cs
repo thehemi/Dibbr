@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using ServiceStack;
 
 namespace DibbrBot;
 
@@ -84,6 +85,7 @@ class Api
     public static async Task<string> send_message(HttpClient client, string channelId, string content, string msgid,
                                                   string editMsgID = null)
     {
+        if (content.IsNullOrEmpty()) return null;
         /*  if (lastMsg == content)
           {
               return null;
@@ -133,7 +135,7 @@ class Api
             // WTF!! Some mesages come back with bad request. I don't understand why or how to fix
             if (i == 2) content = Regex.Escape(c);
 
-            if (i == 3) content = content[..(content.Length / 2)] + "...(snipped due to send failure)";
+            // if (i == 3) content = content[..(content.Length / 2)] + "...(snipped due to send failure)";
 
             if (i == 4)
             {
