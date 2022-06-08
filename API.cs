@@ -92,10 +92,24 @@ class Api
           }
           lastMsg = content;*/
         //  content = Regex.Escape(content);
-
+        var messages = new List<string>();
         // Discord limit without nitro
-        if (content.Length > 2000) content = content[^2000..];
+        if (content.Length > 2000)
+        {
+            messages.Add(content[..2000]);
+            messages.Add(content[2000..]);
+        }
+        else { messages.Add(content); }
 
+        string ret = null;
+        foreach (var msg in messages) { ret = await send_message_internal(client, channelId, msg, msgid, editMsgID); }
+
+        return ret;
+    }
+
+    public static async Task<string> send_message_internal(HttpClient client, string channelId, string content,
+                                                           string msgid, string editMsgID = null)
+    {
         // Stop
         //
         // Dibbr

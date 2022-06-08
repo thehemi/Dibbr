@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.WebSockets;
+using System.Reflection.Metadata.Ecma335;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,6 +29,8 @@ public class DiscordChat : ChatSystem
 {
     public HttpClient _client;
     public readonly static string mrgirl = "937151566266384394";
+    public readonly static string davinci_beta = "983124805995880478";
+    public readonly static string davinci = "983124621127725076";
 
     public string BotUsername, BotName;
 
@@ -64,6 +67,10 @@ public class DiscordChat : ChatSystem
             handler.ChattyMode = false;
         }
         else { handler.SayHelo = sayHi; }
+
+        if (c.Id == davinci) { handler.Gpt3 = new Gpt3(handler.Gpt3._token, "davinci"); }
+
+        if (c.Id == davinci_beta) { handler.Gpt3 = new Gpt3(handler.Gpt3._token, "text-davinci-001"); }
 
         /// dibbr pro, better memory
         if (c.Id == "979230826346709032") handler.MessageHistory *= 3;
@@ -107,7 +114,10 @@ public class DiscordChat : ChatSystem
                             var id = dm["recipients"][0]["id"].ToString();
                             var found = Channels.Where(c => c.Id == id).Count();
                             if (found == 0 && id != "948792559017283659") // Don't add the discord bot
-                                AddChannel(id, true, new(this, Channels[0].Handler.Gpt3));
+                            {
+                                var gpt3 = new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002");
+                                AddChannel(id, true, new(this, gpt3));
+                            }
                         }
                 }
 
@@ -120,7 +130,7 @@ public class DiscordChat : ChatSystem
                             threads.Add(channel.Update(this));
                         else { Console.WriteLine($"Skipping {channel.Id}"); }
 
-                        // t.Start();
+
                         await Task.Delay(200);
                     }
 
@@ -198,13 +208,14 @@ public class DiscordChat : ChatSystem
             SuccessCount++;
             var newMessages = new List<Message>();
             // Skip messages already replied to
-            for (var i = 0; i < messages.Count; i++)
+            for (var i = messages.Count - 1; i >= 0; i--)
             {
                 var msg = messages[i];
                 if (!Messages.ContainsKey(msg.Id.ToString())) { Messages.Add(msg.Id.ToString(), msg); }
 
                 else { continue; }
 
+                Log += " " + msg.Author.Username + ": " + msg.Content + Program.NewLogLine;
                 if (msg.Timestamp > LastMsg) LastMsg = msg.Timestamp;
 
                 // Skip older messages, or if bot restarts he may spam
@@ -270,27 +281,14 @@ public class DiscordChat : ChatSystem
 
                 if (msg.StartsWith("!!")) editMsg = msg.After("!! ");
 
+                // 1. Wipe memory
+                if (msg.Contains("wipe memory")) { Log = ""; }
+
                 // So GPT-3 doesn't get confused, in case these differ
                 if (auth == client.BotUsername) auth = client.BotName;
 
                 var c = auth + ": " + msg + Program.NewLogLine;
-
-                // FIXME: Will block repeating messages
-                bool AddToLog(string msg)
-                {
-                    //  if (Contains(log, msg)) return true;
-                    Log += msg;
-                    return false;
-                } // true if already added to log
-
-                Log += " " + auth + ": " + msg + Program.NewLogLine;
-                var txt = "";
-                if (Handler.Usernames.ContainsKey(auth))
-                {
-                    txt = Handler.Usernames[auth];
-                    txt += msg + Program.NewLogLine;
-                }
-                else { Handler.Usernames.Add(auth, msg + Program.NewLogLine); }
+                if (msg.Contains("2050")) msg = msg;
 
                 if (message.Flags == 69) continue;
 
@@ -301,7 +299,7 @@ public class DiscordChat : ChatSystem
                 isForBot |= editMsg != null && auth == client.BotUsername;
 
                 // dibbr demo channel
-                isForBot |= (channel == "972018566834565124" && (msg.Contains("?") || msg.Length > 10));
+                isForBot |= ((msg.Contains("?") || msg.ToLower().Contains(Program.BotName)));
 
                 if (channel == "979230826346709032") channel = channel;
 
@@ -314,39 +312,39 @@ public class DiscordChat : ChatSystem
                 // if(lastMsgTime == DateTime.MinValue || DateTime.Now-lastMsgTime < DateTime.FromSeconds(15))
                 //  File.AppendAllText("chat_log_" + channel + ".txt", c);
 
-                if (isForBot || msg.Contains(Program.BotName)) Api.Typing(client._client, channel, true);
+                if (isForBot || msg.ToLower().Contains(Program.BotName)) Api.Typing(client._client, channel, true);
 
 
-                var t = new Thread(async () =>
+                //var t = new Thread(async () =>
+                //{
+                Handler.Log = Log;
+                var (isReply1, reply) = await Handler.OnMessage(msg, auth, isForBot,
+                    message.ReferencedMessage?.Author.Username == client.BotName);
+
+                if (StringExtensions.IsNullOrEmpty(reply)) return;
+
+                //reply = "I'm no"
+                if (channel == mrgirl) channel = channel;
+                //  if ((++Handler.MessageCount % 2) == 0 && channel == DiscordChat.mrgirl)
                 {
-                    Handler.Log = Log;
-                    var (isReply1, reply) = await Handler.OnMessage(msg, auth, isForBot,
-                        message.ReferencedMessage?.Author.Username == client.BotName);
+                    //  Handler.BreakTime = DateTime.Now.AddMinutes(30);
+                    // reply += ". AFK a few mins.";
+                }
+                //  Log += client.BotName + ": " + reply + Program.NewLogLine;
+                // Handler.Log
 
-                    if (StringExtensions.IsNullOrEmpty(reply)) return;
+                _ = Dm ? await Api.send_dm(client._client, channel, reply, msgid)
+                    : await Api.send_message(client._client, channel, reply, isReply1 ? msgid : null, editMsg);
+                if ((++Handler.MessageCount % 5) == 0 && channel == DiscordChat.mrgirl)
+                {
+                    // await Task.Delay(60 * 1 * 1000);
+                }
 
-                    //reply = "I'm no"
-                    if (channel == mrgirl) channel = channel;
-                    //  if ((++Handler.MessageCount % 2) == 0 && channel == DiscordChat.mrgirl)
-                    {
-                        //  Handler.BreakTime = DateTime.Now.AddMinutes(30);
-                        // reply += ". AFK a few mins.";
-                    }
-                    Log += client.BotName + ": " + reply + Program.NewLogLine;
-                    // Handler.Log
-
-                    _ = Dm ? await Api.send_dm(client._client, channel, reply, msgid)
-                        : await Api.send_message(client._client, channel, reply, isReply1 ? msgid : null, editMsg);
-                    if ((++Handler.MessageCount % 5) == 0 && channel == DiscordChat.mrgirl)
-                    {
-                        // await Task.Delay(60 * 1 * 1000);
-                    }
-
-                    // Write out our response, along with the question
-                    File.AppendAllTextAsync("chat_log_" + channel + ".txt",
-                        c + client.BotName + ": " + reply + Program.NewLogLine);
-                });
-                t.Start();
+                // Write out our response, along with the question
+                File.AppendAllTextAsync("chat_log_" + channel + ".txt",
+                    c + client.BotName + ": " + reply + Program.NewLogLine);
+                //  });
+                //  t.Start();
             }
 
             await Handler.OnUpdate(async s =>

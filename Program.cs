@@ -167,13 +167,15 @@ class Program
         new Thread(async () =>
         {
             Console.WriteLine("GPT3 initializing....");
-            var gpt3 = new Gpt3(ConfigurationManager.AppSettings["OpenAI"]);
 
 
-            new List<ChatSystem>();
-            NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken"], gpt3);
-            NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken2"], gpt3);
-            NewClient(new DiscordChatV2(), ConfigurationManager.AppSettings["DiscordBot"], gpt3);
+            //  new List<ChatSystem>();
+            NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken"],
+                new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
+            NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken2"],
+                new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
+            NewClient(new DiscordChatV2(), ConfigurationManager.AppSettings["DiscordBot"],
+                new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
 
 
             // Selfbot
@@ -186,7 +188,7 @@ class Program
                 foreach (var words in chats.Select(chat => chat.Split(' ')))
                 {
                     Console.WriteLine("Discord Self Bot Added to " + words[0] + " channel " + words[1]);
-
+                    var gpt3 = new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002");
                     client.AddChannel(words[1], words[0] == "DM", new(client, gpt3));
                 }
 

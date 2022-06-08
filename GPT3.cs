@@ -17,13 +17,21 @@ namespace DibbrBot;
 /// </summary>
 public class Gpt3
 {
-    readonly string _token;
-    OpenAIAPI _api;
+    public string _token;
+    OpenAIAPI _api, _apiFallback;
     Engine _e;
-    string _engine = "text-davinci-002";
-    float _fp = 2.0f, _pp = 2.0f, _temp = 1;
 
-    public Gpt3(string token) => this._token = token;
+    string engine;
+
+    //string _engine = "text-davinci-002";
+    float _fp = 0.0f, _pp = 0.0f, _temp = 1;
+
+    public Gpt3(string token, string engine)
+    {
+        this.engine = engine;
+        this._token = token;
+        _e = new Engine() {Owner = "openai", Ready = true, EngineName = engine};
+    }
 
     /// <summary>
     ///     Asks OpenAI
@@ -36,16 +44,17 @@ public class Gpt3
     {
         if (_api == null)
         {
-            _e = new(_engine) {Owner = "openai", Ready = true};
+            //   _e = new(_engine) {Owner = "openai", Ready = true};
             _api = new(_token, _e);
+            _apiFallback = new(_token, new Engine("text-davinci-002"));
         }
 
-        Console.WriteLine("GPT3 Query: " + (msg.IsNullOrEmpty() ? log[^50..] : msg));
-
+        Console.WriteLine("GPT3 Query: " + (msg.IsNullOrEmpty() ? log.Length > 30 ? log[^30..] : log : msg));
 
         // Set variables like this
         // dibbr hey ?fp=1&pp=2
         var line = msg;
+        if (line.Contains("which engine") || line.Contains("what engine")) return "I am using " + engine;
         try
         {
             if (line.Contains("=") && line.Contains("?"))
@@ -69,15 +78,15 @@ public class Gpt3
 
                         if (values[0] == "engine")
                         {
-                            _engine = values[1];
-                            _engine = _engine.Contains("code") ? "code-davinci-002" : "text-davinci-002";
+                            var _engine = values[1];
+                            //_engine = _engine.Contains("code") ? "code-davinci-002" : "text-davinci-002";
 
                             _e = new(_engine) {Owner = "openai", Ready = true};
                             _api = new(_token, _e);
                         }
                     }
 
-                    return $"Changes made. Now, fp={_fp} pp={_pp} buffer={maxChars} temp={_temp} engine={_engine}";
+                    return $"Changes made. Now, fp={_fp} pp={_pp} buffer={maxChars} temp={_temp} ";
                 }
             }
         }
@@ -90,6 +99,9 @@ public class Gpt3
             if (log == "") log += user + ": " + msg;
 
             if (_e.EngineName == "code-davinci-002") return log.TakeLastLines(1)[0] + "\n" + endtxt;
+
+            // log = log.Replace(": " + Program.BotName, "");
+            //log = Regex.Replace(log, ": " + Program.BotName, ": ", RegexOptions.IgnoreCase);
 
             return ConfigurationManager.AppSettings["PrimeText"] + "\n\n" + log + endtxt;
         }
@@ -106,6 +118,7 @@ public class Gpt3
         // txt = txt.Replace($"{Program.BotName}:", "boodlebeep:");
         //  txt += user + ": " + msg + Program.NewLogLine;
         var r = await Q(txt, _pp, _fp, _temp);
+        if (r == null) return "";
         if (r.Contains("filthy, woke")) { r = await Q(txt, _pp, _fp, _temp); }
 
         return r;
@@ -113,29 +126,54 @@ public class Gpt3
 
         async Task<string> Q(string txt, float pp, float tp, float temp)
         {
-            var result = await _api.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
-                frequencyPenalty: tp, presencePenalty: pp, max_tokens: 1000, stopSequences: new[] {Program.NewLogLine});
-            // var r = CleanText(result.ToString());
-            var r = result.ToString().Trim().Rem($"{Program.BotUsername}:");
-            Console.WriteLine("GPT3 response: " + r);
-
-            var (_, response) = r.Deduplicate(log);
-
-            if (response.Length < r.Length || r.Length == 0)
+            while (true)
             {
-                log = "";
-                txt = MakeText();
-                response = (await _api.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
-                    frequencyPenalty: tp, presencePenalty: pp, max_tokens: 1000,
-                    stopSequences: new[] {Program.NewLogLine})).ToString();
-                // var r = CleanText(result.ToString());
-            }
+                CompletionResult result = null;
+                try
+                {
+                    result = await _api.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
+                        frequencyPenalty: tp, presencePenalty: pp, max_tokens: 4000,
+                        stopSequences: new[] {Program.NewLogLine});
+                }
+                catch (Exception e)
+                {
+                    try
+                    {
+                        result = await _apiFallback.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
+                            frequencyPenalty: tp, presencePenalty: pp, max_tokens: 2000,
+                            stopSequences: new[] {Program.NewLogLine});
+                    }
+                    catch (Exception e2) { return $"{Program.BotName} has a server error: {e2.Message}"; }
+                }
 
-            // If dup, try again                
-            //if (percentDupe > r.Length / 3)
-            // return await Q(MakeText(), pp, fp, 1);
-            //  response = response.After(":");
-            return response;
+                if (result == null) { return "dibr had a server error "; }
+
+                // var r = CleanText(result.ToString());
+                var r = result.ToString().Trim().Rem($"{Program.BotUsername}:");
+                Console.WriteLine("GPT3 response: " + r);
+                // Remove quotes
+                if (r.StartsWith("\"")) r = r.Substring(1);
+                if (r.EndsWith("\"")) r = r.Substring(0, r.Length - 1);
+
+                var (_, response) = r.Deduplicate(log);
+
+                /* if (response.Length < r.Length || r.Length == 0)
+                 {
+                     log = "";
+                     txt = MakeText();
+                     response = (await _api.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
+                         frequencyPenalty: tp, presencePenalty: pp, max_tokens: 1000,
+                         stopSequences: new[] {Program.NewLogLine})).ToString();
+                     // var r = CleanText(result.ToString());
+                     (_, response) = r.Deduplicate(log);
+                 }*/
+
+                // If dup, try again                
+                //if (percentDupe > r.Length / 3)
+                // return await Q(MakeText(), pp, fp, 1);
+                //  response = response.After(":");
+                return response;
+            }
         }
     }
 

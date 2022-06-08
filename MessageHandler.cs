@@ -48,9 +48,9 @@ public class MessageHandler
     /// <summary>
     /// This is how many messages get passed to GPT-3. Sometimes, dibbr will get stuck repeating, so it's better to lower this number
     /// </summary>
-    public int MessageHistory = 20; // how many messages to keep in history to pass to GPT3
+    public int MessageHistory = 5; // how many messages to keep in history to pass to GPT3
 
-    public int MessageHistoryLimit = 50;
+    public int MessageHistoryLimit = 40;
     public bool Muted = false;
     public Speech Speech = new();
 
@@ -306,7 +306,7 @@ public class MessageHandler
             return (isReply, "Interval set to " + TalkInterval);
         }
 
-        var suffix = isComment ? $"{BotName}'s comment:" : $"{BotName}'s response: ";
+        var suffix = isComment ? $"{BotName}'s comment:" : $"{BotName}'s long response: ";
         if (ChattyMode && bAskQuestion)
         {
             suffix =
@@ -316,7 +316,7 @@ public class MessageHandler
         if (useSteps) suffix = $"{BotName}: Let's think step by step.";
 
         //   if (Die(AngerOdds)) suffix += $"{BotName}: [Bot State=Angry] ";
-        suffix = "-------------------------------------------------------------\n" + suffix;
+        suffix = suffix;
         // Feed GPT-3 history of longer length if we're asking it how old a chatter is, or if it remembers something in the chat
         var history = MessageHistory;
         if (Is("remember") || Has("you remember") || Has("what was the") || Has("what did i") || Has("how old") ||
