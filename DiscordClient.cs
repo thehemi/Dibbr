@@ -438,14 +438,14 @@ class DiscordChatV2 : ChatSystem, IDisposable
             if (c == _lastMsg) return;
 
             _lastMsg = c;
-            if (first) return;
+           // if (first) return;
 
             Console.WriteLine(c);
             File.AppendAllText("chat_log_" + e.Channel.Name + ".txt", c);
 
 
             var (_, str) = await _callback(e.Message.Content, e.Author.Username);
-
+            if (str == null) return;
             var msgs = new List<string>();
             if (str.Length > 2000)
             {

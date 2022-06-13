@@ -66,8 +66,11 @@ class Program
         msgHandler.BotName = BotName;
         var d2 = client as DiscordChatV2;
         if (d2 != null) d2.handler = msgHandler;
-        _ = client.Initialize(async (msg, user, isReply) => { return await msgHandler.OnMessage(msg, user, isReply); },
-            token);
+        _ = client.Initialize(
+            async (msg, user, isReply) =>
+            {
+                return await msgHandler.OnMessage(msg, user, msg.ToLower().Contains(BotName), isReply);
+            }, token);
         Systems.Add(client);
     }
 
