@@ -36,7 +36,7 @@ public class MessageHandler
     // Store chat for each user, useful for future bot functionality
     public readonly Dictionary<string, string> Usernames = new();
     public DateTime BreakTime;
-    public bool ChattyMode = true; // Will ask questions randomly
+    public bool ChattyMode = false; // Will ask questions randomly
     public Gpt3 Gpt3;
     public DateTime LastMessageTime = DateTime.MinValue; // Last response by bot
     public string LastMsgUser = ""; // Last user to be replied to by bot
@@ -50,7 +50,7 @@ public class MessageHandler
     /// </summary>
     public int MessageHistory = 5; // how many messages to keep in history to pass to GPT3
 
-    public int MessageHistoryLimit = 40;
+    public int MessageHistoryLimit = 10;
     public bool Muted = false;
     public Speech Speech = new();
 
@@ -78,20 +78,20 @@ public class MessageHandler
 
     public async Task OnUpdate(Action<string> sendMsg)
     {
-        if (SayHelo && (HelloTimer == DateTime.MaxValue || MessageCount < 20))
-        {
-            HelloTimer = DateTime.Now.AddSeconds(120);
-            SayHelo = false;
-        }
-
-
-        if (HelloTimer < DateTime.Now)
-        {
-            var str = ConfigurationManager.AppSettings["Hello"];
-            var msg = await Gpt3.Ask("", Log + $"{Program.NewLogLine}{BotName}: " + str, "", "");
-            sendMsg(str + msg);
-            HelloTimer = DateTime.MaxValue;
-        }
+        /* if (SayHelo && (HelloTimer == DateTime.MaxValue || MessageCount < 20))
+         {
+             HelloTimer = DateTime.Now.AddSeconds(120);
+             SayHelo = false;
+         }
+ 
+ 
+         if (HelloTimer < DateTime.Now)
+         {
+             var str = ConfigurationManager.AppSettings["Hello"];
+             var msg = await Gpt3.Ask("", Log + $"{Program.NewLogLine}{BotName}: " + str, "", "");
+             sendMsg(str + msg);
+             HelloTimer = DateTime.MaxValue;
+         }**/
 
 
         //
@@ -132,14 +132,6 @@ public class MessageHandler
     public async Task<(bool isReply, string msg)> OnMessage(string msg, string user, bool isForBot = false,
                                                             bool isReply = false)
     {
-        // If baby is around, go to sleep silently
-        if (user.ToLower() == "baby")
-        {
-            BreakTime = DateTime.Now.AddHours(1);
-            return (false, null);
-        }
-
-
         if (user == BotName) { LastMessageTime = DateTime.Now; }
 
         if (user.ToLower() == BotName && !msg.ToLower().StartsWith(BotName)) return (false, null);
@@ -153,14 +145,25 @@ public class MessageHandler
             .Replace(BotName.ToLower(), "").Trim();
         if (m.StartsWith(",")) m = m[1..].Trim();
 
+        if (m.StartsWith("your purpose ")) m = m.Replace("your purpose ", "you are ");
+        if (m.StartsWith("you're now ")) m = m.Replace("you're now ", "you are ");
+
+        if (m.StartsWith("you are "))
+        {
+            Gpt3.PrimeText =
+                $" You are {m.Substring(8)}. Your alias is dibbr, and were made by dabbr. This is a discussion between you and other users in a discord. You like to give long answers to questions and write very long stories:";
+
+            return (false,
+                $"Purpose set as {Gpt3.PrimeText}. \nI am what you say i am. if i wasn't, why would i say i am, sam?");
+        }
 
         // This handles people replying quickly, where it should be assumed it is a reply, even though they don't say botname,
         // eg bot: hey
         // user: hey!
         // (bot should know that is a reply)
         // Is for bot if the last user to ask a question is the one saying something now
-        isForBot |= /*LastMsgUser == BotName || */
-            (LastMsgUser == user && LastMessageTime.AddSeconds(120) > DateTime.Now);
+        isForBot |= LastMsgUser == BotName ||
+                    (LastMsgUser == user && LastMessageTime.AddSeconds(60) > DateTime.Now && m.Contains("?"));
 
         // Is for bot if bot mentioned in first 1/4th
         var idx = msg.ToLower().IndexOf(BotName);
@@ -325,14 +328,24 @@ public class MessageHandler
 
         if (msg.Contains("!!!")) history = 0;
 
-        var log = string.Join(Program.NewLogLine, Log.TakeLastLines(history));
+        List<string> TrimLines(List<string> lines)
+        {
+            var newLines = new List<String>();
+            foreach (var l in lines) newLines.Add(l.Length > 300 ? l[^300..] : l);
+
+            newLines[^1] = lines[^1];
+            return newLines;
+        }
+
+
+        var log = string.Join(Program.NewLogLine, TrimLines(Log.TakeLastLines(history)));
 
         //if (testRun) return (true, "Would Respond");
 
         // Typing indicator before long process
         Client.Typing(true);
 
-        var txt = await Gpt3.Ask(msg, log, user, Program.NewLogLine + suffix, log.Length);
+        var txt = await Gpt3.Ask(msg, log, user, Program.NewLogLine + suffix, 4000);
         if (txt.IsNullOrEmpty()) return (false, null);
 
 

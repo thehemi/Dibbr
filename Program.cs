@@ -36,7 +36,7 @@ class Program
 
     public static List<ChatSystem> Systems = new();
 
-    static void Set(string key, string value)
+    public static void Set(string key, string value)
     {
         var configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
         configuration.AppSettings.Settings.Remove(key);
@@ -63,6 +63,9 @@ class Program
 
         Console.WriteLine($"{client} initializing....");
         var msgHandler = new MessageHandler(client, gpt3);
+        msgHandler.BotName = BotName;
+        var d2 = client as DiscordChatV2;
+        if (d2 != null) d2.handler = msgHandler;
         _ = client.Initialize(async (msg, user, isReply) => { return await msgHandler.OnMessage(msg, user, isReply); },
             token);
         Systems.Add(client);
