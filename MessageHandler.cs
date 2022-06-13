@@ -332,8 +332,7 @@ public class MessageHandler
         {
             var newLines = new List<String>();
             foreach (var l in lines) newLines.Add(l.Length > 300 ? l[^300..] : l);
-
-            newLines[^1] = lines[^1];
+            if (lines.Count > 0) newLines[^1] = lines[^1];
             return newLines;
         }
 

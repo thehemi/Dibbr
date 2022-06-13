@@ -431,6 +431,8 @@ class DiscordChatV2 : ChatSystem, IDisposable
         new Thread(async delegate()
         {
             var c = e.Author.Username + ": " + e.Message.Content + "\n";
+            // HACK
+            // if (!e.Channel.Name.Contains("dibbr")) return;
             ChatLog += c;
             if (ChatLog.Length > _maxBuffer) ChatLog = ChatLog[^_maxBuffer..];
             handler.Log = ChatLog;
@@ -438,10 +440,9 @@ class DiscordChatV2 : ChatSystem, IDisposable
             if (c == _lastMsg) return;
 
             _lastMsg = c;
-           // if (first) return;
+            // if (first) return;
 
             Console.WriteLine(c);
-            File.AppendAllText("chat_log_" + e.Channel.Name + ".txt", c);
 
 
             var (_, str) = await _callback(e.Message.Content, e.Author.Username);
@@ -455,6 +456,7 @@ class DiscordChatV2 : ChatSystem, IDisposable
             else
                 msgs.Add(str);
 
+            File.AppendAllText("chat_log_" + e.Channel.Name + ".txt", c + "\ndibbr: " + str + "\n");
             foreach (var msg in msgs) await sender.SendMessageAsync(e.Channel, msg);
         }).Start();
         return Task.FromResult(Task.CompletedTask);
