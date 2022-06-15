@@ -48,7 +48,7 @@ public class MessageHandler
     /// <summary>
     /// This is how many messages get passed to GPT-3. Sometimes, dibbr will get stuck repeating, so it's better to lower this number
     /// </summary>
-    public int MessageHistory = 5; // how many messages to keep in history to pass to GPT3
+    public int MessageHistory = 6; // how many messages to keep in history to pass to GPT3
 
     public int MessageHistoryLimit = 10;
     public bool Muted = false;
@@ -134,7 +134,7 @@ public class MessageHandler
     {
         if (user == BotName) { LastMessageTime = DateTime.Now; }
 
-        if (user.ToLower() == BotName && !msg.ToLower().StartsWith(BotName)) return (false, null);
+        if (user.ToLower() == BotName.ToLower() && !msg.ToLower().StartsWith(BotName.ToLower())) return (false, null);
 
 
         // log is injected
@@ -145,13 +145,13 @@ public class MessageHandler
             .Replace(BotName.ToLower(), "").Trim();
         if (m.StartsWith(",")) m = m[1..].Trim();
 
-        if (m.StartsWith("your purpose ")) m = m.Replace("your purpose ", "you are ");
-        if (m.StartsWith("you're now ")) m = m.Replace("you're now ", "you are ");
+        if (m.StartsWith("your purpose ")) m = m.Replace("your purpose ", "set prompt ");
+        if (m.StartsWith("you're now ")) m = m.Replace("you're now ", "set prompt ");
 
-        if (m.StartsWith("you are "))
+        if (m.StartsWith("set prompt"))
         {
             Gpt3.PrimeText =
-                $" You are {m.Substring(8)}. Your alias is dibbr, and were made by dabbr. This is a discussion between you and other users in a discord. You like to give long answers to questions and write very long stories:";
+                $" You are {m.Substring(11)}. Your alias is {BotName}, and were made by dabbr. This is a discussion between you and other users in a discord. You like to give long answers to questions and write very long stories:";
 
             return (false,
                 $"Purpose set as {Gpt3.PrimeText}. \nI am what you say i am. if i wasn't, why would i say i am, sam?");
@@ -162,12 +162,11 @@ public class MessageHandler
         // user: hey!
         // (bot should know that is a reply)
         // Is for bot if the last user to ask a question is the one saying something now
-        isForBot |= LastMsgUser == BotName ||
-                    (LastMsgUser == user && LastMessageTime.AddSeconds(60) > DateTime.Now && m.Contains("?"));
+        isForBot |= LastMsgUser == BotName || (LastMsgUser == user && m.Contains("?"));
 
-        // Is for bot if bot mentioned in first 1/4th
+        // Is for bot if bot mentioned -----------in first 1/4th
         var idx = msg.ToLower().IndexOf(BotName);
-        isForBot |= idx != -1 && idx < msg.Length / 3;
+        isForBot |= idx != -1; // && idx < msg.Length / 3;
 
         if (isForBot)
         {
@@ -309,14 +308,16 @@ public class MessageHandler
             return (isReply, "Interval set to " + TalkInterval);
         }
 
-        var suffix = isComment ? $"{BotName}'s comment:" : $"{BotName}'s long response: ";
+        var dumb = BotName.ToLower().Contains("xib");
+
+        var suffix = isComment ? $"{BotName}'s comment:" : $"{BotName}'s long {(dumb ? "retarded, dumb" : "")} reply: ";
         if (ChattyMode && bAskQuestion)
         {
             suffix =
                 $"{BotName} should ask an interesting question, about an interesting topic, related to the chat log: {BotName}'s question:";
         }
 
-        if (useSteps) suffix = $"{BotName}: Let's think step by step.";
+        if (useSteps) suffix += $"Let's think step by step.";
 
         //   if (Die(AngerOdds)) suffix += $"{BotName}: [Bot State=Angry] ";
         suffix = suffix;

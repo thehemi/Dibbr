@@ -409,6 +409,7 @@ class DiscordChatV2 : ChatSystem, IDisposable
             _discordClient.MessageCreated += MessageCreated;
 
             await _discordClient.ConnectAsync();
+            handler.BotName = _discordClient.CurrentUser.Username.ToLower();
             Console.WriteLine("V 2.0 Discord Bot Client Online");
         }
         catch (Exception e)
@@ -426,27 +427,39 @@ class DiscordChatV2 : ChatSystem, IDisposable
     /// <param name="sender"></param>
     /// <param name="e"></param>
     /// <returns></returns>
-    Task<Task> MessageCreated(DiscordClient sender, MessageCreateEventArgs e)
+    async Task<Task> MessageCreated(DiscordClient sender, MessageCreateEventArgs e)
     {
-        new Thread(async delegate()
+        //new Thread(async delegate()
         {
-            var c = e.Author.Username + ": " + e.Message.Content + "\n";
+            var content = Regex.Replace(e.Message.Content, "<.*?>|&.*?;", string.Empty);
+            // Mentions should convert to text string that is recognized by handler
+            if (e.MentionedRoles.Any(u => u.Name.ToLower() == handler.BotName.ToLower()) ||
+                e.MentionedUsers.Any(u => u.Username.ToLower() == handler.BotName.ToLower()))
+            {
+                if (!content.StartsWith(handler.BotName)) content = handler.BotName + ", " + content + "\n";
+            }
+
+            var c = e.Author.Username + ": " + content;
             // HACK
-            // if (!e.Channel.Name.Contains("dibbr")) return;
-            ChatLog += c;
+            if (e.Channel == null) return Task.FromResult(Task.CompletedTask);
+            var name = e.Channel.Name ?? e.Author.Username;
+
+            // if (!name.Contains("dibbr")) return;
+            ChatLog += c + Program.NewLogLine;
             if (ChatLog.Length > _maxBuffer) ChatLog = ChatLog[^_maxBuffer..];
             handler.Log = ChatLog;
             var first = _lastMsg == "";
-            if (c == _lastMsg) return;
+            if (c == _lastMsg) return Task.FromResult(Task.CompletedTask);
 
+            if (!content.ToLower().Contains(handler.BotName.ToLower())) return Task.FromResult(Task.CompletedTask);
             _lastMsg = c;
             // if (first) return;
 
             Console.WriteLine(c);
+            bool isReply = false;
 
-
-            var (_, str) = await _callback(e.Message.Content, e.Author.Username);
-            if (str == null) return;
+            var (_, str) = await _callback(content, e.Author.Username, isReply);
+            if (str == null) return Task.FromResult(Task.CompletedTask);
             var msgs = new List<string>();
             if (str.Length > 2000)
             {
@@ -456,9 +469,14 @@ class DiscordChatV2 : ChatSystem, IDisposable
             else
                 msgs.Add(str);
 
-            File.AppendAllText("chat_log_" + e.Channel.Name + ".txt", c + "\ndibbr: " + str + "\n");
-            foreach (var msg in msgs) await sender.SendMessageAsync(e.Channel, msg);
-        }).Start();
+            File.AppendAllText("chat_log_" + name + ".txt", c + $"\n{handler.BotName}: " + str + "\n");
+            foreach (var msg in msgs)
+            {
+                await sender.SendMessageAsync(e.Channel, msg);
+                await Task.Delay(1000);
+            }
+        }
+        // }).Start();
         return Task.FromResult(Task.CompletedTask);
     }
 

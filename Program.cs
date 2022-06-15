@@ -67,10 +67,7 @@ class Program
         var d2 = client as DiscordChatV2;
         if (d2 != null) d2.handler = msgHandler;
         _ = client.Initialize(
-            async (msg, user, isReply) =>
-            {
-                return await msgHandler.OnMessage(msg, user, msg.ToLower().Contains(BotName), isReply);
-            }, token);
+            async (msg, user, isForBot) => { return await msgHandler.OnMessage(msg, user, isForBot); }, token);
         Systems.Add(client);
     }
 

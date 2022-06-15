@@ -31,7 +31,7 @@ public class Gpt3
     string engine;
 
     //string _engine = "text-davinci-002";
-    float _fp = 0.0f, _pp = 0.0f, _temp = 0.7f;
+    float _fp = 0.0f, _pp = 0.0f, _temp = 1.0f;
 
     public Gpt3(string token, string engine)
     {
@@ -136,7 +136,7 @@ public class Gpt3
         {
             //   _e = new(_engine) {Owner = "openai", Ready = true};
             _api = new(_token, _e);
-            _apiFallback = new(_token, new Engine("text-davinci-002"));
+            _apiFallback = new(_token, new Engine(engine));
         }
 
 
@@ -170,10 +170,8 @@ public class Gpt3
 
                         if (values[0] == "engine")
                         {
-                            var _engine = values[1];
-                            //_engine = _engine.Contains("code") ? "code-davinci-002" : "text-davinci-002";
-
-                            _e = new(_engine) {Owner = "openai", Ready = true};
+                            engine = values[1];
+                            _e = new Engine() {Owner = "openai", Ready = true, EngineName = engine};
                             _api = new(_token, _e);
                         }
                     }
