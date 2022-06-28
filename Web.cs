@@ -28,11 +28,11 @@ class Web
         });
         _app = builder.Build();
         _app.UseStaticFiles();
-        _app.UseFileServer(new FileServerOptions()
+      /*  _app.UseFileServer(new FileServerOptions()
         {
             EnableDefaultFiles = false, EnableDirectoryBrowsing = true,
             FileProvider = new PhysicalFileProvider("D:/")
-        });
+        });*/
         //app.MapGet("/", () => "Hello World!");
 
         string MakePage(string openai = "", string discord = "", string channel = "")

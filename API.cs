@@ -60,7 +60,7 @@ class Api
         }
         catch (Exception e)
         {
-            Console.WriteLine(e.Message);
+            Console.WriteLine(e.Message  );
             return (null, e.Message);
         }
 
@@ -80,7 +80,7 @@ class Api
     /// </summary>
     /// <param name="client"></param>
     /// <param name="channelId"></param>
-    /// <param name="content"></param>
+    /// <param name="content"></param>xv
     /// <returns> Returns a HttpResponseMessage </returns>
     public static async Task<string> send_message(HttpClient client, string channelId, string content, string msgid,
                                                   string editMsgID = null)

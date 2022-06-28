@@ -50,7 +50,7 @@ public class MessageHandler
     /// </summary>
     public int MessageHistory = 6; // how many messages to keep in history to pass to GPT3
 
-    public int MessageHistoryLimit = 10;
+    public int MessageHistoryLimit = 25;
     public bool Muted = false;
     public Speech Speech = new();
 
@@ -110,8 +110,8 @@ public class MessageHandler
             {
                 try
                 {
-                    var msg = await Gpt3.Ask("",
-                        Log + $"{Program.NewLogLine}{BotName} should ask an interesting question:", "", "");
+                    var msg = await Gpt3.Ask(Log +
+                                             $"{Program.NewLogLine}{BotName} should ask an interesting question:");
                     sendMsg(msg);
                     ///var (_, reply) = await OnMessage(BotName + " ask", BotName, true);
                     //  if (reply?.Length > 0) sendMsg(reply);
@@ -121,6 +121,7 @@ public class MessageHandler
         }
     }
 
+    string replyPrompt = "";
 
     /// <summary>
     ///     This is the main message handler for the bot
@@ -156,13 +157,18 @@ public class MessageHandler
             return (false,
                 $"Purpose set as {Gpt3.PrimeText}. \nI am what you say i am. if i wasn't, why would i say i am, sam?");
         }
+        else if (m.StartsWith("reset"))
+        {
+            replyPrompt = "";
+            return (true, "Reset prompt");
+        }
 
         // This handles people replying quickly, where it should be assumed it is a reply, even though they don't say botname,
         // eg bot: hey
         // user: hey!
         // (bot should know that is a reply)
         // Is for bot if the last user to ask a question is the one saying something now
-        isForBot |= LastMsgUser == BotName || (LastMsgUser == user && m.Contains("?"));
+        isForBot |= (LastMsgUser == user && m.Contains("?"));
 
         // Is for bot if bot mentioned -----------in first 1/4th
         var idx = msg.ToLower().IndexOf(BotName);
@@ -181,15 +187,15 @@ public class MessageHandler
         // All messages are replies unless marked otherwise
 
         var muted = this.Muted; // so we can change locally temporarily
-        var useSteps = m.Contains("steps") || m.Contains("??");
-        var isQuestion = m.Contains("calculate") || m.Contains("when ") || m.Contains("?") || m.Contains("where ") ||
-                         m.Contains("would ") || m.Contains("can ") || m.Contains("does ") || m.Contains("could ") ||
-                         m.Contains("?") || m.Contains("why ") || m.Contains("how ") || m.Contains("what ") ||
-                         m.Contains("can someone") || m.Contains("me a ") || m.Contains("") || m.Contains("what's") ||
-                         m.Contains("did you");
+        var useSteps = m.HasAny("steps", "??");
+        var isQuestion = m.HasAny("calculate", "when ", "?", "where ", "would ", "can ", "does ", "could ", "why ",
+            "how ", "what ", "can someone", "me a ", "what's", "did you");
+
+        msg = msg.Replace("??", "?");
 
         // If this is a reply, and not a quesiton, ignore it as it could be the end of a discussion
-        if (isReply && !isQuestion) return (false, null);
+        //  if (isReply && !isQuestion) return (false, null);
+
         var bAskQuestion = false;
         //var qMode1 = (!isForBot && (messagesSincePost++ > talkInterval) && !msg.Contains("<@") && !isReply);
         if (!isReply && !isForBot) // && (messagesSincePost++ > talkInterval))
@@ -235,10 +241,9 @@ public class MessageHandler
         // All potential trigger words for sleeping
         if (m.Length < 14)
         {
-            if (m.Contains("go away") || m.Contains("fuck off") || m.Contains("silence") || m.Contains("shut up") ||
-                m.Contains("stop talking") || m.StartsWith("stop") || m.Contains("sleep") || m.Contains("quiet") ||
-                m.StartsWith("off") || m.StartsWith("turn off") || m.StartsWith("shutdown") || m.Contains("banned") ||
-                m.Contains("timeout") || Is("timeout") || Is("please stop") || Is("take a break"))
+            if (m.HasAny("go away", "fuck off", "silence", "shut up", "sleep") || m.Contains("stop talking") ||
+                m.StartsWith("stop") || m.StartsWith("off") || m.StartsWith("turn off") || m.Contains("timeout") ||
+                Is("timeout") || Is("please stop") || Is("take a break"))
             {
                 BreakTime = DateTime.Now.AddMinutes(30);
                 return (isReply, "I will timeout for 30 minutes. You can wake me with the wake keyword");
@@ -308,44 +313,125 @@ public class MessageHandler
             return (isReply, "Interval set to " + TalkInterval);
         }
 
+
+        if (msg.ToLower().Contains("replyprompt"))
+        {
+            m = m.Remove("ReplyPrompt").Trim();
+            replyPrompt = m + ":";
+            if (replyPrompt.StartsWith(BotName)) replyPrompt = replyPrompt.Substring(BotName.Length + 1);
+            return (true, "Reply prompt set as " + replyPrompt);
+        }
+
         var dumb = BotName.ToLower().Contains("xib");
 
-        var suffix = isComment ? $"{BotName}'s comment:" : $"{BotName}'s long {(dumb ? "retarded, dumb" : "")} reply: ";
+        var writeStuff = m.HasAny("write", "rap", "song", "article", "story", "long", "dialog", "discussion", "script",
+            "detailed", "screenplay", "letter", "episode");
+        // if (replyPrompt == null)
+        //   if (writeStuff)
+        var p = $"{BotName}'s long response:";
+        //  else if (isQuestion)
+        //      replyPrompt = $"{BotName}'s long answer:";
+        // else
+        //     replyPrompt = $"{BotName}'s long response:";
+
+        p = replyPrompt.Length == 0 ? p : replyPrompt;
+        Console.WriteLine(p);
+        p = "A's response:";
+
+        var suffix = isComment ? $"{BotName}'s comment:" : p;
+
         if (ChattyMode && bAskQuestion)
         {
             suffix =
                 $"{BotName} should ask an interesting question, about an interesting topic, related to the chat log: {BotName}'s question:";
         }
 
+
         if (useSteps) suffix += $"Let's think step by step.";
 
+
+        if (m.Contains("boost memory"))
+        {
+            MessageHistory = MessageHistory * 2;
+            return (false, $"Memory boosted to {MessageHistory} log lines");
+        }
+
+        if (m.Contains("shrink memory"))
+        {
+            MessageHistory = MessageHistory / 2;
+            return (false, $"Memory shrank to {MessageHistory} log lines");
+        }
+
         //   if (Die(AngerOdds)) suffix += $"{BotName}: [Bot State=Angry] ";
-        suffix = suffix;
+
         // Feed GPT-3 history of longer length if we're asking it how old a chatter is, or if it remembers something in the chat
         var history = MessageHistory;
-        if (Is("remember") || Has("you remember") || Has("what was the") || Has("what did i") || Has("how old") ||
-            Has("what i said"))
+        if (Is("remember") || m.HasAny("chat log", "do you remember", "you remember", "what was the", "what did i",
+                "how old", "what i said"))
             history = MessageHistoryLimit;
 
-        if (msg.Contains("!!!")) history = 0;
+        if (msg.Contains("!!"))
+        {
+            msg = msg.Remove("!!");
+            history = 0;
+        }
 
         List<string> TrimLines(List<string> lines)
         {
             var newLines = new List<String>();
-            foreach (var l in lines) newLines.Add(l.Length > 300 ? l[^300..] : l);
+            foreach (var l in lines)
+            {
+                var line = l;
+                if (l.Length > 300)
+                {
+                    line = l[^300..];
+                    var idx2 = l.IndexOf(":") + 1;
+                    if (idx != -1) line = l.Substring(0, idx2) + line;
+                }
+
+                newLines.Add(line);
+            }
+
             if (lines.Count > 0) newLines[^1] = lines[^1];
             return newLines;
         }
 
+        var startTxt = "";
+        var log = string.Join("\n", TrimLines(Log.TakeLastLines(history)));
+        log = log.Replace("!!", "").Replace("??", "");
+        // This is begin bot reply mode, by inserting botname: at end of msg
+        idx = msg.ToLower().IndexOf($"{BotName.ToLower()}:");
+        if (idx != -1)
+        {
+            startTxt = msg.After($"{BotName}:");
+            suffix += startTxt;
+            msg = msg.Substring(0, idx);
+            log = log.Remove($"{BotName}:" + startTxt);
+            startTxt += " ";
+        }
 
-        var log = string.Join(Program.NewLogLine, TrimLines(Log.TakeLastLines(history)));
+        // Make sure the chat line is in the log
+        idx = log.IndexOf(msg);
+        if (idx != -1)
+            log = log.Substring(0, idx + msg.Length);
+        else
+            log += Program.NewLogLine + user + ": " + msg;
 
+
+        string txt = "";
         //if (testRun) return (true, "Would Respond");
 
+        // Removes the reference to the bot in messages, just wasting processing power
+        log = log.Remove($"{BotName},").Replace($": {BotName}", ":");
         // Typing indicator before long process
         Client.Typing(true);
 
-        var txt = await Gpt3.Ask(msg, log, user, Program.NewLogLine + suffix, 4000);
+        if (m.Contains("$$"))
+            txt = await Gpt3.Q2(msg.Remove("$$") + (useSteps ? ". Let's think in steps." : ""));
+        else if (m.Contains("!!!"))
+            txt = await Gpt3.Q(msg.Remove("!!!").Remove(BotName));
+        else
+            txt = await Gpt3.Ask(MakeText(), msg);
         if (txt.IsNullOrEmpty()) return (false, null);
 
 
@@ -357,7 +443,7 @@ public class MessageHandler
                                                    0.4))
         {
             Console.WriteLine("Trying again..");
-            txt = await Gpt3.Ask(msg, "", user, suffix);
+            txt = await Gpt3.Ask(MakeText());
             txt += " [r]";
             //   txt += "\nDev Note: Second response. First had a Levenshtein distance too high";
         }
@@ -365,10 +451,11 @@ public class MessageHandler
 
         // Bot may decide to not respond sometimes
         var c = txt.ToLower().Remove(BotName).Remove(":").Trim();
-        if (c.StartsWith("no response") || c.StartsWith("would not comment") || c.StartsWith("would not respond"))
+        if (c.StartsWith("no response") || c.StartsWith("would not comment") || c.StartsWith("would not respond") ||
+            c.StartsWith("no comment"))
         {
             Console.WriteLine("No response desired!!!!");
-            return (false, null);
+            return (true, "Dibbr did not wish to address your comment");
         }
 
         //  Usernames.Add(Program.BotName, txt);
@@ -376,8 +463,54 @@ public class MessageHandler
         // TODO: Need to pass in whether this is a voice chanel or not
         //if((client as DiscordChat)?.channel == "978095250474164224")
         //   await speech.Speak(txt);
-        return (isReply, txt);
+        return (isReply, startTxt + txt);
+
+
+        string MakeText()
+        {
+            var warn = ""; //" (NOTE, If a leading question implies a fact, dibbr should not assume it is true) ";
+            if (log.Length > 2000) log = log[^2000..].Trim();
+
+            if (log == "") log += user + ": " + msg + Program.NewLogLine;
+
+            if (!log.Contains(msg)) { Console.WriteLine("WTF>>"); }
+
+            //  if (_e.EngineName == "code-davinci-002") return log.TakeLastLines(1)[0] + "\n" + endtxt;
+
+            // log = log.Replace(": " + Program.BotName, "");
+            //log = Regex.Replace(log, ": " + Program.BotName, ": ", RegexOptions.IgnoreCase);
+            string PrimeText = "";
+            if (BotName != "dibbr")
+            {
+                PrimeText = ConfigurationManager.AppSettings["PrimeText_Xib"];
+                /*var name = PrimeText.After("You are ");
+                name = name.Substring(0, name.IndexOf(","));
+                log = log.Replace(BotName, name);
+                log = log.Replace(BotName.ToLower(), name);
+                suffix = suffix.Replace(BotName, name);*/
+            }
+            else if (Gpt3.engine.Contains("001"))
+                PrimeText = ConfigurationManager.AppSettings["PrimeText_v1"];
+            else
+                PrimeText = ConfigurationManager.AppSettings["PrimeText"];
+
+            return "The date is " + DateTime.Now.ToString("F") + " PST." + PrimeText + log + warn + suffix;
+        }
     }
 
     public int MessageCount { get; set; }
+}
+
+static class StringHelp2
+{
+    public static bool HasAny(this string str, params string[] values)
+    {
+        var strl = str.ToLower();
+        foreach (string value in values)
+        {
+            if (strl.Contains(value.ToLower())) return true;
+        }
+
+        return false;
+    }
 }
