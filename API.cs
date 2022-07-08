@@ -60,7 +60,7 @@ class Api
         }
         catch (Exception e)
         {
-            Console.WriteLine(e.Message  );
+            Console.WriteLine(e.Message);
             return (null, e.Message);
         }
 
@@ -118,18 +118,27 @@ class Api
         if (Regex.Matches(content, "\r\n").Count > 15) { content = content.Replace("\r\n\r\n", "\\n"); }
 
         var c = content;
-        content = content.Replace("\n", "\\n");
-        content = content.Replace("\n", "\\n");
+
+        //  content = content.Replace("\n", "\\n");
+
         content = content.Replace("\"", "\\\"");
+
+        //  content = content.Replace("\\", "\\\\");
+        content = content.Replace("\n", "\\n");
         content = content.Replace("\r", "");
         content = content.Replace("\t", "");
         content = content.Replace("\f", "");
         content = content.Replace("\b", "");
+        var d = content;
 
         for (var i = 0; i < 5; i++)
         {
             var msgRef = "";
             if (msgid is {Length: > 0}) msgRef = $",\n\"message_reference\": {{ \"message_id\": \"{msgid}\" }}";
+
+            // WTF!! Some mesages come back with bad request. I don't understand why or how to fix
+            if (i == 3) content = Regex.Replace(d, @"[^\u0020-\u007E]", string.Empty);
+            if (i == 1) { content = content.Replace("\\", "x"); }
 
             var str = $"{{\n\"content\": \"{content}\"{msgRef} \n}}";
 
@@ -146,8 +155,6 @@ class Api
 
             if (reply != null) return reply;
 
-            // WTF!! Some mesages come back with bad request. I don't understand why or how to fix
-            if (i == 2) content = Regex.Escape(c);
 
             // if (i == 3) content = content[..(content.Length / 2)] + "...(snipped due to send failure)";
 

@@ -43,6 +43,20 @@ class Program
         configuration.AppSettings.Settings.Add(key, value);
         configuration.Save(ConfigurationSaveMode.Full, true);
         ConfigurationManager.RefreshSection("appSettings");
+        Console.WriteLine($"Set {key} to {value}");
+    }
+
+    public static void Increment(string key, int num)
+    {
+        var x = ConfigurationManager.AppSettings[key];
+        if (x is null or "")
+            Set(key, num.ToString());
+        else
+        {
+            var i = int.Parse(x);
+            i = i + num;
+            Set(key, i.ToString());
+        }
     }
 
 
@@ -95,9 +109,9 @@ class Program
             Set("BotName", Prompt("\nBot Name (default is Dibbr):", "dibbr").ToLower());
             //  BotUsername = Prompt("Bot Username (default is dabbr):", "dabbr").ToLower();
 
-            Console.WriteLine("\nPaste your priming text here, e.g. " + BotName +
-                              " is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
-            primeText = Prompt("\nPriming Text (Or Press Enter for default):");
+            //   Console.WriteLine("\nPaste your priming text here, e.g. " + BotName +
+            //                     " is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats ");
+            //   primeText = Prompt("\nPriming Text (Or Press Enter for default):");
             if (primeText is null or "")
             {
                 primeText = "" + BotName +
@@ -117,12 +131,18 @@ class Program
             ConfigurationManager.AppSettings["Discord"] == null)
         {
             Console.WriteLine(
-                "How to find your discord token: https://youtu.be/YEgFvgg7ZPI . OR you can use a Discord bot token, available on the developer discord page.");
+                "How to find your discord token: https://youtu.be/YEgFvgg7ZPI . OR you can use a Discord bot token (recommended), available on the developer discord page.");
             var discord = Prompt("\nToken (or leave blank for none):").Replace("Bot ", "");
             if (discord is {Length: > 10})
             {
                 var isBot = Prompt("Is this a bot token? Y/N: ");
                 Set(isBot.ToLower() == "y" ? "DiscordBot" : "Discord", discord);
+                if (isBot.ToLower() == "n")
+                {
+                    Set("DiscordId",
+                        Prompt(
+                            "You need to find your discord user id. It is a long string of numbers that represents your user id. Type or paste it here:"));
+                }
             }
         }
 
@@ -155,7 +175,7 @@ class Program
             Console.WriteLine("Then go to the app's page, and click on the 'OAuth & Permissions' tab");
             Console.WriteLine("Then click on the 'Add Bot User' button");
             var token = Prompt("Please enter youy Slack bot API token, or press enter to skip:");
-            if (token is {Length: > 10}) Set("SlackBotApiToken", token);
+            Set("SlackBotApiToken", token);
         }
 
         if (ConfigurationManager.AppSettings["OpenAI"] == null)

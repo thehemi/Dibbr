@@ -28,7 +28,6 @@ public class Gpt3
     public string _token;
     OpenAIAPI _api, _apiFallback;
     Engine _e;
-    public string PrimeText = "";
 
     public string engine;
 
@@ -41,7 +40,7 @@ public class Gpt3
         this._token = token;
         _e = new Engine() {Owner = "openai", Ready = true, EngineName = engine};
 
-        PrimeText = ConfigurationManager.AppSettings["PrimeText"];
+        //  PrimeText = ConfigurationManager.AppSettings["PrimeText"];
     }
 
     public async Task<string> PostData(string url, string postData)
@@ -55,12 +54,26 @@ public class Gpt3
             await client.PostAsync(url, new StringContent(postData, Encoding.UTF8, "application/json"));
         if (response.IsSuccessStatusCode) { return await response.Content.ReadAsStringAsync(); }
         else
-            Console.WriteLine("NEO-X: " + response.ReasonPhrase);
+            Console.WriteLine("NEO-X Fail: " + response.ReasonPhrase);
 
-        return null;
+        return "Fail: " + response.ReasonPhrase;
     }
 
-    List<string> pairs = new List<string>();
+    public List<string> pairs = new List<string>();
+
+
+    static string Sanitize(string s)
+    {
+        var p = s.Replace("\n", "\\n");
+        p = p.Replace("\n", "\\n");
+        // p = p.Replace("\"", "'");
+        p = p.Replace("\"", "\\\"");
+        p = p.Replace("\r", "\\n");
+        p = p.Replace("\t", "");
+        p = p.Replace("\f", "");
+        p = p.Replace("\b", "");
+        return p;
+    }
 
     /// <summary>
     /// NLP CLOUD NEO X 20B
@@ -69,14 +82,18 @@ public class Gpt3
     /// <returns></returns>
     public async Task<string> Q2(string q)
     {
+        q = Sanitize(q);
         string url = "https://api.nlpcloud.io/v1/gpu/finetuned-gpt-neox-20b/chatbot";
         string postData = "{\"input\":\"" + q +
-                          "\",\"history\":[{\"input\":\"Hello dibbr. Tell me about yourself, and the date\", \"response\":\"Hi there. I am a super-intelligent, woke, sarcastic AI made by dabbr. The date is " +
+                          "\",\"history\":[{\"input\":\"Hello dibbr. Tell me about yourself, and the date\", \"response\":\"Hi there. I am a super-intelligent, woke, sarcastic AI made by dabbr (っ◕‿◕). The date is " +
                           DateTime.Now.ToString("R") +
                           "\" }"; //"csrfmiddlewaretoken=gHpMar4oq2WM0qhxXQxEtcPFWS9xDeJ6YFdBDvipep8k2I2dco0uXSIUAPDtFsDR&" +
+
+        // if (wipe) pairs = new List<string>();
         if (pairs.Count > 10) pairs = pairs.ToArray()[^10..].ToList();
-        foreach (var p in pairs)
+        foreach (var s in pairs)
         {
+            var p = Sanitize(s);
             var aq = p.Split('|')[0];
             var a = p.Split('|')[1];
 
@@ -85,10 +102,9 @@ public class Gpt3
 
         postData += "]}";
         var str = await PostData(url, postData);
-        if (str == null) return null;
+        if (str == null || str.StartsWith("Fail")) return str;
         var r = JsonConvert.DeserializeObject<Root>(str);
         Console.Out.WriteLine("NEO X: " + r.response);
-
         pairs.Add(q + "|" + r.response);
         return r.response;
     }
@@ -195,6 +211,8 @@ public class Gpt3
     {
         Console.WriteLine("GPT3 Query: " + (msg.IsNullOrEmpty() ? txt.Length > 30 ? txt[^30..] : txt : msg));
 
+        //    if (txt.EndsWith("X")) return null;
+        // if (!txt.Contains(msg)) txt += msg;
         // Set variables like this
         // dibbr hey ?fp=1&pp=2
         var line = msg.Remove("dibbr").Trim();
@@ -206,15 +224,16 @@ public class Gpt3
             _temp = fp;
             return "Creativity set to " + _temp;
         }
+
         var help =
             "Frequency penalty (fp): How much to penalize new tokens based on their existing frequency in the text so far. Decreases the model's likelihood to repeat the same line verbatim.\n" +
-            @"Presence penalty (pp): How much to penalize new tokens based on whether they appear in the text so far. Increases the model's likelihood to talk about new topics.\n"+
-             "Temperature (tp): Controls randomness: Lowering results in less random completions.As the temperature approaches zero, the model will become deterministic and repetitive.";
+            @"Presence penalty (pp): How much to penalize new tokens based on whether they appear in the text so far. Increases the model's likelihood to talk about new topics.\n" +
+            "Temperature (tp): Controls randomness: Lowering results in less random completions.As the temperature approaches zero, the model will become deterministic and repetitive.";
         if (line == "help") return help;
         if (line.Contains("which engine") || line.Contains("what engine")) return "I am using " + engine;
         try
         {
-            if (line.Contains("=") && line.Contains("?"))
+            if (line.Contains("=") && line.Contains("?") && line.Contains("&"))
             {
                 bool made = false;
                 var query = line.Split('?');
@@ -260,6 +279,7 @@ public class Gpt3
         // Stop dibbr repeating answers
         // txt = txt.Replace($"{Program.BotName}:", "boodlebeep:");
         //  txt += user + ": " + msg + Program.NewLogLine;
+        if (engine.Contains("code")) txt = msg;
         var r = await Q(txt, _pp, _fp, _temp);
         var ro = r;
         var (_, response) = r.Deduplicate(txt);
@@ -285,18 +305,20 @@ public class Gpt3
             {
                 txt = txt.Replace("dabbr", "T1mothy").Trim();
 
-                if (txt.Length > 3000) txt = txt[^3000..]; // hrow new Exception("too big");
+                if (txt.Length > 3000) txt = txt[..^3000]; // hrow new Exception("too big");
                 result = await _api.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
                     frequencyPenalty: tp, presencePenalty: pp, max_tokens: 1400,
-                    stopSequences: new[] {Program.NewLogLine, "\", said", "Q (from"});
+                    stopSequences: new[] {Program.NewLogLine, "\", said", "@@", "Hawking:"});
             }
             catch (Exception e)
             {
                 i++;
-                if (i > 4) return $"{Program.BotName} has no credits left";
-                _token = ConfigurationManager.AppSettings["OpenAI" + i];
-                _api = new(_token, _e);
+                if (i > 1) return $"{Program.BotName} has no credits left maybe? error " + e.Message[..20];
+                //  _token = ConfigurationManager.AppSettings["OpenAI" + i];
+                // _api = new(_token, _e);
+                await Task.Delay(4);
                 continue;
+                //  return
                 return
                     $"{Program.BotName} has a server error:"; // {Regex.Escape(e.Message).Replace("\"", "").Replace("{", "").Replace("}", "").Replace("\r", "")}";
             }
@@ -306,6 +328,10 @@ public class Gpt3
             // var r = CleanText(result.ToString());
             var r = result.ToString().Trim(); //.Rem($"{Program.BotUsername}:");
             r = r.Replace("T1mothy", "dabbr");
+            r = r.After("conclusion:");
+            if (txt.Length >= 3000)
+                r += " Dibbr is using a lot of tokens. Maybe dabbr should be warned, unless you did this on purpose.";
+
             //  try { r = await Query(txt); }
             //  catch (Exception e) { return $"{Program.BotName} has a server error: {e.Message}"; }
 
@@ -367,7 +393,7 @@ static class StringHelpers
 {
     public static string After(this string str, string s)
     {
-        var idx = str.LastIndexOf(s);
+        var idx = str.ToLower().LastIndexOf(s.ToLower());
         if (idx == -1) return str;
         return str.Substring(idx + s.Length);
     }

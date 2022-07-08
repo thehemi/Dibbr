@@ -104,11 +104,10 @@ public class DiscordChat : ChatSystem
                 //
                 // Parse new DMs - a hack because I dunno how to get the discord user id
                 //
-                var hack = ConfigurationManager.AppSettings["hack"];
-                if (hack is "true")
+                var hack = ConfigurationManager.AppSettings["DiscordId"];
+                if (hack is not null or "")
                 {
-                    var dms = await Api.GetNewDMs(_client,
-                        "884911258413989978"); // <--- Replace with discordapi.getuserid()
+                    var dms = await Api.GetNewDMs(_client, hack); // <--- Replace with discordapi.getuserid()
                     if (dms != null)
                         foreach (var dm in dms)
                         {
@@ -170,12 +169,13 @@ public class DiscordChat : ChatSystem
         public DateTime LastMsg = DateTime.MinValue;
         public int Ticks = 0;
         public DateTime NextCheck = DateTime.Now.AddSeconds(60);
+        public string FileLog = "";
 
         public async Task Update(DiscordChat client)
         {
             var channel = Id;
             //  await Task.Delay(1000);
-
+            if (FileLog == null) FileLog = "";
             //   if(NextCheck < Date)
             // Rarely update sorta dead channels
             var mins = (DateTime.Now - LastMsg).TotalMinutes;
@@ -227,14 +227,18 @@ public class DiscordChat : ChatSystem
 
                 else { continue; }
 
+                var log = "";
                 // $"\"{msg.Content}\", said {msg.Author.Username}{Program.NewLogLine}"; ///
                 var txt = msg.Content; //Regex.Replace(msg.Content, "<.*?>|&.*?;", string.Empty);
-                Log += $"{msg.Author.Username}: {txt}" + Program.NewLogLine;
+                if (!msg.Content.Contains("set prompt") && !msg.Content.StartsWith("so"))
+                    log = $"{msg.Author.Username}: {txt}" + "\n";
+                FileLog += log;
+                Log += log;
 
                 if (msg.Timestamp > LastMsg) LastMsg = msg.Timestamp;
 
                 // Skip older messages, or if bot restarts he may spam
-                if (msg.Timestamp.AddSeconds(260) < DateTime.Now)
+                if (msg.Timestamp.AddSeconds(160) < DateTime.Now)
                 {
                     msg.Flags = 69;
                     //  Console.WriteLine($"Skipped old message: {auth}: " + msg);
@@ -261,10 +265,18 @@ public class DiscordChat : ChatSystem
                     msg.ReferencedMessage = new ReferencedMessage {Author = new Author {Username = user}, Id = id};
                 }
 
+                // Don't keep bot conversation going unless it contains questiuons
+                if (user == client.BotName.ToLower() || msg.Author.Username.ToLower() == client.BotName.ToLower())
+                {
+                    if (msg.Author.Username.ToLower() == "hawking" || client.BotName.ToLower() == "hawking")
+                        if (!msg.Content.Contains("?"))
+                            msg.Flags = 69;
+                }
+
                 // If User replying to non-bot, ignore
                 // if bot replying to user, ignore from them on
-                if (user != null && (user != client.BotName.ToLower() ||
-                                     msg.Author.Username.ToLower() == client.BotName.ToLower()))
+                if (msg != null && user != null && (user != client.BotName.ToLower() ||
+                                                    msg.Author.Username.ToLower() == client.BotName.ToLower()))
                 {
                     // Ignore, was for someone else
                     msg.Flags = 69;
@@ -302,6 +314,7 @@ public class DiscordChat : ChatSystem
                 // 1. Wipe memory
                 if (msg.Contains("wipe memory")) { Log = ""; }
 
+                if (msg.StartsWith("so")) continue; // way to skip bot
                 // So GPT-3 doesn't get confused, in case these differ
                 if (auth == client.BotUsername) auth = client.BotName;
 
@@ -324,6 +337,10 @@ public class DiscordChat : ChatSystem
                 // or DM
                 isForBot |= Dm;
 
+                isForBot |= msg.ToLower().StartsWith("d ") || msg.ToLower().StartsWith("dib ") ||
+                            msg.ToLower().StartsWith("dibr ") || msg.ToLower().Contains("d dawg") ||
+                            msg.ToLower().StartsWith("d,");
+
                 // Use GPT-Neo
                 if (channel == "972018566834565124") msg = "$$" + msg;
                 //  if (channel == "972018566834565124") msg = msg + "!!!";
@@ -339,7 +356,7 @@ public class DiscordChat : ChatSystem
                 //var t = new Thread(async () =>
                 //{
                 var l2 = Log2;
-                Log2 += $"Q (from {auth}): " + msg + "\n";
+                Log2 += $"Q (from {auth}): " + msg + Program.NewLogLine;
                 Handler.Log = Log2;
                 var (isReply1, reply) = await Handler.OnMessage(msg, auth, isForBot,
                     message.ReferencedMessage?.Author.Username == client.BotName);
@@ -347,29 +364,36 @@ public class DiscordChat : ChatSystem
                 // In case his memory was wiped
                 Log2 = Handler.Log;
 
-                if (StringExtensions.IsNullOrEmpty(reply))
+                // These are reasons we wouldn't wanna remember this Q/A pair
+                if (reply is null or "" || !isReply1 || Log2.Contains(reply))
                 {
                     Log2 = l2; // roll back
-                    return; //reply = $"({client.BotName} said nothing)";
+                    //  return; //reply = $"({client.BotName} said nothing)";
                 }
-
+                else
+                {
+                    Log2 += "A: " + reply + Program.NewLogLine;
+                    Program.Increment(auth, reply.Length);
+                }
                 // Log2 = l2;
 
                 _ = Dm ? await Api.send_dm(client._client, channel, reply, msgid)
                     : await Api.send_message(client._client, channel, reply, isReply1 ? msgid : null, editMsg);
 
                 NextCheck = DateTime.Now.AddSeconds(1000);
-                // Roll back repeptitive Q/A
-                if (Log2.Contains(reply))
-                    Log2 = l2;
-                else
-                    Log2 += "A: " + reply + "\n";
+
 
                 c = " " + auth + ": " + msg + "\n";
                 // Write out our response, along with the question
                 File.AppendAllTextAsync("chat_log_" + channel + ".txt", c + client.BotName + ": " + reply + "\n");
                 //  });
                 //  t.Start();
+            }
+
+            if (FileLog != null && FileLog.Length > 0)
+            {
+                File.AppendAllTextAsync("chat_log2_" + channel + ".txt", FileLog);
+                FileLog = "";
             }
 
 
@@ -472,14 +496,20 @@ class DiscordChatV2 : ChatSystem, IDisposable
             if (e.Channel == null) return; // Task.FromResult(Task.CompletedTask);
             var name = e.Channel.Name ?? e.Author.Username;
 
+            if (!name.ToLower().Contains("dibbr"))
+            {
+                //  await sender.SendMessageAsync(e.Channel, "Come visit me at invite code tGv9f2mn you thieving bastard");
+                return;
+            }
+
             // if (!name.Contains("dibbr")) return;
-            if (!ChatLog.ContainsKey(e.Channel.Name)) ChatLog.Add(e.Channel.Name, "");
-            ChatLog[e.Channel.Name] += c + Program.NewLogLine;
+            if (!ChatLog.ContainsKey(name)) ChatLog.Add(name, "");
+            var oldLog = ChatLog[name];
+            ChatLog[name] += $"Q (from {e.Author.Username}): {content}" + Program.NewLogLine;
 
-            if (ChatLog[e.Channel.Name].Length > _maxBuffer)
-                ChatLog[e.Channel.Name] = ChatLog[e.Channel.Name][^_maxBuffer..];
+            if (ChatLog[name].Length > _maxBuffer) ChatLog[name] = ChatLog[name][^_maxBuffer..];
 
-            handler.Log = ChatLog[e.Channel.Name];
+            handler.Log = ChatLog[name];
             var first = _lastMsg == "";
             if (c == _lastMsg) return; // Task.FromResult(Task.CompletedTask);
 
@@ -487,11 +517,20 @@ class DiscordChatV2 : ChatSystem, IDisposable
             _lastMsg = c;
             // if (first) return;
 
-            Console.WriteLine(c);
+            Console.WriteLine(name + " " + c);
             bool isReply = false;
 
-            var (_, str) = await _callback(content, e.Author.Username, isReply);
-            if (str == null) return; // Task.FromResult(Task.CompletedTask);
+            var (bReply, str) = await _callback(content, e.Author.Username, isReply);
+            ChatLog[name] = handler.Log;
+            // Reasons to not keep this Q/A pair
+            if (str is null or "" || !bReply || ChatLog[name].Contains(str))
+            {
+                ChatLog[name] = oldLog;
+            } // Task.FromResult(Task.CompletedTask);
+            else { ChatLog[name] += $"A: {str}{Program.NewLogLine}"; }
+
+            if (str is null or "") return;
+
             var msgs = new List<string>();
             if (str.Length > 2000)
             {
