@@ -1,0 +1,239 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+namespace Discord
+{
+    /// <summary>
+    ///     Represents a message object.
+    /// </summary>
+    public interface IMessage : ISnowflakeEntity, IDeletable
+    {
+        /// <summary>
+        ///     Gets the type of this system message.
+        /// </summary>
+        MessageType Type { get; }
+        /// <summary>
+        ///     Gets the source type of this message.
+        /// </summary>
+        MessageSource Source { get; }
+        /// <summary>
+        ///     Gets the value that indicates whether this message was meant to be read-aloud by Discord.
+        /// </summary>
+        /// <returns>
+        ///     <c>true</c> if this message was sent as a text-to-speech message; otherwise <c>false</c>.
+        /// </returns>
+        bool IsTTS { get; }
+        /// <summary>
+        ///     Gets the value that indicates whether this message is pinned.
+        /// </summary>
+        /// <returns>
+        ///     <c>true</c> if this message was added to its channel's pinned messages; otherwise <c>false</c>.
+        /// </returns>
+        bool IsPinned { get; }
+        /// <summary>
+        ///     Gets the value that indicates whether or not this message's embeds are suppressed.
+        /// </summary>
+        /// <returns>
+        ///     <c>true</c> if the embeds in this message have been suppressed (made invisible); otherwise <c>false</c>.
+        /// </returns>
+        bool IsSuppressed { get; }
+        /// <summary>
+        ///     Gets the content for this message.
+        /// </summary>
+        /// <returns>
+        ///     A string that contains the body of the message; note that this field may be empty if there is an embed.
+        /// </returns>
+        string Content { get; }
+        /// <summary>
+        ///     Gets the time this message was sent.
+        /// </summary>
+        /// <returns>
+        ///     Time of when the message was sent.
+        /// </returns>
+        DateTimeOffset Timestamp { get; }
+        /// <summary>
+        ///     Gets the time of this message's last edit.
+        /// </summary>
+        /// <returns>
+        ///     Time of when the message was last edited; <c>null</c> if the message is never edited.
+        /// </returns>
+        DateTimeOffset? EditedTimestamp { get; }
+        
+        /// <summary>
+        ///     Gets the source channel of the message.
+        /// </summary>
+        IMessageChannel Channel { get; }
+        /// <summary>
+        ///     Gets the author of this message.
+        /// </summary>
+        IUser Author { get; }
+
+        /// <summary>
+        ///     Gets all attachments included in this message.
+        /// </summary>
+        /// <remarks>
+        ///     This property gets a read-only collection of attachments associated with this message. Depending on the
+        ///     user's end-client, a sent message may contain one or more attachments. For example, mobile users may
+        ///     attach more than one file in their message, while the desktop client only allows for one.
+        /// </remarks>
+        /// <returns>
+        ///     A read-only collection of attachments.
+        /// </returns>
+        IReadOnlyCollection<IAttachment> Attachments { get; }
+        /// <summary>
+        ///     Gets all embeds included in this message.
+        /// </summary>
+        /// <remarks>
+        /// </remarks>
+        ///     This property gets a read-only collection of embeds associated with this message. Depending on the
+        ///     message, a sent message may contain one or more embeds. This is usually true when multiple link previews
+        ///     are generated; however, only one <see cref="EmbedType.Rich"/> <see cref="Embed"/> can be featured.
+        /// <returns>
+        ///     A read-only collection of embed objects.
+        /// </returns>
+        IReadOnlyCollection<IEmbed> Embeds { get; }
+        /// <summary>
+        ///     Gets all tags included in this message's content.
+        /// </summary>
+        IReadOnlyCollection<ITag> Tags { get; }
+        /// <summary>
+        ///     Gets the IDs of channels mentioned in this message.
+        /// </summary>
+        /// <returns>
+        ///     A read-only collection of channel IDs.
+        /// </returns>
+        IReadOnlyCollection<ulong> MentionedChannelIds { get; }
+        /// <summary>
+        ///     Gets the IDs of roles mentioned in this message.
+        /// </summary>
+        /// <returns>
+        ///     A read-only collection of role IDs.
+        /// </returns>
+        IReadOnlyCollection<ulong> MentionedRoleIds { get; }
+        /// <summary>
+        ///     Gets the IDs of users mentioned in this message.
+        /// </summary>
+        /// <returns>
+        ///     A read-only collection of user IDs.
+        /// </returns>
+        IReadOnlyCollection<ulong> MentionedUserIds { get; }
+        /// <summary>
+        ///     Gets the activity associated with a message.
+        /// </summary>
+        /// <remarks>
+        ///     Sent with Rich Presence-related chat embeds. This often refers to activity that requires end-user's
+        ///     interaction, such as a Spotify Invite activity.
+        /// </remarks>
+        /// <returns>
+        ///     A message's activity, if any is associated.
+        /// </returns>
+        MessageActivity Activity { get; }
+        /// <summary>
+        ///     Gets the application associated with a message.
+        /// </summary>
+        /// <remarks>
+        ///     Sent with Rich-Presence-related chat embeds.
+        /// </remarks>
+        /// <returns>
+        ///     A message's application, if any is associated.
+        /// </returns>
+        MessageApplication Application { get; }
+
+        /// <summary>
+        ///     Gets the reference to the original message if it was crossposted.
+        /// </summary>
+        /// <remarks>
+        ///     Sent with Cross-posted messages, meaning they were published from news channels
+        ///     and received by subscriber channels.
+        /// </remarks>
+        /// <returns>
+        ///     A message's reference, if any is associated.
+        /// </returns>
+        MessageReference Reference { get; }
+
+        /// <summary>
+        ///     Gets all reactions included in this message.
+        /// </summary>
+        IReadOnlyDictionary<IEmote, ReactionMetadata> Reactions { get; }
+
+        /// <summary>
+        ///     Adds a reaction to this message.
+        /// </summary>
+        /// <example>
+        ///     The following example adds the reaction, <c>💕</c>, to the message.
+        ///     <code language="cs">
+        ///     await msg.AddReactionAsync(new Emoji("\U0001f495"));
+        ///     </code>
+        /// </example>
+        /// <param name="emote">The emoji used to react to this message.</param>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///     A task that represents the asynchronous operation for adding a reaction to this message.
+        /// </returns>
+        /// <seealso cref="IEmote"/>
+        Task AddReactionAsync(IEmote emote, RequestOptions options = null);
+        /// <summary>
+        ///     Removes a reaction from message.
+        /// </summary>
+        /// <example>
+        ///     The following example removes the reaction, <c>💕</c>, added by the message author from the message.
+        ///     <code language="cs">
+        ///     await msg.RemoveReactionAsync(new Emoji("\U0001f495"), msg.Author);
+        ///     </code>
+        /// </example>
+        /// <param name="emote">The emoji used to react to this message.</param>
+        /// <param name="user">The user that added the emoji.</param>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///     A task that represents the asynchronous operation for removing a reaction to this message.
+        /// </returns>
+        /// <seealso cref="IEmote"/>
+        Task RemoveReactionAsync(IEmote emote, IUser user, RequestOptions options = null);
+        /// <summary>
+        ///     Removes a reaction from message.
+        /// </summary>
+        /// <example>
+        ///     The following example removes the reaction, <c>💕</c>, added by the user with ID 84291986575613952 from the message.
+        ///     <code language="cs">
+        ///     await msg.RemoveReactionAsync(new Emoji("\U0001f495"), 84291986575613952);
+        ///     </code>
+        /// </example>
+        /// <param name="emote">The emoji used to react to this message.</param>
+        /// <param name="userId">The ID of the user that added the emoji.</param>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///     A task that represents the asynchronous operation for removing a reaction to this message.
+        /// </returns>
+        /// <seealso cref="IEmote"/>
+        Task RemoveReactionAsync(IEmote emote, ulong userId, RequestOptions options = null);
+        /// <summary>
+        ///     Removes all reactions from this message.
+        /// </summary>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///     A task that represents the asynchronous removal operation.
+        /// </returns>
+        Task RemoveAllReactionsAsync(RequestOptions options = null);
+
+        /// <summary>
+        ///     Gets all users that reacted to a message with a given emote.
+        /// </summary>
+        /// <example>
+        ///     The following example gets the users that have reacted with the emoji <c>💕</c> to the message.
+        ///     <code language="cs">
+        ///     var emoji = new Emoji("\U0001f495");
+        ///     var reactedUsers = await message.GetReactionUsersAsync(emoji, 100).FlattenAsync();
+        ///     </code>
+        /// </example>
+        /// <param name="emoji">The emoji that represents the reaction that you wish to get.</param>
+        /// <param name="limit">The number of users to request.</param>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///     A paged collection containing a read-only collection of users that has reacted to this message.
+        ///     Flattening the paginated response into a collection of users with 
+        ///     <see cref="AsyncEnumerableExtensions.FlattenAsync{T}"/> is required if you wish to access the users.
+        /// </returns>
+        IAsyncEnumerable<IReadOnlyCollection<IUser>> GetReactionUsersAsync(IEmote emoji, int limit, RequestOptions options = null);
+    }
+}

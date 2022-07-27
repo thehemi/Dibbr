@@ -274,9 +274,9 @@ public class MessageHandler
         // 1. Wipe memory
         if (m.Contains("wipe memory"))
         {
-            if (BotName is "dibbr")
-                if (user != "dabbr" && user != "edge_case")
-                    return (isReply, "Denied");
+            //if (BotName is "dibbr")
+           //     if (user != "dabbr" && user != "edge_case")
+           //         return (isReply, "Denied");
             Log = "";
             Gpt3.pairs = new List<string>();
             return (isReply, "Memory erased");
@@ -482,7 +482,7 @@ public class MessageHandler
         //if (testRun) return (true, "Would Respond");
 
         // Removes the reference to the bot in messages, just wasting processing power
-        log = log.Remove($"{BotName},").Replace($": {BotName}", ":");
+       // log = log.Remove($"{BotName},").Replace($": {BotName}", ":");
         // Typing indicator before long process
        if(Client!=null)
             Client.Typing(true);
@@ -516,9 +516,9 @@ public class MessageHandler
 
         new Thread(async delegate()
         {
-            if (Memory == "")
+            if (Memory == null || Memory == "")
                 Memory = ConfigurationManager.AppSettings[Channel];
-            if (Memory.Length > 500)
+            if (Memory !=  null && Memory.Length > 500)
                 Memory = Memory[..500];
 
             if (Memory != "" && Memory != null)
@@ -631,8 +631,8 @@ public class MessageHandler
             if ((PrimeText == "") && Channel != null)
             {
                 PrimeText = ConfigurationManager.AppSettings[Channel + "Prime"];
-                if(PrimeText == null || PrimeText == "")
-                    PrimeText = ConfigurationManager.AppSettings[Channel];
+                if (PrimeText == null || PrimeText == "")
+                    PrimeText = "";// ConfigurationManager.AppSettings[Channel];
             }
 
             //  Program.Set("PrimeText_v1", ConfigurationManager.AppSettings["PrimeText_v1"]);

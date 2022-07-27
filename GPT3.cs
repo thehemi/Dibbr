@@ -369,10 +369,15 @@ public class Gpt3
             CompletionResult result = null;
             try
             {
+                var derp = engine == "davinci";
+                var ops = new[] { Program.NewLogLine, "B (from", "@@", $"{Program.BotName}:" };
+                if (derp) ops = new[] { "A:", "@@", $"{Program.BotName}:" };
                 if (txt.Length > 3000) txt = txt[^3000..]; // hrow new Exception("too big");
                  result = await _api.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
-                    frequencyPenalty: tp, presencePenalty: pp, max_tokens: 1400,
-                    stopSequences: new[] {Program.NewLogLine, "B (from", "@@", $"{Program.BotName}:"});
+                    frequencyPenalty: tp, presencePenalty: pp, max_tokens: derp?300:1400,
+                    stopSequences: ops);
+
+                if (i > 4) return "Some error occured try agfain";
             }
             catch (Exception e) { 
                 if(i>2)
@@ -423,6 +428,7 @@ static class StringHelpers
 
     public static (int dupePercent, string uniquePart) Deduplicate(this string r, string log)
     {
+       // return (0, r);
         if (r == null) return (0, "");
         // Split on !?,.
         var split = Regex.Split(r, @"(?<=[.?!]\s+)");
