@@ -4,6 +4,7 @@ using System.Collections.Generic;
 
 namespace Discord.API
 {
+    [JsonObject]
     internal class Connection
     {
         [JsonProperty("id")]
@@ -14,8 +15,8 @@ namespace Discord.API
         public string Name { get; set; }
         [JsonProperty("revoked")]
         public bool Revoked { get; set; }
-
-        [JsonProperty("integrations")]
-        public IReadOnlyCollection<ulong> Integrations { get; set; }
+        //public Optional<IReadOnlyCollection<Integration>> Integrations { get; set; }
+       // [JsonProperty("integrations")]
+       // public <IReadOnlyCollection<ulong> Integrations { get; set; }
     }
 }

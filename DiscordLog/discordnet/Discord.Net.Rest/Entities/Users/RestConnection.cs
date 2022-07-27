@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Linq;
 using Model = Discord.API.Connection;
 
 namespace Discord.Rest
@@ -30,7 +31,9 @@ namespace Discord.Rest
         }
         internal static RestConnection Create(Model model)
         {
-            return new RestConnection(model.Id, model.Type, model.Name, model.Revoked, model.Integrations.ToImmutableArray());
+           // var Integrations = model.Integrations.IsSpecified ? model.Integrations.Value
+           //     .Select(intergration => RestIntegration.Create(Discord, null, intergration)).ToImmutableArray() : null;
+            return new RestConnection(model.Id, model.Type, model.Name, model.Revoked, null);
         }
 
         /// <summary>

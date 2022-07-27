@@ -1433,7 +1433,18 @@ namespace Discord.API
         {
             using (TextReader text = new StreamReader(jsonStream))
             using (JsonReader reader = new JsonTextReader(text))
-                return _serializer.Deserialize<T>(reader);
+            {
+                // var str = reader.ReadAsString();
+                //  return JsonConvert.DeserializeObject<T>(str);
+                try
+                {
+                    return _serializer.Deserialize<T>(reader);
+                }
+                catch(Exception e)
+                {
+                    return default(T);
+                }
+            }
         }
 
         internal class BucketIds
