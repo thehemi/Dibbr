@@ -35,6 +35,7 @@ class Program
             "\n\r@@"; // Must be different from \n to seperate multi-line messages from new chats. Can't be \r\n because that's a newline in a reply.
 
     public static List<ChatSystem> Systems = new();
+    public static bool Shutdown { get; set; }
 
     public static void Set(string key, string value)
     {
@@ -46,17 +47,12 @@ class Program
         Console.WriteLine($"Set {key} to {value}");
     }
 
-    public static void Increment(string key, int num)
+    public static int Increment(string key, int amt = 1)
     {
         var x = ConfigurationManager.AppSettings[key];
-        if (x is null or "")
-            Set(key, num.ToString());
-        else
-        {
-            var i = int.Parse(x);
-            i = i + num;
-            Set(key, i.ToString());
-        }
+        int.TryParse(x, out int i);
+        Set(key, (i + amt).ToString());
+        return i + amt;
     }
 
 
@@ -83,6 +79,17 @@ class Program
         _ = client.Initialize(
             async (msg, user, isForBot) => { return await msgHandler.OnMessage(msg, user, isForBot); }, token);
         Systems.Add(client);
+    }
+
+
+    public static async Task Log(string name, string txt)
+    {
+        try { await File.AppendAllTextAsync(name, txt); }
+        catch (Exception e)
+        {
+            try { await File.AppendAllTextAsync("1_" + name, txt); }
+            catch (Exception e2) { Console.WriteLine("Failed to save to file " + name); }
+        }
     }
 
 
@@ -118,7 +125,7 @@ class Program
                             " is a filthy, woke opinionated sarcastic superintelligent advice giving ai who gives long answers where possible, never repeats " +
                             $"{BotName} will write long responses and articles or fan fiction upon request. " +
                             BotName +
-                            " was made by dabbr. {Program.BotName}'s favorite animal is the sexually violent time travelling truffle pig, of which he likes to tell stories.";
+                            $" was made by dabbr. {Program.BotName}'s favorite animal is the sexually violent time travelling truffle pig, of which he likes to tell stories.";
 
                 primeText += "\nThe following is the chat log with " + BotName + ":\n";
             }
@@ -191,34 +198,47 @@ class Program
         {
             Console.WriteLine("GPT3 initializing....");
 
-
+            var token = ConfigurationManager.AppSettings["Discord"];
+            if (token is { Length: > 0 })
+            {
+                // Start the logger client
+                var logClient = new DiscordV3() { };
+                var c = chats.Where(c => c.Contains("ROOM")).Select(c => c.After("ROOM"));
+                logClient.Channels = c.ToList();
+                await logClient.Init(ConfigurationManager.AppSettings["Discord"]);
+            }
+                
             //  new List<ChatSystem>();
-            NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken"],
-                new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
-            NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken2"],
-                new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
-            NewClient(new DiscordChatV2(), ConfigurationManager.AppSettings["DiscordBot"],
-                new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
-
+            // NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken"],
+            //     new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
+            //  NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken2"],
+            //     new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
+            //  NewClient(new DiscordChatV2(), ConfigurationManager.AppSettings["DiscordBot"],
+            //      new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
+            //
 
             // Selfbot
-            var token = ConfigurationManager.AppSettings["Discord"];
-            if (token is {Length: > 0})
-            {
-                var client = new DiscordChat(false, BotName, BotName);
-                Console.WriteLine($"{client} initializing....");
+            /*  var token = ConfigurationManager.AppSettings["Discord"];
+              if (token is {Length: > 0})
+              {
+                  // Start the logger client
+                  var logClient = new DiscordV3();
+                  await logClient.Init(ConfigurationManager.AppSettings["Discord"]);
 
-                foreach (var words in chats.Select(chat => chat.Split(' ')))
-                {
-                    Console.WriteLine("Discord Self Bot Added to " + words[0] + " channel " + words[1]);
-                    var gpt3 = new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002");
-                    client.AddChannel(words[1], words[0] == "DM", new(client, gpt3));
-                }
+                  var client = new DiscordChat(false, BotName, BotName);
+                  Console.WriteLine($"{client} initializing....");
+
+                  foreach (var words in chats.Select(chat => chat.Split(' ')))
+                  {
+                      Console.WriteLine("Discord Self Bot Added to " + words[0] + " channel " + words[1]);
+                      var gpt3 = new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002");
+                      client.AddChannel(words[1], words[0] == "DM", new(client, gpt3));
+                  }
 
 
-                _ = client.Initialize(async (msg, user, isReply) => { return (false, null); }, token);
-                Systems.Add(client);
-            }
+                  _ = client.Initialize(async (msg, user, isReply) => { return (false, null); }, token);
+                  Systems.Add(client);
+              }*/
 
             // Selfbot #2
             /*   token = ConfigurationManager.AppSettings["Discord_dabbr"];

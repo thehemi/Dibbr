@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -83,7 +84,7 @@ class Api
     /// <param name="content"></param>xv
     /// <returns> Returns a HttpResponseMessage </returns>
     public static async Task<string> send_message(HttpClient client, string channelId, string content, string msgid,
-                                                  string editMsgID = null)
+                                                  string editMsgID = null, int deleteAfter = 0)
     {
         if (content.IsNullOrEmpty()) return null;
         /*  if (lastMsg == content)
@@ -96,13 +97,28 @@ class Api
         // Discord limit without nitro
         if (content.Length > 2000)
         {
-            messages.Add(content[..2000]);
-            messages.Add(content[2000..]);
+            messages.Add(content[..(2000 - 118)]);
+
+            messages.Add(content[(2000 - 118)..]);
         }
         else { messages.Add(content); }
 
         string ret = null;
-        foreach (var msg in messages) { ret = await send_message_internal(client, channelId, msg, msgid, editMsgID); }
+        foreach (var msg in messages) { 
+            ret = await send_message_internal(client, channelId, msg, msgid, editMsgID);
+            if (ret == null) continue;
+            var msg2 = JsonConvert.DeserializeObject<Message>(ret);
+            if(deleteAfter > 0)
+            {
+                new Thread(async delegate(){
+                    await Task.Delay(deleteAfter * 1000);
+                    await send_request(client, "DELETE", $"channels/{channelId}/messages/{msg2.Id}", null);
+                    msg2 = msg2;
+                }).Start();
+
+            }
+            Console.WriteLine("Msg value:"+ret);
+        }
 
         return ret;
     }
@@ -138,7 +154,13 @@ class Api
 
             // WTF!! Some mesages come back with bad request. I don't understand why or how to fix
             if (i == 3) content = Regex.Replace(d, @"[^\u0020-\u007E]", string.Empty);
-            if (i == 1) { content = content.Replace("\\", "x"); }
+            if (i == 1) {
+                content = d.Replace("\"", "'");
+                content = content.Replace("\\n", "\\\\n");
+                content = content.Replace("\\", "\\\\");
+            }
+
+            if (i == 2) content = d.Replace("\\", "|");
 
             var str = $"{{\n\"content\": \"{content}\"{msgRef} \n}}";
 

@@ -58,9 +58,9 @@ class Web
 
                     Program.NewClient(new DiscordChatV2(), discord, gpt3);
                 }
-                else
-                    Program.NewClient(new DiscordChat(false, ConfigurationManager.AppSettings["BotName"], null),
-                        discord, gpt3);
+               // else
+                   // Program.NewClient(new DiscordChat(false, ConfigurationManager.AppSettings["BotName"], null),
+                   //     discord, gpt3);
 
                 page = page.Replace("{Status}",
                     $"{Program.BotName} initialized with provided keys! Try summoning him in your server chat with {Program.BotName}, hi!");
