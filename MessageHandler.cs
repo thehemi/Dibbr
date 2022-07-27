@@ -518,6 +518,9 @@ public class MessageHandler
         {
             if (Memory == "")
                 Memory = ConfigurationManager.AppSettings[Channel];
+            if (Memory.Length > 500)
+                Memory = Memory[..500];
+
             if (Memory != "" && Memory != null)
             {
                 try
@@ -532,8 +535,8 @@ public class MessageHandler
                 newMemory = await Gpt3.Ask(MakeText() + txt +
                                            "\nQ: what things do you want to remember if the chat log is wiped? Summarize the chat log in a few sentences. \nA:");
             if (newMemory.Length > 0) {
-                if (newMemory.Length > 1000)
-                    newMemory = newMemory[..1000];
+                if (newMemory.Length > 500)
+                    newMemory = newMemory[..500];
 
                 Memory = newMemory;
                 Program.Set(Channel, Memory);
@@ -660,7 +663,7 @@ public class MessageHandler
             }
 
 
-            return "The date is " + DateTime.Now.ToString("F") + " PST. " + PrimeText + "\nMemory: " + Memory[..200] + "\n\n" +
+            return "The date is " + DateTime.Now.ToString("F") + " PST. " + PrimeText + "\nMemory: " + Memory + "\n\n" +
                    log + warn + suffix;
         }
     }
