@@ -383,10 +383,10 @@ public class MessageHandler
                 $"{Program.NewLogLine}{BotName}'s lengthy, well thought out, brilliant, hilarious story: A (from {BotName})";
             m += "!!";
         }
-        else if (isQuestion)
+        else if (m.Contains("?"))
             p = $"{Program.NewLogLine}Factual Answer:";
         else
-            p = $"{Program.NewLogLine}Response (from {BotName}):";
+            p = $"{Program.NewLogLine}dibbr:";
 
         if(m.Contains("$1"))
         {

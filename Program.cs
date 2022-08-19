@@ -214,8 +214,11 @@ class Program
             //     new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
             //  NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken2"],
             //     new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
-            //  NewClient(new DiscordChatV2(), ConfigurationManager.AppSettings["DiscordBot"],
-            //      new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
+
+            // TODO: Move to DiscordV3. Probably just need to add "Bot Token"
+            if(ConfigurationManager.AppSettings["DiscordBot"]!=null)
+                NewClient(new DiscordChatV2(), ConfigurationManager.AppSettings["DiscordBot"],
+                      new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
             //
 
             // Selfbot

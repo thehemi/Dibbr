@@ -206,6 +206,26 @@ class DiscordChatV2 : ChatSystem, IDisposable
 
 public static class StringHelp
 {
+    public static int Inc<T>(this IDictionary<T, int> input, T key)
+    {
+        if (input.TryGetValue(key, out var val))
+        {
+            input[key] = val + 1;
+            return val + 1;
+        }
+        else
+        {
+            input.Add(key, 1);
+            return 1;
+        }
+
+    }
+    public static string Sub(this string input, int start, int end)
+    {
+        if (end > input.Length) end = input.Length;
+        var result = input.Substring(start, end);
+        return result;
+    }
     public static string Rem(this string input, string search, string replacement = "")
     {
         var result = Regex.Replace(input, Regex.Escape(search), replacement.Replace("$", "$$"),
