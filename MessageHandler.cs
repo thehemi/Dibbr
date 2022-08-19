@@ -216,7 +216,7 @@ public class MessageHandler
 
         var muted = this.Muted; // so we can change locally temporarily
         Regex hasMath = new Regex(@"(?<num1>[0-9]+)(?<op>[\*\-\+\\])(?<num2>[0-9]+)");
-        var useSteps = m.HasAny("steps", "??") || hasMath.IsMatch(m);
+        var useSteps = m.HasAny("steps", "??") || hasMath.IsMatch(m) || m.HasAny("?");
         var isQuestion = m.HasAny("calculate", "when ", "?", "where ", "would ", "can ", "does ", "could ", "why ",
             "how ", "what ", "can someone", "me a ", "what's", "did you", "who ");
 
@@ -384,9 +384,30 @@ public class MessageHandler
             m += "!!";
         }
         else if (isQuestion)
-            p = $"{Program.NewLogLine}{BotName}:";
+            p = $"{Program.NewLogLine}Factual Answer:";
         else
             p = $"{Program.NewLogLine}Response (from {BotName}):";
+
+        if(m.Contains("$1"))
+        {
+            p = $"{Program.NewLogLine}{BotName}'s Response:";
+        }
+        if (m.Contains("$2"))
+        {
+            p = $"{Program.NewLogLine}{BotName}'s Factual Answer:";
+        }
+        if (m.Contains("$3"))
+        {
+            p = $"{Program.NewLogLine}{BotName}'s Funny Answer:";
+        }
+        if (m.Contains("$4"))
+        {
+            p = $"{Program.NewLogLine}{BotName}'s Answer:";
+        }
+        if (m.Contains("$5"))
+        {
+            p = $"{Program.NewLogLine}{BotName}: I'll explain it like you're smart";
+        }
         if (Gpt3.engine.Contains("code"))
             p = "";
         // else { p = $"The following is {BotName}'s lengthy, funny, brilliant, multi-paragraph attempt:"; }

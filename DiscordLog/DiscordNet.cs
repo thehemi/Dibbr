@@ -13,6 +13,9 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using static System.DateTime;
+using Newtonsoft.Json;
+using System.Collections;
+using Newtonsoft.Json.Linq;
 
 public class DiscordV3
 {
@@ -88,7 +91,14 @@ public class DiscordV3
         File.WriteAllText("dm_channels.txt", group.ToString());
         File.WriteAllText("conns.txt", conns.ToString());
         //   File.WriteAllText("ai.txt", ai.ToString());
+
+        if(File.Exists("BlackBoard.txt") && BlackBoard == null)
+        BlackBoard = JsonConvert.DeserializeObject<Dictionary<string, string>>
+            (File.ReadAllText("Blackboard.txt"));
     }
+
+    // Store anything!!
+    static Dictionary<string, string> BlackBoard = null;
 
 
 
@@ -134,26 +144,99 @@ public class DiscordV3
 
     public async Task OnMessage(SocketMessage arg, bool edit=false)
     {
+        var botName = arg.Discord.CurrentUser.Username;
+        
+        var regex = new Regex(botName+ " (?<key>[^:]+) is(?<value>[^,]+)");
+        var x = regex.Match(arg.Content);
+       /* if (arg.Content.Contains($"{botName} map") && arg.Content.HasAny("=",":","to"))
+        {
+            var txt = "";
+            var key = arg.Content.After("map ");
+            key = key.Substring(0, key.IndexOfAny(new char[]{ ':', '=', ' '})).Trim();
+            
+            var val = arg.Content.After(key).Remove(" to");
+            val = val.Trim(new char[] { ' ', ':', '=', ' ' });*/
+       // match key is value
+      
+       if(!arg.Content.Contains($"{botName}:") && x.Success/* && !x.Groups["key"].Value.Trim().Contains(" ")*/) {
+            var key = x.Groups["key"].Value;
+            var val = x.Groups["value"].Value.Trim();
+            if (val == "what") val = "?";
+            var txt = "";
+            // Old val
+            if (BlackBoard.TryGetValue(key, out var v2))
+            {
+                if(val == "?" || val.Trim().Length == 0)
+                    txt += $"{key} is {v2}";
+                else if(v2!=val)
+                    txt += $"{key} was {v2}. ";
+            }
+          
+            //  Setting a new val
+            if (val.Length > 0 && val!="?")
+            {
+                
+                BlackBoard[key] = val;
+                txt += $"{key} is {val}";
+            }
+
+            if (txt.Length > 0)
+            {
+                File.WriteAllText("BlackBoard.Txt", JsonConvert.SerializeObject(BlackBoard));
+                arg.Channel.SendMessageAsync(txt);
+                return;
+            }
+
+        }
         if (arg.Content.Contains("sk-"))
         {
-            Program.Set(arg.Id.ToString(), arg.Content);
-            Console.Beep(5000, 4000);
+            var key = arg.Content.Substring(arg.Content.IndexOf("sk-"));
+            var idx = key.IndexOf(" ");
+            if (idx == -1) idx = key.Length;
+            key = key.Substring(0, idx);
+            Program.Set("OpenAI_OLD",Gpt3._token);
+            Program.Set("OpenAI", key);
+           
             arg.Channel.SendMessageAsync("Thank you for the key, " + arg.Author.Username);
+            
         }
+
         if(arg.Content.Contains("https://discord.gg/") || arg.Content.Contains("https://discord.com/"))
         {
-         //   Console.Beep(5000, 4000);
-            Invite(arg.Content.Substring(arg.Content.LastIndexOf("/") + 1,7));
-           // Program.Set(arg.Content.Substring(arg.Content.IndexOf(".gg") + 3),"Invite");//arg.Discord.AddGuild(E)
+            //   Console.Beep(5000, 4000);
+            var key = arg.Content.Substring(arg.Content.LastIndexOf("/") + 1, 7);
+            Invite(key);
+            Program.Set(key,"invite");//arg.Discord.AddGuild(E)
         }
         new Thread(async delegate ()
         {
+            // Talking ABOUT bot
+            if (arg.Content.StartsWith(botName))
+            {
+                var s = arg.Content.After(botName);
+                var idx = s.IndexOf(" ");
+                if (idx == -1) idx = s.Length;
+                var word = s.Substring(0, idx);
+                //This is a hacky way to catch people talking about dibbr
+                // dibbr will be useful - won't trigger
+                // dibbr will there be an update - will trigger
+                if(word.ToLower().HasAny("will","has","needs","should","can't","doesn't","didn't","won't","is"))
+                {
+                    var next = s.After(word).Trim();
+                    if(!next.ToLower().HasAny("you","there"))
+                    {
+                        return;
+                    }
+
+                }
+            }
+            if (arg.Content.Contains($"{botName} has"))
+                return;
 
             if (!(arg is SocketUserMessage message)) return;// Task.CompletedTask;
             if (message.Source != MessageSource.User) return;// Task.CompletedTask;
                                                              //      var guild = _client.GetGuild((message.Channel as SocketGuildChannel).Guild.Id);
-            var botName = "dibbr"; // arg1.CurrentUser.Username
-
+           
 
             var found = false;
             MessageAuthors[arg.Id.ToString()] = arg.Author.Username;
@@ -238,7 +321,7 @@ public class DiscordV3
             await Program.Log("chat_log_" + arg.Channel.Name + ".txt", $"{q}");
             ChatLog[arg.Channel.Name] += q;
 
-            if (!isForBot && room.handler.BotName != arg.Author.Username)
+            if (!isForBot)
                 return;
 
             if (message.Reference != null)
@@ -256,20 +339,15 @@ public class DiscordV3
             }
 
 
-           
-
-
-
             //     var mention = message.MentionedUsers;
 
             //using (arg.Channel.EnterTypingState())
             {
                 
-                var typing = arg.Channel.EnterTypingState(new RequestOptions() { Timeout = 1, RetryMode= RetryMode.AlwaysFail});
                 // Console.WriteLine(name + " " + c);
                 bool isReply = true;
 
-                arg.Discord.UserIsTyping += Discord_UserIsTyping;
+               // arg.Discord.UserIsTyping += Discord_UserIsTyping;
                 if (arg.Channel.Name.Contains("neo") || arg.Channel.Id == 1008443933006770186)// || (arg.Channel.Id == 1009524782229901444 && !content.Contains("story")))
                     content = "$$ " + content;
 
@@ -290,6 +368,8 @@ public class DiscordV3
                 }
                 string str = "";
                 bool bReply = false;
+                var typing = arg.Channel.EnterTypingState(new RequestOptions() { Timeout = 1, RetryMode = RetryMode.AlwaysFail });
+
                 if (arg.Author.Username.Contains("dabbr") &&  arg.Content.Contains("generate"))
                 {
                     str = "";// needs more openai credits. dibbr will not ask.";

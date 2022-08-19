@@ -25,7 +25,7 @@ namespace DibbrBot;
 /// </summary>
 public class Gpt3
 {
-    public string _token;
+    public static string _token;
     OpenAIAPI _api, _apiFallback;
     Engine _e;
 
@@ -37,7 +37,7 @@ public class Gpt3
     public Gpt3(string token, string engine)
     {
         this.engine = engine;
-        this._token = token;
+        _token = token;
         _e = new Engine() {Owner = "openai", Ready = true, EngineName = engine};
 
         //  PrimeText = ConfigurationManager.AppSettings["PrimeText"];
@@ -391,7 +391,7 @@ public class Gpt3
             }
             catch (Exception e) { 
                 if(i>2)
-                    return $"I have no credits left :-( Sign up for a free key at openai.com and DM to dibbr to fix me. DM dabbr for help. " + e.Message[..20]; }
+                    return $"I have no credits left :-( Please sign up for a free key at openai.com and DM it to me and I will start working again. Keys begin with sk-. Sending me a working key also gives you permissions to DM me any time you want! " + e.Message[..20]; }
             i++;
             if (result == null) continue;//
             //{ return $"{Program.BotName} had a server error "; }
