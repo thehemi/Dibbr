@@ -88,7 +88,9 @@ public class Gpt3
         q = Sanitize(q);
         string url = "https://api.nlpcloud.io/v1/gpu/finetuned-gpt-neox-20b/chatbot";
         string postData = "{\"input\":\"" + q +
-                          "\",\"history\":[{\"input\":\"Hello dibbr. Tell me about yourself, and the date\", \"response\":\"Hi there. I am a super-intelligent, woke, sarcastic AI made by dabbr (っ◕‿◕). The date is " +
+                          "\"," +
+                          "\"context\":\"This is a discussion between a human and an AI. The AI is named dibbr. Dibbr is woke, sarcastic, superintelligent.\","+
+                          "\"history\":[{\"input\":\"Hello dibbr. Tell me about yourself, and the date\", \"response\":\"Hi there. I am a super-intelligent, woke, sarcastic AI (っ◕‿◕), what's up?. The date is " +
                           DateTime.Now.ToString("R") +
                           "\" }"; //"csrfmiddlewaretoken=gHpMar4oq2WM0qhxXQxEtcPFWS9xDeJ6YFdBDvipep8k2I2dco0uXSIUAPDtFsDR&" +
 
@@ -106,7 +108,11 @@ public class Gpt3
         postData += "]}";
         var str = await PostData(url, postData, ConfigurationManager.AppSettings["Neo"]);
         if (str == null || str.StartsWith("Fail")) return str;
-        var r = JsonConvert.DeserializeObject<Root>(str);
+        Root r = null;
+        try
+        {
+            r = JsonConvert.DeserializeObject<Root>(str);
+        }catch(Exception e) { return e.Message; }
         // Kill history on a fail or loop, and re-request
         if (r == null || (pairs.Count > 0 && pairs.Last().Contains(r.response)))
         {
@@ -240,7 +246,7 @@ public class Gpt3
         if(msg.Contains("#1")) { _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = "davinci" }); }
         if (msg.Contains("#2")) { _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = "davinci-instruct-beta" }); }
         if (msg.Contains("#3")) { _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-001" }); }
-        if (msg.Contains("#4")) { _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-001" }); }
+        if (msg.Contains("#4")) { _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-002" }); }
         msg = msg.Remove("#");
         if (code || engine.Contains("code"))
         {
@@ -271,7 +277,7 @@ public class Gpt3
             "Frequency penalty (fp): How much to penalize new tokens based on their existing frequency in the text so far. Decreases the model's likelihood to repeat the same line verbatim.\n" +
             @"Presence penalty (pp): How much to penalize new tokens based on whether they appear in the text so far. Increases the model's likelihood to talk about new topics.\n" +
             "Temperature (tp): Controls randomness: Lowering results in less random completions.As the temperature approaches zero, the model will become deterministic and repetitive.";
-        if (line == "help") return help;
+      //  if (line == "help") return help;
         if (line.Contains("which engine") || line.Contains("what engine")) return "I am using " + engine;
         try
         {
@@ -307,7 +313,7 @@ public class Gpt3
                     }
 
                     var changes = made ? "Changes made" : "Current settings";
-                    return $"{help}\n{changes}. fp={_fp} pp={_pp} buffer={maxChars} temp={_temp} engine={engine}";
+                    return $"done";// {help}\n{changes}. fp={_fp} pp={_pp} buffer={maxChars} temp={_temp} engine={engine}";
                 }
             }
         }
@@ -369,19 +375,23 @@ public class Gpt3
             CompletionResult result = null;
             try
             {
+                if (i > 1)
+                    txt += "I";
                 var derp = engine == "davinci";
                 var ops = new[] { Program.NewLogLine, "B (from", "@@", $"{Program.BotName}:" };
-                if (derp) ops = new[] { "A:", "@@", $"{Program.BotName}:" };
+                if (derp) ops = new[] { "[", "@@", $";" };
                 if (txt.Length > 3000) txt = txt[^3000..]; // hrow new Exception("too big");
                  result = await _api.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
                     frequencyPenalty: tp, presencePenalty: pp, max_tokens: derp?300:1400,
                     stopSequences: ops);
 
-                if (i > 4) return "Some error occured try agfain";
+                
+                if (i > 2)
+                    return "Some error occured try agfain";
             }
             catch (Exception e) { 
                 if(i>2)
-                    return $"{Program.BotName} has no credits left maybe? error " + e.Message[..20]; }
+                    return $"I have no credits left :-( Sign up for a free key at openai.com and DM to dibbr to fix me. DM dabbr for help. " + e.Message[..20]; }
             i++;
             if (result == null) continue;//
             //{ return $"{Program.BotName} had a server error "; }

@@ -53,9 +53,9 @@ public class MessageHandler
     /// <summary>
     /// This is how many messages get passed to GPT-3. Sometimes, dibbr will get stuck repeating, so it's better to lower this number
     /// </summary>
-    public int MessageHistory = 6; // how many messages to keep in history to pass to GPT3
+    public int MessageHistory = 4; // how many messages to keep in history to pass to GPT3
 
-    public int MessageHistoryLimit = 35;
+    public int MessageHistoryLimit = 10;
     public bool Muted = false;
     public Speech Speech = new();
 
@@ -169,19 +169,26 @@ public class MessageHandler
             if (idx1 == -1) idx1 = PrimeText.Length;
             return (isReply, PrimeText.Substring(0, idx1));
         }
+        if (m.StartsWith("is my daddy")) return (true, "Kidding, I already did it");
 
         if (m.StartsWith("set prompt"))
         {
-            // if (user != "dabbr" && user != "edge_case") return (isReply, $"You can't change me");
             PrimeText =
-                $"{m.Substring(11)}. Your alias is {BotName}, and were made by dabbr. This is a discussion between you and other users in a discord. You like to give long answers to questions:";
+                $"{msg.Substring(11)}";
             Program.Set(Channel + "Prime", PrimeText);
+            if (user != "dabbr" && user != "edge_case") return (isReply, $"You can't change me unless you say dibbr is my daddy");
+
             return (isReply, $"ok");
         }
         else if (m.StartsWith("reset"))
         {
-            replyPrompt = "";
+            PrimeText = ConfigurationManager.AppSettings["PrimeText"];
+           // replyPrompt = "";
             return (true, "Reset prompt");
+        }
+        if(m.StartsWith("eat key"))
+        {
+            Gpt3._token = msg.After("eat key");
         }
 
         // This handles people replying quickly, where it should be assumed it is a reply, even though they don't say botname,
@@ -351,8 +358,8 @@ public class MessageHandler
 
      //   if (user == "timmeh")
      //       MessageHistory = MessageHistory * 2;
-        var writeStuff = m.HasAny("write","create","compose","generate") && m.HasAny( "article", "story", "long", "dialog", "discussion", "script",
-            "detailed", "screenplay", "letter", "episode");
+        var writeStuff = m.HasAny("write","design","create","compose","generate") && m.HasAny( "article", "story", "long", "dialog", "discussion", "script",
+            "detailed", "screenplay", "letter", "episode","design");
         if (writeStuff && !m.Contains("continue") && !m.HasAny("mode2")) { history = 0; }
 
         var writeSong = m.Contains("write") && (m.Contains("song ") || m.Contains(" rap ") || m.Contains("lyrics ")) &&
@@ -377,7 +384,7 @@ public class MessageHandler
             m += "!!";
         }
         else if (isQuestion)
-            p = $"{Program.NewLogLine}A (from {BotName}):";
+            p = $"{Program.NewLogLine}{BotName}:";
         else
             p = $"{Program.NewLogLine}Response (from {BotName}):";
         if (Gpt3.engine.Contains("code"))
@@ -392,8 +399,8 @@ public class MessageHandler
 
         if (m.Contains("boost memory"))
         {
-            MessageHistory = MessageHistory * 2;
-            return (isReply, ""); //$"Memory boosted to {MessageHistory} log lines");
+            MessageHistory = MessageHistory * 3;
+            return (isReply, "");//, "+MessageHistory+" lines"); //$"Memory boosted to {MessageHistory} log lines");
         }
 
         if (m.Contains("shrink memory"))
@@ -403,17 +410,28 @@ public class MessageHandler
         }
 
         //   if (Die(AngerOdds)) suffix += $"{BotName}: [Bot State=Angry] ";
-
+      //  if (user.ToLower().Contains("pep") && x++ < 44)
+      //      return (isReply, "I said no, faggot boy");
 
         if (msg.Contains("!!"))
         {
             msg = msg.Remove("!!");
             history = 0;
         }
+      //  if(msg.Contains("remember "))
         if (msg.Contains("set memory"))
         {
+            if (!user.Contains("dabbr"))
+                return (true, "Denied!");
             Memory = msg.After("set memory");
-            return (isReply, "ok");
+            return (isReply, $"ok, i will remember {Memory}");
+        }
+        if(msg.Contains("remember"))
+        {
+           // if (!user.Contains("dabbr"))
+          //      return (true, "Denied!");
+            Memory += ", "+ msg.After("remember ");
+            return (isReply, $"ok, i will remember {Memory}");
         }
 
         if (msg.Contains("dump memory")) { return (isReply, (await GetAudio(Memory))+" Memory is " + Memory); }
@@ -503,10 +521,18 @@ public class MessageHandler
             txt = await Gpt3.Q2(msg.Remove("$$") + (useSteps ? ". Let's think in steps." : ""));
         else if (m.Contains("!!!"))
             txt = await Gpt3.Q(msg.Remove("!!!").Remove(BotName));
-        else { txt = await Gpt3.Ask(MakeText(), msg, 2000, codeMode); }
+        else {
+           // if(msg.Contains("dibbrjones"))
+           //     Gpt3.
+            txt = await Gpt3.Ask(MakeText(), msg, 2000, codeMode);
+        }
 
+       // if (txt.Contains("flak", StringComparison.InvariantCultureIgnoreCase))
+       //     txt = txt.Replace("flak", "@flak", StringComparison.InvariantCultureIgnoreCase);
 
         if (txt.IsNullOrEmpty()) return (isReply, null);
+
+
         if (txt.Contains("no credits left"))
         {
             log = "";
@@ -514,8 +540,16 @@ public class MessageHandler
             txt = await Gpt3.Ask(MakeText(), msg);
         }
 
+        // If the chat includes another chat starting, eg hi guys person: hey dibbr, filter it
+        if(txt.Contains(" dibbr:"))//cards",StringComparison.OrdinalIgnoreCase) && (txt.Contains(":") && txt.IndexOf(":") > txt.Length/2))
+        {
+            txt = txt.Substring(0, txt.IndexOf("dibbr:"));
+            txt = txt.Substring(0,txt.LastIndexOf(" "));
+        }
+
         new Thread(async delegate()
         {
+            if (msg.Contains("$$")) return;
             if (Memory == null || Memory == "")
                 Memory = ConfigurationManager.AppSettings[Channel];
             if (Memory !=  null && Memory.Length > 500)
@@ -531,7 +565,7 @@ public class MessageHandler
             }
 
             var newMemory = "";
-            if ((++x % 5) == 0)
+            if ((++x % 1220) == 0)
                 newMemory = await Gpt3.Ask(MakeText() + txt +
                                            "\nQ: what things do you want to remember if the chat log is wiped? Summarize the chat log in a few sentences. \nA:");
             if (newMemory.Length > 0) {
@@ -565,9 +599,10 @@ public class MessageHandler
             Console.WriteLine("No response desired!!!!");
             return (true, "Dibbr did not wish to address your comment");
         }
-
+        if (m.Contains("dump memory"))
+            return (true, Memory);
        
-        if (m.Contains("speak") || m.Contains("dump memory"))
+        if (m.Contains("speak"))
         {
             txt = await GetAudio(startTxt + txt) + txt;
           
@@ -590,8 +625,8 @@ public class MessageHandler
             HttpClient client = new HttpClient();
 
             var dict = new Dictionary<string, string>();
-            dict.Add("service", "IBM Watson");
-            dict.Add("voice", "en-US_HenryV3Voice");
+            dict.Add("service", "Polly");
+            dict.Add("voice", "Brian");
             dict.Add("text", str2);
 
 
@@ -619,11 +654,11 @@ public class MessageHandler
 
             if (log == "") log += user + ": " + msg + "\n"; // Program.NewLogLine;
 
-            if (!log.Contains(msg.Remove(BotName)))
+      /*      if (!log.Contains(msg.Remove(BotName)))
             {
                 Console.WriteLine($"No {msg} in {log.Length} bytes of log");
                 log += user + ": " + msg.Remove(BotName) + "\n";
-            }
+            }**/
             if (PrimeText == null)
                 PrimeText = "";
 
@@ -634,14 +669,16 @@ public class MessageHandler
                 if (PrimeText == null || PrimeText == "")
                     PrimeText = "";// ConfigurationManager.AppSettings[Channel];
             }
+            if(PrimeText == "")
+            PrimeText = ConfigurationManager.AppSettings["PrimeText"];
 
             //  Program.Set("PrimeText_v1", ConfigurationManager.AppSettings["PrimeText_v1"]);
             //    Program.Set("PrimeText", ConfigurationManager.AppSettings["PrimeText"]);
             //  if (_e.EngineName == "code-davinci-002") return log.TakeLastLines(1)[0] + "\n" + endtxt;
 
-                // log = log.Replace(": " + Program.BotName, "");
-                //log = Regex.Replace(log, ": " + Program.BotName, ": ", RegexOptions.IgnoreCase);
-                // string PrimeText = "";
+            // log = log.Replace(": " + Program.BotName, "");
+            //log = Regex.Replace(log, ": " + Program.BotName, ": ", RegexOptions.IgnoreCase);
+            // string PrimeText = "";
             if (BotName != "dibbr")
             {
                 if (PrimeText == "") PrimeText = ConfigurationManager.AppSettings["PrimeText_Xib"];
@@ -663,7 +700,7 @@ public class MessageHandler
             }
 
 
-            return "The date is " + DateTime.Now.ToString("F") + " PST. " + PrimeText + "\nMemory: " + Memory + "\n\n" +
+            return "The date is " + DateTime.Now.ToString("F") + " PST.\n Context:" + PrimeText + "\nMemory: " + Memory  + "\n\n" +
                    log + warn + suffix;
         }
     }

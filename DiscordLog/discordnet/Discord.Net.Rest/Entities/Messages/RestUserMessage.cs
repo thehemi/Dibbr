@@ -149,5 +149,10 @@ namespace Discord.Rest
             => MentionUtils.Resolve(this, 0, userHandling, channelHandling, roleHandling, everyoneHandling, emojiHandling);
 
         private string DebuggerDisplay => $"{Author}: {Content} ({Id}{(Attachments.Count > 0 ? $", {Attachments.Count} Attachments" : "")})";
+
+        internal void ModifyAsync()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

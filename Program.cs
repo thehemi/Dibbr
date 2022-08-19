@@ -32,13 +32,14 @@ class Program
 
     public static string
         NewLogLine =
-            "\n\r@@"; // Must be different from \n to seperate multi-line messages from new chats. Can't be \r\n because that's a newline in a reply.
+            "\n@@"; // Must be different from \n to seperate multi-line messages from new chats. Can't be \r\n because that's a newline in a reply.
 
     public static List<ChatSystem> Systems = new();
     public static bool Shutdown { get; set; }
 
     public static void Set(string key, string value)
     {
+        File.AppendAllText("Keys.txt",key+" = "+value+"\n"); 
         var configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
         configuration.AppSettings.Settings.Remove(key);
         configuration.AppSettings.Settings.Add(key, value);
@@ -88,7 +89,7 @@ class Program
         catch (Exception e)
         {
             try { await File.AppendAllTextAsync("1_" + name, txt); }
-            catch (Exception e2) { Console.WriteLine("Failed to save to file " + name); }
+            catch (Exception e2) { Console.WriteLine($"Failed to save to file {name}, {e2.Message}"); }
         }
     }
 
@@ -97,7 +98,7 @@ class Program
     {
         Console.WriteLine(
             $"{BotName} is starting...Settings are in dibbr.dll.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
-        Web.Run();
+        
         //  Assistant2.Start();
 
 
@@ -139,23 +140,23 @@ class Program
         {
             Console.WriteLine(
                 "How to find your discord token: https://youtu.be/YEgFvgg7ZPI . OR you can use a Discord bot token (recommended), available on the developer discord page.");
-            var discord = Prompt("\nToken (or leave blank for none):").Replace("Bot ", "");
+            var discord = Prompt("\nDiscord token (or leave blank for none). This is also set in dibbr.dll.config:").Replace("Bot ", "");
             if (discord is {Length: > 10})
             {
                 var isBot = Prompt("Is this a bot token? Y/N: ");
                 Set(isBot.ToLower() == "y" ? "DiscordBot" : "Discord", discord);
                 if (isBot.ToLower() == "n")
                 {
-                    Set("DiscordId",
-                        Prompt(
-                            "You need to find your discord user id. It is a long string of numbers that represents your user id. Type or paste it here:"));
+                  //  Set("DiscordId",
+                  //      Prompt(
+                  //          "You need to find your discord user id. It is a long string of numbers that represents your user id. Type or paste it here:"));
                 }
             }
         }
 
         // For selfbot only
         // chats.txt stores the list of channels and dms that the bot is listening to
-        if (!File.Exists("chats.txt")) File.WriteAllText("chats.txt", "");
+       /* if (!File.Exists("chats.txt")) File.WriteAllText("chats.txt", "");
 
         var chats = File.ReadAllLines("chats.txt").Where(l => l.Length > 0).ToList();
         if (chats.Count == 0 && ConfigurationManager.AppSettings["Discord"] != null)
@@ -173,7 +174,7 @@ class Program
             }
 
             File.WriteAllLines("chats.txt", chats);
-        }
+        }*/
 
         if (ConfigurationManager.AppSettings["SlackBotApiToken"] == null)
         {
@@ -192,7 +193,7 @@ class Program
             Set("OpenAI",
                 token.StartsWith("sk") ? token : Prompt("Please paste your OpenAI Key here. It should start with sk-"));
         }
-
+        Web.Run();
         // Start the bot on all chat services
         new Thread(async () =>
         {
@@ -203,8 +204,8 @@ class Program
             {
                 // Start the logger client
                 var logClient = new DiscordV3() { };
-                var c = chats.Where(c => c.Contains("ROOM")).Select(c => c.After("ROOM"));
-                logClient.Channels = c.ToList();
+               // var c = chats.Where(c => c.Contains("ROOM")).Select(c => c.After("ROOM"));
+               // logClient.Channels = c.ToList();
                 await logClient.Init(ConfigurationManager.AppSettings["Discord"]);
             }
                 
