@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Discord.Rest;
 using Model = Discord.API.User;
+using PresenceModel = Discord.API.Presence;
 
 namespace Discord.WebSocket
 {
@@ -26,7 +27,9 @@ namespace Discord.WebSocket
         public abstract string AvatarId { get; internal set; }
         /// <inheritdoc />
         public abstract bool IsWebhook { get; }
-        internal abstract SocketGlobalUser GlobalUser { get; }
+        /// <inheritdoc />
+        public UserProperties? PublicFlags { get; private set; }
+        internal abstract SocketGlobalUser GlobalUser { get; set; }
         internal abstract SocketPresence Presence { get; set; }
 
         /// <inheritdoc />
@@ -36,16 +39,19 @@ namespace Discord.WebSocket
         /// <inheritdoc />
         public string Mention => MentionUtils.MentionUser(Id);
         /// <inheritdoc />
-        public IActivity Activity => Presence.Activity;
-        /// <inheritdoc />
         public UserStatus Status => Presence.Status;
         /// <inheritdoc />
-        public IImmutableSet<ClientType> ActiveClients => Presence.ActiveClients ?? ImmutableHashSet<ClientType>.Empty;
+        public IReadOnlyCollection<ClientType> ActiveClients => Presence.ActiveClients ?? ImmutableHashSet<ClientType>.Empty;
+        /// <inheritdoc />
+        public IReadOnlyCollection<IActivity> Activities => Presence.Activities ?? ImmutableList<IActivity>.Empty;
         /// <summary>
         ///     Gets mutual guilds shared with this user.
         /// </summary>
+        /// <remarks>
+        ///     This property will only include guilds in the same <see cref="DiscordSocketClient"/>.
+        /// </remarks>
         public IReadOnlyCollection<SocketGuild> MutualGuilds
-            => Discord.Guilds.Where(g => g.Users.Any(u => u.Id == Id)).ToImmutableArray();
+            => Discord.Guilds.Where(g => g.GetUser(Id) != null).ToImmutableArray();
 
         internal SocketUser(DiscordSocketClient discord, ulong id)
             : base(discord, id)
@@ -53,6 +59,7 @@ namespace Discord.WebSocket
         }
         internal virtual bool Update(ClientState state, Model model)
         {
+            Presence ??= new SocketPresence();
             bool hasChanges = false;
             if (model.Avatar.IsSpecified && model.Avatar.Value != AvatarId)
             {
@@ -78,12 +85,23 @@ namespace Discord.WebSocket
                 Username = model.Username.Value;
                 hasChanges = true;
             }
+            if (model.PublicFlags.IsSpecified && model.PublicFlags.Value != PublicFlags)
+            {
+                PublicFlags = model.PublicFlags.Value;
+                hasChanges = true;
+            }
             return hasChanges;
         }
 
+        internal virtual void Update(PresenceModel model)
+        {
+            Presence ??= new SocketPresence();
+            Presence.Update(model);
+        }
+
         /// <inheritdoc />
-        public async Task<IDMChannel> GetOrCreateDMChannelAsync(RequestOptions options = null)
-            => GlobalUser.DMChannel ?? await UserHelper.CreateDMChannelAsync(this, Discord, options).ConfigureAwait(false) as IDMChannel;
+        public async Task<IDMChannel> CreateDMChannelAsync(RequestOptions options = null)
+            => await UserHelper.CreateDMChannelAsync(this, Discord, options).ConfigureAwait(false);
 
         /// <inheritdoc />
         public string GetAvatarUrl(ImageFormat format = ImageFormat.Auto, ushort size = 128)
@@ -99,8 +117,8 @@ namespace Discord.WebSocket
         /// <returns>
         ///     The full name of the user.
         /// </returns>
-        public override string ToString() => $"{Username}#{Discriminator}";
-        private string DebuggerDisplay => $"{Username}#{Discriminator} ({Id}{(IsBot ? ", Bot" : "")})";
+        public override string ToString() => Format.UsernameAndDiscriminator(this, Discord.FormatUsersInBidirectionalUnicode);
+        private string DebuggerDisplay => $"{Format.UsernameAndDiscriminator(this, Discord.FormatUsersInBidirectionalUnicode)} ({Id}{(IsBot ? ", Bot" : "")})";
         internal SocketUser Clone() => MemberwiseClone() as SocketUser;
     }
 }

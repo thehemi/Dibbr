@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Discord
@@ -10,6 +9,14 @@ namespace Discord
     public interface IUserMessage : IMessage
     {
         /// <summary>
+        ///     Gets the referenced message if it is a crosspost, channel follow add, pin, or reply message.
+        /// </summary>
+        /// <returns>
+        ///     The referenced message, if any is associated and still exists.
+        /// </returns>
+        IUserMessage ReferencedMessage { get; }
+
+        /// <summary>
         ///     Modifies this message.
         /// </summary>
         /// <remarks>
@@ -17,7 +24,7 @@ namespace Discord
         ///     method and what properties are available, please refer to <see cref="MessageProperties"/>.
         /// </remarks>
         /// <example>
-        ///     The following example replaces the content of the message with <c>Hello World!</c>.
+        ///     <para>The following example replaces the content of the message with <c>Hello World!</c>.</para>
         ///     <code language="cs">
         ///     await msg.ModifyAsync(x =&gt; x.Content = "Hello World!");
         ///     </code>
@@ -28,18 +35,6 @@ namespace Discord
         ///     A task that represents the asynchronous modification operation.
         /// </returns>
         Task ModifyAsync(Action<MessageProperties> func, RequestOptions options = null);
-        /// <summary>
-        ///     Modifies the suppression of this message.
-        /// </summary>
-        /// <remarks>
-        ///     This method modifies whether or not embeds in this message are suppressed (hidden).
-        /// </remarks>
-        /// <param name="suppressEmbeds">Whether or not embeds in this message should be suppressed.</param>
-        /// <param name="options">The options to be used when sending the request.</param>
-        /// <returns>
-        ///     A task that represents the asynchronous modification operation.
-        /// </returns>
-        Task ModifySuppressionAsync(bool suppressEmbeds, RequestOptions options = null);
         /// <summary>
         ///     Adds this message to its channel's pinned messages.
         /// </summary>
@@ -56,6 +51,21 @@ namespace Discord
         ///     A task that represents the asynchronous operation for unpinning this message.
         /// </returns>
         Task UnpinAsync(RequestOptions options = null);
+
+        /// <summary>
+        ///     Publishes (crossposts) this message.
+        /// </summary>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///     A task that represents the asynchronous operation for publishing this message.
+        /// </returns>
+        /// <remarks>
+        ///     <note type="warning">
+        ///         This call will throw an <see cref="InvalidOperationException"/> if attempted in a non-news channel.
+        ///     </note>
+        ///     This method will publish (crosspost) the message. Please note, publishing (crossposting), is only available in news channels.
+        /// </remarks>
+        Task CrosspostAsync(RequestOptions options = null);
 
         /// <summary>
         ///     Transforms this message's text into a human-readable form by resolving its tags.

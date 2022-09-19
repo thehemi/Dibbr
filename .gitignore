@@ -2,3 +2,4 @@ bin
 obj
 /MyAPIKeys.cs
 /.vs/Dibbr/*.*
+/discordnet_OLD

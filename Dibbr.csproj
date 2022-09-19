@@ -13,19 +13,26 @@
 
   <ItemGroup>
     <Compile Remove="DiscordLog\discordnet\Discord.Net.Commands\**" />
+    <Compile Remove="discordnet_OLD\**" />
     <EmbeddedResource Remove="DiscordLog\discordnet\Discord.Net.Commands\**" />
+    <EmbeddedResource Remove="discordnet_OLD\**" />
     <None Remove="DiscordLog\discordnet\Discord.Net.Commands\**" />
+    <None Remove="discordnet_OLD\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="DSharpPlus" Version="4.3.0-nightly-01159" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0-preview.6.22324.4" />
+    <PackageReference Include="DSharpPlus" Version="4.3.0-nightly-01169" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.4.0-1.final" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.4.0-1.final" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0-preview.7.22375.6" />
     <PackageReference Include="NAudio" Version="2.1.0" />
     <PackageReference Include="OpenAI" Version="1.2.0" />
-    <PackageReference Include="ServiceStack" Version="6.2.0" />
-    <PackageReference Include="SlackNet.Bot" Version="0.10.9" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="7.0.0-preview.6.22324.4" />
+    <PackageReference Include="ServiceStack" Version="6.3.0" />
+    <PackageReference Include="SlackNet.Bot" Version="0.10.11" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="7.0.0-preview.7.22375.6" />
     <PackageReference Include="System.Linq.Async" Version="6.0.1" />
+    <PackageReference Include="Twilio" Version="5.80.0" />
+    <PackageReference Include="Twilio.AspNet.Core" Version="6.0.0" />
   </ItemGroup>
 
   <ItemGroup>

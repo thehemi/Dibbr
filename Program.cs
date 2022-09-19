@@ -1,5 +1,6 @@
 ﻿// (c) github.com/thehemi
 
+using Dibbr;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
@@ -36,14 +37,18 @@ class Program
 
     public static List<ChatSystem> Systems = new();
     public static bool Shutdown { get; set; }
+    public static Configuration configuration;
 
     public static void Set(string key, string value)
     {
         File.AppendAllText("Keys.txt",key+" = "+value+"\n"); 
-        var configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+
+        if(configuration == null)
+            configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+
         configuration.AppSettings.Settings.Remove(key);
         configuration.AppSettings.Settings.Add(key, value);
-        configuration.Save(ConfigurationSaveMode.Full, true);
+        configuration.Save(ConfigurationSaveMode.Modified, false);
         ConfigurationManager.RefreshSection("appSettings");
         Console.WriteLine($"Set {key} to {value}");
     }
@@ -75,8 +80,8 @@ class Program
         Console.WriteLine($"{client} initializing....");
         var msgHandler = new MessageHandler(client, gpt3);
         msgHandler.BotName = BotName;
-        var d2 = client as DiscordChatV2;
-        if (d2 != null) d2.handler = msgHandler;
+       // var d2 = client as DiscordChatV2;
+      //  if (d2 != null) d2.handler = msgHandler;
         _ = client.Initialize(
             async (msg, user, isForBot) => { return await msgHandler.OnMessage(msg, user, isForBot); }, token);
         Systems.Add(client);
@@ -98,8 +103,13 @@ class Program
     {
         Console.WriteLine(
             $"{BotName} is starting...Settings are in dibbr.dll.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
-        
+
         //  Assistant2.Start();
+
+        var cancellationTokenSource = new CancellationTokenSource();
+        var task = Repeat.Interval(
+                TimeSpan.FromSeconds(5),
+                () => Phone.HandleMessages(), cancellationTokenSource.Token);
 
 
         for (var i = 0; i < ConfigurationManager.AppSettings.Keys.Count; i++)
@@ -202,11 +212,18 @@ class Program
             var token = ConfigurationManager.AppSettings["Discord"];
             if (token is { Length: > 0 })
             {
-                // Start the logger client
+                // Start the discord client
                 var logClient = new DiscordV3() { };
                // var c = chats.Where(c => c.Contains("ROOM")).Select(c => c.After("ROOM"));
                // logClient.Channels = c.ToList();
-                await logClient.Init(ConfigurationManager.AppSettings["Discord"]);
+                await logClient.Init(token);
+            }
+            var botToken = ConfigurationManager.AppSettings["DiscordBot"];
+            if(botToken is { Length: > 0 })
+            {
+                var botClient = new DiscordV3();
+                botClient.NeedsKey = true;
+                await botClient.Init(botToken,true); 
             }
                 
             //  new List<ChatSystem>();
@@ -216,9 +233,9 @@ class Program
             //     new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
 
             // TODO: Move to DiscordV3. Probably just need to add "Bot Token"
-            if(ConfigurationManager.AppSettings["DiscordBot"]!=null)
-                NewClient(new DiscordChatV2(), ConfigurationManager.AppSettings["DiscordBot"],
-                      new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
+           // if(ConfigurationManager.AppSettings["DiscordBot"]!=null)
+           //     NewClient(new DiscordChatV2(), ConfigurationManager.AppSettings["DiscordBot"],
+            //          new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
             //
 
             // Selfbot

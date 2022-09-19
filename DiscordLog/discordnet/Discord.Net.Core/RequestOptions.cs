@@ -1,4 +1,8 @@
+using Discord.Net;
+using System;
+using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Discord
 {
@@ -13,10 +17,10 @@ namespace Discord
         public static RequestOptions Default => new RequestOptions();
 
         /// <summary>
-        ///     Gets or sets the maximum time to wait for for this request to complete.
+        ///     Gets or sets the maximum time to wait for this request to complete.
         /// </summary>
         /// <remarks>
-        ///     Gets or set the max time, in milliseconds, to wait for for this request to complete. If 
+        ///     Gets or set the max time, in milliseconds, to wait for this request to complete. If
         ///     <c>null</c>, a request will not time out. If a rate limit has been triggered for this request's bucket
         ///     and will not be unpaused in time, this request will fail immediately.
         /// </remarks>
@@ -49,25 +53,43 @@ namespace Discord
 		///		clock for rate-limiting. Defaults to <c>true</c>.
 		/// </summary>
 		/// <remarks>
-		///		This property can also be set in <see cref="DiscordConfig">.
-		///
-		///		On a per-request basis, the system clock should only be disabled 
+		///		This property can also be set in <see cref="DiscordConfig"/>.
+		///		On a per-request basis, the system clock should only be disabled
 		///		when millisecond precision is especially important, and the
 		///		hosting system is known to have a desynced clock.
 		/// </remarks>
 		public bool? UseSystemClock { get; set; }
 
+        /// <summary>
+        ///     Gets or sets the callback to execute regarding ratelimits for this request.
+        /// </summary>
+        public Func<IRateLimitInfo, Task> RatelimitCallback { get; set; }
+
         internal bool IgnoreState { get; set; }
-        internal string BucketId { get; set; }
+        internal BucketId BucketId { get; set; }
         internal bool IsClientBucket { get; set; }
         internal bool IsReactionBucket { get; set; }
+        internal bool IsGatewayBucket { get; set; }
+
+        internal IDictionary<string, IEnumerable<string>> RequestHeaders { get; }
 
         internal static RequestOptions CreateOrClone(RequestOptions options)
-        {            
+        {
             if (options == null)
                 return new RequestOptions();
             else
                 return options.Clone();
+        }
+
+        internal void ExecuteRatelimitCallback(IRateLimitInfo info)
+        {
+            if (RatelimitCallback != null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    await RatelimitCallback(info);
+                });
+            }
         }
 
         /// <summary>
@@ -77,8 +99,9 @@ namespace Discord
         public RequestOptions()
         {
             Timeout = DiscordConfig.DefaultRequestTimeout;
+            RequestHeaders = new Dictionary<string, IEnumerable<string>>();
         }
-        
+
         public RequestOptions Clone() => MemberwiseClone() as RequestOptions;
     }
 }

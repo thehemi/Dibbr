@@ -10,6 +10,7 @@ namespace Discord.Rest
 {
     public abstract class BaseDiscordClient : IDiscordClient
     {
+        #region BaseDiscordClient
         public event Func<LogMessage, Task> Log { add { _logEvent.Add(value); } remove { _logEvent.Remove(value); } }
         internal readonly AsyncEvent<Func<LogMessage, Task>> _logEvent = new AsyncEvent<Func<LogMessage, Task>>();
 
@@ -34,6 +35,8 @@ namespace Discord.Rest
         public ISelfUser CurrentUser { get; protected set; }
         /// <inheritdoc />
         public TokenType TokenType => ApiClient.AuthTokenType;
+        internal bool UseInteractionSnowflakeDate { get; private set; }
+        internal bool FormatUsersInBidirectionalUnicode { get; private set; }
 
         /// <summary> Creates a new REST-only Discord client. </summary>
         internal BaseDiscordClient(DiscordRestConfig config, API.DiscordRestApiClient client)
@@ -46,12 +49,15 @@ namespace Discord.Rest
             _restLogger = LogManager.CreateLogger("Rest");
             _isFirstLogin = config.DisplayInitialLog;
 
-            ApiClient.RequestQueue.RateLimitTriggered += async (id, info) =>
+            UseInteractionSnowflakeDate = config.UseInteractionSnowflakeDate;
+            FormatUsersInBidirectionalUnicode = config.FormatUsersInBidirectionalUnicode;
+
+            ApiClient.RequestQueue.RateLimitTriggered += async (id, info, endpoint) =>
             {
                 if (info == null)
-                    await _restLogger.VerboseAsync($"Preemptive Rate limit triggered: {id ?? "null"}").ConfigureAwait(false);
+                    await _restLogger.VerboseAsync($"Preemptive Rate limit triggered: {endpoint} {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
                 else
-                    await _restLogger.WarningAsync($"Rate limit triggered: {id ?? "null"}").ConfigureAwait(false);
+                    await _restLogger.WarningAsync($"Rate limit triggered: {endpoint} Remaining: {info.Value.RetryAfter}s {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
             };
             ApiClient.SentRequest += async (method, endpoint, millis) => await _restLogger.VerboseAsync($"{method} {endpoint}: {millis} ms").ConfigureAwait(false);
         }
@@ -145,14 +151,34 @@ namespace Discord.Rest
                 _isDisposed = true;
             }
         }
+
+        internal virtual async ValueTask DisposeAsync(bool disposing)
+        {
+            if (!_isDisposed)
+            {
+#pragma warning disable IDISP007
+                await ApiClient.DisposeAsync().ConfigureAwait(false);
+#pragma warning restore IDISP007
+                _stateLock?.Dispose();
+                _isDisposed = true;
+            }
+        }
+
         /// <inheritdoc />
         public void Dispose() => Dispose(true);
+
+        public ValueTask DisposeAsync() => DisposeAsync(true);
 
         /// <inheritdoc />
         public Task<int> GetRecommendedShardCountAsync(RequestOptions options = null)
             => ClientHelper.GetRecommendShardCountAsync(this, options);
 
-        //IDiscordClient
+        /// <inheritdoc />
+        public Task<BotGateway> GetBotGatewayAsync(RequestOptions options = null)
+            => ClientHelper.GetBotGatewayAsync(this, options);
+        #endregion
+
+        #region IDiscordClient
         /// <inheritdoc />
         ConnectionState IDiscordClient.ConnectionState => ConnectionState.Disconnected;
         /// <inheritdoc />
@@ -213,10 +239,24 @@ namespace Discord.Rest
             => Task.FromResult<IWebhook>(null);
 
         /// <inheritdoc />
+        Task<IApplicationCommand> IDiscordClient.GetGlobalApplicationCommandAsync(ulong id, RequestOptions options)
+            => Task.FromResult<IApplicationCommand>(null);
+
+        /// <inheritdoc />
+        Task<IReadOnlyCollection<IApplicationCommand>> IDiscordClient.GetGlobalApplicationCommandsAsync(bool withLocalizations, string locale, RequestOptions options)
+            => Task.FromResult<IReadOnlyCollection<IApplicationCommand>>(ImmutableArray.Create<IApplicationCommand>());
+        Task<IApplicationCommand> IDiscordClient.CreateGlobalApplicationCommand(ApplicationCommandProperties properties, RequestOptions options)
+            => Task.FromResult<IApplicationCommand>(null);
+        Task<IReadOnlyCollection<IApplicationCommand>> IDiscordClient.BulkOverwriteGlobalApplicationCommand(ApplicationCommandProperties[] properties,
+            RequestOptions options)
+            => Task.FromResult<IReadOnlyCollection<IApplicationCommand>>(ImmutableArray.Create<IApplicationCommand>());
+
+        /// <inheritdoc />
         Task IDiscordClient.StartAsync()
             => Task.Delay(0);
         /// <inheritdoc />
         Task IDiscordClient.StopAsync()
             => Task.Delay(0);
+        #endregion
     }
 }

@@ -8,7 +8,7 @@ namespace Discord
     /// <summary>
     ///     Represents a generic Discord client.
     /// </summary>
-    public interface IDiscordClient : IDisposable
+    public interface IDiscordClient : IDisposable, IAsyncDisposable
     {
         /// <summary>
         ///     Gets the current state of connection.
@@ -142,6 +142,49 @@ namespace Discord
         Task<IReadOnlyCollection<IConnection>> GetConnectionsAsync(RequestOptions options = null);
 
         /// <summary>
+        ///     Gets a global application command.
+        /// </summary>
+        /// <param name="id">The id of the command.</param>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///     A task that represents the asynchronous get operation. The task result contains the application command if found, otherwise
+        ///     <see langword="null"/>.
+        /// </returns>
+        Task<IApplicationCommand> GetGlobalApplicationCommandAsync(ulong id, RequestOptions options = null);
+
+        /// <summary>
+        ///     Gets a collection of all global commands.
+        /// </summary>
+        /// <param name="withLocalizations">Whether to include full localization dictionaries in the returned objects, instead of the name localized and description localized fields.</param>
+        /// <param name="locale">The target locale of the localized name and description fields. Sets <c>X-Discord-Locale</c> header, which takes precedence over <c>Accept-Language</c>.</param>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///     A task that represents the asynchronous get operation. The task result contains a read-only collection of global
+        ///     application commands.
+        /// </returns>
+        Task<IReadOnlyCollection<IApplicationCommand>> GetGlobalApplicationCommandsAsync(bool withLocalizations = false, string locale = null, RequestOptions options = null);
+
+        /// <summary>
+        ///     Creates a global application command.
+        /// </summary>
+        /// <param name="properties">The properties to use when creating the command.</param>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///      A task that represents the asynchronous creation operation. The task result contains the created application command.
+        /// </returns>
+        Task<IApplicationCommand> CreateGlobalApplicationCommand(ApplicationCommandProperties properties, RequestOptions options = null);
+
+        /// <summary>
+        ///     Bulk overwrites all global application commands.
+        /// </summary>
+        /// <param name="properties">A collection of properties to use when creating the commands.</param>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///     A task that represents the asynchronous creation operation. The task result contains a collection of application commands that were created.
+        /// </returns>
+        Task<IReadOnlyCollection<IApplicationCommand>> BulkOverwriteGlobalApplicationCommand(ApplicationCommandProperties[] properties, RequestOptions options = null);
+
+        /// <summary>
         ///     Gets a guild.
         /// </summary>
         /// <param name="id">The guild snowflake identifier.</param>
@@ -270,9 +313,19 @@ namespace Discord
         /// </summary>
         /// <param name="options">The options to be used when sending the request.</param>
         /// <returns>
-        ///     A task that represents the asynchronous get operation. The task result contains an <see cref="Int32"/>
+        ///     A task that represents the asynchronous get operation. The task result contains an <see cref="int"/>
         ///     that represents the number of shards that should be used with this account.
         /// </returns>
         Task<int> GetRecommendedShardCountAsync(RequestOptions options = null);
+
+        /// <summary>
+        ///     Gets the gateway information related to the bot.
+        /// </summary>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///     A task that represents the asynchronous get operation. The task result contains a <see cref="BotGateway"/>
+        ///     that represents the gateway information related to the bot.
+        /// </returns>
+        Task<BotGateway> GetBotGatewayAsync(RequestOptions options = null);
     }
 }

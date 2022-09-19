@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Net;
 
 namespace Discord.Net
@@ -13,7 +15,7 @@ namespace Discord.Net
         /// </summary>
         /// <returns>
         ///     An 
-        ///     <see href="https://discordapp.com/developers/docs/topics/opcodes-and-status-codes#http">HTTP status code</see>
+        ///     <see href="https://discord.com/developers/docs/topics/opcodes-and-status-codes#http">HTTP status code</see>
         ///     from Discord.
         /// </returns>
         public HttpStatusCode HttpCode { get; }
@@ -22,10 +24,10 @@ namespace Discord.Net
         /// </summary>
         /// <returns>
         ///     A 
-        ///     <see href="https://discordapp.com/developers/docs/topics/opcodes-and-status-codes#json">JSON error code</see>
+        ///     <see href="https://discord.com/developers/docs/topics/opcodes-and-status-codes#json">JSON error code</see>
         ///     from Discord, or <c>null</c> if none.
         /// </returns>
-        public int? DiscordCode { get; }
+        public DiscordErrorCode? DiscordCode { get; }
         /// <summary>
         ///     Gets the reason of the exception.
         /// </summary>
@@ -34,6 +36,10 @@ namespace Discord.Net
         ///     Gets the request object used to send the request.
         /// </summary>
         public IRequest Request { get; }
+        /// <summary>
+        ///     Gets a collection of json errors describing what went wrong with the request.
+        /// </summary>
+        public IReadOnlyCollection<DiscordJsonError> Errors { get; }
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="HttpException" /> class.
@@ -42,17 +48,18 @@ namespace Discord.Net
         /// <param name="request">The request that was sent prior to the exception.</param>
         /// <param name="discordCode">The Discord status code returned.</param>
         /// <param name="reason">The reason behind the exception.</param>
-        public HttpException(HttpStatusCode httpCode, IRequest request, int? discordCode = null, string reason = null)
-            : base(CreateMessage(httpCode, discordCode, reason))
+        public HttpException(HttpStatusCode httpCode, IRequest request, DiscordErrorCode? discordCode = null, string reason = null, DiscordJsonError[] errors = null)
+            : base(CreateMessage(httpCode, (int?)discordCode, reason, errors))
         {
             HttpCode = httpCode;
             Request = request;
             DiscordCode = discordCode;
             Reason = reason;
+            Errors = errors?.ToImmutableArray() ?? ImmutableArray<DiscordJsonError>.Empty;
         }
 
-        private static string CreateMessage(HttpStatusCode httpCode, int? discordCode = null, string reason = null)
-        {   
+        private static string CreateMessage(HttpStatusCode httpCode, int? discordCode = null, string reason = null, DiscordJsonError[] errors = null)
+        {
             string msg;
             if (discordCode != null && discordCode != 0)
             {
@@ -68,6 +75,16 @@ namespace Discord.Net
                 else
                     msg = $"The server responded with error {(int)httpCode}: {httpCode}";
             }
+
+            if (errors?.Length > 0)
+            {
+                msg += "\nInner Errors:";
+                foreach (var error in errors)
+                    if (error.Errors?.Count > 0)
+                        foreach (var innerError in error.Errors)
+                            msg += $"\n{innerError.Code}: {innerError.Message}";
+            }
+
             return msg;
         }
     }

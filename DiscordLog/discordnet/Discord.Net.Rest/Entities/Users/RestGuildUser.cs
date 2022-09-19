@@ -14,12 +14,19 @@ namespace Discord.Rest
     [DebuggerDisplay(@"{DebuggerDisplay,nq}")]
     public class RestGuildUser : RestUser, IGuildUser
     {
+        #region RestGuildUser
         private long? _premiumSinceTicks;
+        private long? _timedOutTicks;
         private long? _joinedAtTicks;
         private ImmutableArray<ulong> _roleIds;
-
+        /// <inheritdoc />
+        public string DisplayName => Nickname ?? Username;
         /// <inheritdoc />
         public string Nickname { get; private set; }
+        /// <inheritdoc/>
+        public string DisplayAvatarId => GuildAvatarId ?? AvatarId;
+        /// <inheritdoc/>
+        public string GuildAvatarId { get; private set; }
         internal IGuild Guild { get; private set; }
         /// <inheritdoc />
         public bool IsDeafened { get; private set; }
@@ -28,7 +35,33 @@ namespace Discord.Rest
         /// <inheritdoc />
         public DateTimeOffset? PremiumSince => DateTimeUtils.FromTicks(_premiumSinceTicks);
         /// <inheritdoc />
-        public ulong GuildId => Guild.Id;
+        public ulong GuildId { get; }
+        /// <inheritdoc />
+        public bool? IsPending { get; private set; }
+        /// <inheritdoc />
+        public int Hierarchy
+        {
+            get
+            {
+                if (Guild.OwnerId == Id)
+                    return int.MaxValue;
+
+                var orderedRoles = Guild.Roles.OrderByDescending(x => x.Position);
+                return orderedRoles.Where(x => RoleIds.Contains(x.Id)).Max(x => x.Position);
+            }
+        }
+
+        /// <inheritdoc />
+        public DateTimeOffset? TimedOutUntil
+        {
+            get
+            {
+                if (!_timedOutTicks.HasValue || _timedOutTicks.Value < 0)
+                    return null;
+                else
+                    return DateTimeUtils.FromTicks(_timedOutTicks);
+            }
+        }
 
         /// <inheritdoc />
         /// <exception cref="InvalidOperationException" accessor="get">Resolving permissions requires the parent guild to be downloaded.</exception>
@@ -47,14 +80,16 @@ namespace Discord.Rest
         /// <inheritdoc />
         public DateTimeOffset? JoinedAt => DateTimeUtils.FromTicks(_joinedAtTicks);
 
-        internal RestGuildUser(BaseDiscordClient discord, IGuild guild, ulong id)
+        internal RestGuildUser(BaseDiscordClient discord, IGuild guild, ulong id, ulong? guildId = null)
             : base(discord, id)
         {
-            Guild = guild;
+            if (guild is not null)
+                Guild = guild;
+            GuildId = guildId ?? Guild.Id;
         }
-        internal static RestGuildUser Create(BaseDiscordClient discord, IGuild guild, Model model)
+        internal static RestGuildUser Create(BaseDiscordClient discord, IGuild guild, Model model, ulong? guildId = null)
         {
-            var entity = new RestGuildUser(discord, guild, model.User.Id);
+            var entity = new RestGuildUser(discord, guild, model.User.Id, guildId);
             entity.Update(model);
             return entity;
         }
@@ -65,6 +100,8 @@ namespace Discord.Rest
                 _joinedAtTicks = model.JoinedAt.Value.UtcTicks;
             if (model.Nick.IsSpecified)
                 Nickname = model.Nick.Value;
+            if (model.Avatar.IsSpecified)
+                GuildAvatarId = model.Avatar.Value;
             if (model.Deaf.IsSpecified)
                 IsDeafened = model.Deaf.Value;
             if (model.Mute.IsSpecified)
@@ -73,11 +110,15 @@ namespace Discord.Rest
                 UpdateRoles(model.Roles.Value);
             if (model.PremiumSince.IsSpecified)
                 _premiumSinceTicks = model.PremiumSince.Value?.UtcTicks;
+            if (model.TimedOutUntil.IsSpecified)
+                _timedOutTicks = model.TimedOutUntil.Value?.UtcTicks;
+            if (model.Pending.IsSpecified)
+                IsPending = model.Pending.Value;
         }
         private void UpdateRoles(ulong[] roleIds)
         {
             var roles = ImmutableArray.CreateBuilder<ulong>(roleIds.Length + 1);
-            roles.Add(Guild.Id);
+            roles.Add(GuildId);
             for (int i = 0; i < roleIds.Length; i++)
                 roles.Add(roleIds[i]);
             _roleIds = roles.ToImmutable();
@@ -108,17 +149,35 @@ namespace Discord.Rest
         public Task KickAsync(string reason = null, RequestOptions options = null)
             => UserHelper.KickAsync(this, Discord, reason, options);
         /// <inheritdoc />
+        public Task AddRoleAsync(ulong roleId, RequestOptions options = null)
+            => AddRolesAsync(new[] { roleId }, options);
+        /// <inheritdoc />
         public Task AddRoleAsync(IRole role, RequestOptions options = null)
-            => AddRolesAsync(new[] { role }, options);
+            => AddRoleAsync(role.Id, options);
+        /// <inheritdoc />
+        public Task AddRolesAsync(IEnumerable<ulong> roleIds, RequestOptions options = null)
+            => UserHelper.AddRolesAsync(this, Discord, roleIds, options);
         /// <inheritdoc />
         public Task AddRolesAsync(IEnumerable<IRole> roles, RequestOptions options = null)
-            => UserHelper.AddRolesAsync(this, Discord, roles, options);
+            => AddRolesAsync(roles.Select(x => x.Id), options);
+        /// <inheritdoc />
+        public Task RemoveRoleAsync(ulong roleId, RequestOptions options = null)
+            => RemoveRolesAsync(new[] { roleId }, options);
         /// <inheritdoc />
         public Task RemoveRoleAsync(IRole role, RequestOptions options = null)
-            => RemoveRolesAsync(new[] { role }, options);
+            => RemoveRoleAsync(role.Id, options);
+        /// <inheritdoc />
+        public Task RemoveRolesAsync(IEnumerable<ulong> roleIds, RequestOptions options = null)
+            => UserHelper.RemoveRolesAsync(this, Discord, roleIds, options);
         /// <inheritdoc />
         public Task RemoveRolesAsync(IEnumerable<IRole> roles, RequestOptions options = null)
-            => UserHelper.RemoveRolesAsync(this, Discord, roles, options);
+            => RemoveRolesAsync(roles.Select(x => x.Id));
+        /// <inheritdoc />
+        public Task SetTimeOutAsync(TimeSpan span, RequestOptions options = null)
+            => UserHelper.SetTimeoutAsync(this, Discord, span, options);
+        /// <inheritdoc />
+        public Task RemoveTimeOutAsync(RequestOptions options = null)
+            => UserHelper.RemoveTimeOutAsync(this, Discord, options);
 
         /// <inheritdoc />
         /// <exception cref="InvalidOperationException">Resolving permissions requires the parent guild to be downloaded.</exception>
@@ -128,7 +187,18 @@ namespace Discord.Rest
             return new ChannelPermissions(Permissions.ResolveChannel(Guild, this, channel, guildPerms.RawValue));
         }
 
-        //IGuildUser
+        /// <inheritdoc />
+        public string GetDisplayAvatarUrl(ImageFormat format = ImageFormat.Auto, ushort size = 128)
+            => GuildAvatarId is not null
+                ? GetGuildAvatarUrl(format, size)
+                : GetAvatarUrl(format, size);
+
+        /// <inheritdoc />
+        public string GetGuildAvatarUrl(ImageFormat format = ImageFormat.Auto, ushort size = 128)
+            => CDN.GetGuildUserAvatarUrl(Id, GuildId, GuildAvatarId, size, format);
+#endregion
+
+        #region IGuildUser
         /// <inheritdoc />
         IGuild IGuildUser.Guild
         {
@@ -139,8 +209,9 @@ namespace Discord.Rest
                 throw new InvalidOperationException("Unable to return this entity's parent unless it was fetched through that object.");
             }
         }
+        #endregion
 
-        //IVoiceState
+        #region IVoiceState
         /// <inheritdoc />
         bool IVoiceState.IsSelfDeafened => false;
         /// <inheritdoc />
@@ -153,5 +224,10 @@ namespace Discord.Rest
         string IVoiceState.VoiceSessionId => null;
         /// <inheritdoc />
         bool IVoiceState.IsStreaming => false;
+        /// <inheritdoc />
+        bool IVoiceState.IsVideoing => false;
+        /// <inheritdoc />
+        DateTimeOffset? IVoiceState.RequestToSpeakTimestamp => null;
+        #endregion
     }
 }

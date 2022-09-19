@@ -8,9 +8,12 @@ namespace Discord.API
         public Optional<ulong> MessageId { get; set; }
 
         [JsonProperty("channel_id")]
-        public ulong ChannelId { get; set; }
+        public Optional<ulong> ChannelId { get; set; } // Optional when sending, always present when receiving
 
         [JsonProperty("guild_id")]
         public Optional<ulong> GuildId { get; set; }
+
+        [JsonProperty("fail_if_not_exists")]
+        public Optional<bool> FailIfNotExists { get; set; }
     }
 }

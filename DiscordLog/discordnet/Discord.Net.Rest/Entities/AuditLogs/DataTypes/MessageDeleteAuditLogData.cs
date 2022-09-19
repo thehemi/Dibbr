@@ -1,5 +1,8 @@
+using System.Linq;
+
 using Model = Discord.API.AuditLog;
 using EntryModel = Discord.API.AuditLogEntry;
+using System;
 
 namespace Discord.Rest
 {
@@ -8,16 +11,17 @@ namespace Discord.Rest
     /// </summary>
     public class MessageDeleteAuditLogData : IAuditLogData
     {
-        private MessageDeleteAuditLogData(ulong channelId, int count, ulong authorId)
+        private MessageDeleteAuditLogData(ulong channelId, int count, IUser user)
         {
             ChannelId = channelId;
             MessageCount = count;
-            AuthorId = authorId;
+            Target = user;
         }
 
         internal static MessageDeleteAuditLogData Create(BaseDiscordClient discord, Model log, EntryModel entry)
         {
-            return new MessageDeleteAuditLogData(entry.Options.MessageDeleteChannelId.Value, entry.Options.MessageDeleteCount.Value, entry.TargetId.Value);
+            var userInfo = log.Users.FirstOrDefault(x => x.Id == entry.TargetId);
+            return new MessageDeleteAuditLogData(entry.Options.ChannelId.Value, entry.Options.Count.Value, userInfo != null ? RestUser.Create(discord, userInfo) : null);
         }
 
         /// <summary>
@@ -36,11 +40,14 @@ namespace Discord.Rest
         /// </returns>
         public ulong ChannelId { get; }
         /// <summary>
-        ///     Gets the author of the messages that were deleted.
+        ///     Gets the user of the messages that were deleted.
         /// </summary>
+        /// <remarks>
+        ///     Will be <see langword="null"/> if the user is a 'Deleted User#....' because Discord does send user data for deleted users.
+        /// </remarks>
         /// <returns>
-        ///     A <see cref="ulong"/> representing the snowflake identifier for the user that created the deleted messages.
+        ///     A user object representing the user that created the deleted messages.
         /// </returns>
-        public ulong AuthorId { get; }
+        public IUser Target { get; }
     }
 }

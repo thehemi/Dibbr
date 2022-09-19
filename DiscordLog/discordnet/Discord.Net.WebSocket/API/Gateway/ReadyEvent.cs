@@ -1,4 +1,3 @@
-﻿#pragma warning disable CS1591
 using Newtonsoft.Json;
 
 namespace Discord.API.Gateway
@@ -21,6 +20,8 @@ namespace Discord.API.Gateway
         public User User { get; set; }
         [JsonProperty("session_id")]
         public string SessionId { get; set; }
+        [JsonProperty("resume_gateway_url")]
+        public string ResumeGatewayUrl { get; set; }
         [JsonProperty("read_state")]
         public ReadState[] ReadStates { get; set; }
         [JsonProperty("guilds")]
@@ -29,6 +30,8 @@ namespace Discord.API.Gateway
         public Channel[] PrivateChannels { get; set; }
         [JsonProperty("relationships")]
         public Relationship[] Relationships { get; set; }
+        [JsonProperty("application")]
+        public PartialApplication Application { get; set; }
 
         //Ignored
         /*[JsonProperty("user_settings")]

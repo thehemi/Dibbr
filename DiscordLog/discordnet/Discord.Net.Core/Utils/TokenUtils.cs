@@ -157,6 +157,8 @@ namespace Discord
 
             switch (tokenType)
             {
+                case TokenType.User:
+                    break;
                 case TokenType.Webhook:
                     // no validation is performed on Webhook tokens
                     break;
@@ -175,7 +177,7 @@ namespace Discord
                         throw new ArgumentException(message: "The Bot token was invalid. " +
                             "Ensure that the Bot Token provided is not an OAuth client secret.", paramName: nameof(token));
                     break;
-                default:break;
+                default:
                     // All unrecognized TokenTypes (including User tokens) are considered to be invalid.
                     throw new ArgumentException(message: "Unrecognized TokenType.", paramName: nameof(token));
             }

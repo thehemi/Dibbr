@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -11,6 +12,7 @@ namespace Discord.WebSocket
     /// </summary>
     public abstract partial class BaseSocketClient : BaseDiscordClient, IDiscordClient
     {
+        #region BaseSocketClient
         protected readonly DiscordSocketConfig BaseConfig;
 
         /// <summary>
@@ -44,9 +46,13 @@ namespace Discord.WebSocket
         internal new DiscordSocketApiClient ApiClient => base.ApiClient as DiscordSocketApiClient;
 
         /// <summary>
+        ///     Gets a collection of default stickers.
+        /// </summary>
+        public abstract IReadOnlyCollection<StickerPack<SocketSticker>> DefaultStickerPacks { get; }
+        /// <summary>
         ///     Gets the current logged-in user.
         /// </summary>
-        public new SocketSelfUser CurrentUser { get => base.CurrentUser as SocketSelfUser; protected set => base.CurrentUser = value; }
+        public virtual new SocketSelfUser CurrentUser { get => base.CurrentUser as SocketSelfUser; protected set => base.CurrentUser = value; }
         /// <summary>
         ///     Gets a collection of guilds that the user is currently in.
         /// </summary>
@@ -69,20 +75,12 @@ namespace Discord.WebSocket
         ///     A read-only collection of private channels that the user currently partakes in.
         /// </returns>
         public abstract IReadOnlyCollection<ISocketPrivateChannel> PrivateChannels { get; }
-        /// <summary>
-        ///     Gets a collection of available voice regions.
-        /// </summary>
-        /// <returns>
-        ///     A read-only collection of voice regions that the user has access to.
-        /// </returns>
-        public abstract IReadOnlyCollection<RestVoiceRegion> VoiceRegions { get; }
 
         internal BaseSocketClient(DiscordSocketConfig config, DiscordRestApiClient client)
             : base(config, client) => BaseConfig = config;
         private static DiscordSocketApiClient CreateApiClient(DiscordSocketConfig config)
-            => new DiscordSocketApiClient(config.RestClientProvider, config.WebSocketProvider, DiscordRestConfig.UserAgent,
-                rateLimitPrecision: config.RateLimitPrecision,
-				useSystemClock: config.UseSystemClock);
+            => new DiscordSocketApiClient(config.RestClientProvider, config.WebSocketProvider, DiscordRestConfig.UserAgent, config.GatewayHost,
+                useSystemClock: config.UseSystemClock, defaultRatelimitCallback: config.DefaultRatelimitCallback);
 
         /// <summary>
         ///     Gets a Discord application information for the logged-in user.
@@ -162,14 +160,23 @@ namespace Discord.WebSocket
         /// </returns>
         public abstract SocketGuild GetGuild(ulong id);
         /// <summary>
+        ///     Gets all voice regions.
+        /// </summary>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///     A task that contains a read-only collection of REST-based voice regions.
+        /// </returns>
+        public abstract ValueTask<IReadOnlyCollection<RestVoiceRegion>> GetVoiceRegionsAsync(RequestOptions options = null);
+        /// <summary>
         ///     Gets a voice region.
         /// </summary>
         /// <param name="id">The identifier of the voice region (e.g. <c>eu-central</c> ).</param>
+        /// <param name="options">The options to be used when sending the request.</param>
         /// <returns>
-        ///     A REST-based voice region associated with the identifier; <c>null</c> if the voice region is not
-        ///     found.
+        ///     A task that contains a REST-based voice region associated with the identifier; <c>null</c> if the
+        ///     voice region is not found.
         /// </returns>
-        public abstract RestVoiceRegion GetVoiceRegion(string id);
+        public abstract ValueTask<RestVoiceRegion> GetVoiceRegionAsync(string id, RequestOptions options = null);
         /// <inheritdoc />
         public abstract Task StartAsync();
         /// <inheritdoc />
@@ -188,6 +195,12 @@ namespace Discord.WebSocket
         /// <param name="name">The name of the game.</param>
         /// <param name="streamUrl">If streaming, the URL of the stream. Must be a valid Twitch URL.</param>
         /// <param name="type">The type of the game.</param>
+        /// <remarks>
+        ///     <note type="warning">
+        ///         Bot accounts cannot set <see cref="ActivityType.CustomStatus"/> as their activity
+        ///         type and it will have no effect.
+        ///     </note>
+        /// </remarks>
         /// <returns>
         ///     A task that represents the asynchronous set operation.
         /// </returns>
@@ -196,13 +209,17 @@ namespace Discord.WebSocket
         ///     Sets the <paramref name="activity"/> of the logged-in user.
         /// </summary>
         /// <remarks>
-        ///     This method sets the <paramref name="activity"/> of the user. 
+        ///     This method sets the <paramref name="activity"/> of the user.
         ///     <note type="note">
         ///         Discord will only accept setting of name and the type of activity.
         ///     </note>
         ///     <note type="warning">
+        ///         Bot accounts cannot set <see cref="ActivityType.CustomStatus"/> as their activity
+        ///         type and it will have no effect.
+        ///     </note>
+        ///     <note type="warning">
         ///         Rich Presence cannot be set via this method or client. Rich Presence is strictly limited to RPC
-        ///         clients only. 
+        ///         clients only.
         ///     </note>
         /// </remarks>
         /// <param name="activity">The activity to be set.</param>
@@ -223,7 +240,7 @@ namespace Discord.WebSocket
         ///     Creates a guild for the logged-in user who is in less than 10 active guilds.
         /// </summary>
         /// <remarks>
-        ///     This method creates a new guild on behalf of the logged-in user. 
+        ///     This method creates a new guild on behalf of the logged-in user.
         ///     <note type="warning">
         ///         Due to Discord's limitation, this method will only work for users that are in less than 10 guilds.
         ///     </note>
@@ -256,8 +273,19 @@ namespace Discord.WebSocket
         /// </returns>
         public Task<RestInviteMetadata> GetInviteAsync(string inviteId, RequestOptions options = null)
             => ClientHelper.GetInviteAsync(this, inviteId, options ?? RequestOptions.Default);
-        
-        // IDiscordClient
+        /// <summary>
+        ///     Gets a sticker.
+        /// </summary>
+        /// <param name="mode">Whether or not to allow downloading from the api.</param>
+        /// <param name="id">The id of the sticker to get.</param>
+        /// <param name="options">The options to be used when sending the request.</param>
+        /// <returns>
+        ///     A <see cref="SocketSticker"/> if found, otherwise <see langword="null"/>.
+        /// </returns>
+        public abstract Task<SocketSticker> GetStickerAsync(ulong id, CacheMode mode = CacheMode.AllowDownload, RequestOptions options = null);
+#endregion
+
+        #region IDiscordClient
         /// <inheritdoc />
         async Task<IApplication> IDiscordClient.GetApplicationInfoAsync(RequestOptions options)
             => await GetApplicationInfoAsync(options).ConfigureAwait(false);
@@ -289,17 +317,29 @@ namespace Discord.WebSocket
             => await CreateGuildAsync(name, region, jpegIcon, options).ConfigureAwait(false);
 
         /// <inheritdoc />
-        Task<IUser> IDiscordClient.GetUserAsync(ulong id, CacheMode mode, RequestOptions options)
-            => Task.FromResult<IUser>(GetUser(id));
+        async Task<IUser> IDiscordClient.GetUserAsync(ulong id, CacheMode mode, RequestOptions options)
+        {
+            var user = GetUser(id);
+            if (user is not null || mode == CacheMode.CacheOnly)
+                return user;
+
+            return await Rest.GetUserAsync(id, options).ConfigureAwait(false);
+        }
+
         /// <inheritdoc />
         Task<IUser> IDiscordClient.GetUserAsync(string username, string discriminator, RequestOptions options)
             => Task.FromResult<IUser>(GetUser(username, discriminator));
 
         /// <inheritdoc />
-        Task<IVoiceRegion> IDiscordClient.GetVoiceRegionAsync(string id, RequestOptions options)
-            => Task.FromResult<IVoiceRegion>(GetVoiceRegion(id));
+        async Task<IVoiceRegion> IDiscordClient.GetVoiceRegionAsync(string id, RequestOptions options)
+        {
+            return await GetVoiceRegionAsync(id).ConfigureAwait(false);
+        }
         /// <inheritdoc />
-        Task<IReadOnlyCollection<IVoiceRegion>> IDiscordClient.GetVoiceRegionsAsync(RequestOptions options)
-            => Task.FromResult<IReadOnlyCollection<IVoiceRegion>>(VoiceRegions);
+        async Task<IReadOnlyCollection<IVoiceRegion>> IDiscordClient.GetVoiceRegionsAsync(RequestOptions options)
+        {
+            return await GetVoiceRegionsAsync().ConfigureAwait(false);
+        }
+        #endregion
     }
 }

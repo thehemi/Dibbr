@@ -29,6 +29,7 @@ namespace Discord.Commands
     /// </remarks>
     public class CommandService : IDisposable
     {
+        #region CommandService
         /// <summary>
         ///     Occurs when a command-related information is received.
         /// </summary>
@@ -36,7 +37,7 @@ namespace Discord.Commands
         internal readonly AsyncEvent<Func<LogMessage, Task>> _logEvent = new AsyncEvent<Func<LogMessage, Task>>();
 
         /// <summary>
-        ///     Occurs when a command is successfully executed without any error.
+        ///     Occurs when a command is executed.
         /// </summary>
         /// <remarks>
         ///     This event is fired when a command has been executed, successfully or not. When a command fails to
@@ -131,8 +132,9 @@ namespace Discord.Commands
             entityTypeReaders.Add((typeof(IUser), typeof(UserTypeReader<>)));
             _entityTypeReaders = entityTypeReaders.ToImmutable();
         }
+        #endregion
 
-        //Modules
+        #region Modules
         public async Task<ModuleInfo> CreateModuleAsync(string primaryAlias, Action<ModuleBuilder> buildFunc)
         {
             await _moduleLock.WaitAsync().ConfigureAwait(false);
@@ -187,7 +189,7 @@ namespace Discord.Commands
         /// </returns>
         public async Task<ModuleInfo> AddModuleAsync(Type type, IServiceProvider services)
         {
-            services = services ?? EmptyServiceProvider.Instance;
+            services ??= EmptyServiceProvider.Instance;
 
             await _moduleLock.WaitAsync().ConfigureAwait(false);
             try
@@ -222,7 +224,7 @@ namespace Discord.Commands
         /// </returns>
         public async Task<IEnumerable<ModuleInfo>> AddModulesAsync(Assembly assembly, IServiceProvider services)
         {
-            services = services ?? EmptyServiceProvider.Instance;
+            services ??= EmptyServiceProvider.Instance;
 
             await _moduleLock.WaitAsync().ConfigureAwait(false);
             try
@@ -268,6 +270,11 @@ namespace Discord.Commands
             await _moduleLock.WaitAsync().ConfigureAwait(false);
             try
             {
+                var typeModulePair = _typedModuleDefs.FirstOrDefault(x => x.Value.Equals(module));
+
+                if (!typeModulePair.Equals(default(KeyValuePair<Type, ModuleInfo>)))
+                    _typedModuleDefs.TryRemove(typeModulePair.Key, out var _);
+
                 return RemoveModuleInternal(module);
             }
             finally
@@ -322,8 +329,9 @@ namespace Discord.Commands
 
             return true;
         }
+        #endregion
 
-        //Type Readers
+        #region Type Readers
         /// <summary>
         ///     Adds a custom <see cref="TypeReader" /> to this <see cref="CommandService" /> for the supplied object
         ///     type.
@@ -400,6 +408,41 @@ namespace Discord.Commands
                     AddNullableTypeReader(type, reader);
             }
         }
+
+        /// <summary>
+        ///     Removes a type reader from the list of type readers.
+        /// </summary>
+        /// <remarks>
+        ///     Removing a <see cref="TypeReader"/> from the <see cref="CommandService"/> will not dereference the <see cref="TypeReader"/> from the loaded module/command instances.
+        ///     You need to reload the modules for the changes to take effect.
+        /// </remarks>
+        /// <param name="type">The type to remove the readers from.</param>
+        /// <param name="isDefaultTypeReader"><see langword="true"/> if the default readers for <paramref name="type"/> should be removed; otherwise <see langword="false"/>.</param>
+        /// <param name="readers">The removed collection of type readers.</param>
+        /// <returns><see langword="true"/> if the remove operation was successful; otherwise <see langword="false"/>.</returns>
+        public bool TryRemoveTypeReader(Type type, bool isDefaultTypeReader, out IDictionary<Type, TypeReader> readers)
+        {
+            readers = new Dictionary<Type, TypeReader>();
+
+            if (isDefaultTypeReader)
+            {
+                var isSuccess = _defaultTypeReaders.TryRemove(type, out var result);
+                if (isSuccess)
+                    readers.Add(result?.GetType(), result);
+
+                return isSuccess;
+            }
+            else
+            {
+                var isSuccess = _typeReaders.TryRemove(type, out var result);
+
+                if (isSuccess)
+                    readers = result;
+
+                return isSuccess;
+            }
+        }
+
         internal bool HasDefaultTypeReader(Type type)
         {
             if (_defaultTypeReaders.ContainsKey(type))
@@ -408,7 +451,7 @@ namespace Discord.Commands
             var typeInfo = type.GetTypeInfo();
             if (typeInfo.IsEnum)
                 return true;
-            return _entityTypeReaders.Any(x => type == x.EntityType || typeInfo.ImplementedInterfaces.Contains(x.TypeReaderType));
+            return _entityTypeReaders.Any(x => type == x.EntityType || typeInfo.ImplementedInterfaces.Contains(x.EntityType));
         }
         internal void AddNullableTypeReader(Type valueType, TypeReader valueTypeReader)
         {
@@ -435,6 +478,13 @@ namespace Discord.Commands
                 _defaultTypeReaders[type] = reader;
                 return reader;
             }
+            var underlyingType = Nullable.GetUnderlyingType(type);
+            if (underlyingType != null && underlyingType.IsEnum)
+            {
+                reader = NullableTypeReader.Create(underlyingType, EnumTypeReader.GetReader(underlyingType));
+                _defaultTypeReaders[type] = reader;
+                return reader;
+            }
 
             //Is this an entity?
             for (int i = 0; i < _entityTypeReaders.Count; i++)
@@ -448,8 +498,9 @@ namespace Discord.Commands
             }
             return null;
         }
+        #endregion
 
-        //Execution
+        #region Execution
         /// <summary>
         ///     Searches for the command.
         /// </summary>
@@ -503,22 +554,93 @@ namespace Discord.Commands
         /// </returns>
         public async Task<IResult> ExecuteAsync(ICommandContext context, string input, IServiceProvider services, MultiMatchHandling multiMatchHandling = MultiMatchHandling.Exception)
         {
-            services = services ?? EmptyServiceProvider.Instance;
+            services ??= EmptyServiceProvider.Instance;
 
             var searchResult = Search(input);
-            if (!searchResult.IsSuccess)
-            {
-                await _commandExecutedEvent.InvokeAsync(Optional.Create<CommandInfo>(), context, searchResult).ConfigureAwait(false);
-                return searchResult;
-            }
-                
 
-            var commands = searchResult.Commands;
+            var validationResult = await ValidateAndGetBestMatch(searchResult, context, services, multiMatchHandling);
+
+            if (validationResult is SearchResult result)
+            {
+                await _commandExecutedEvent.InvokeAsync(Optional.Create<CommandInfo>(), context, result).ConfigureAwait(false);
+                return result;
+            }
+
+            if (validationResult is MatchResult matchResult)
+            {
+                return await HandleCommandPipeline(matchResult, context, services);
+            }
+
+            return validationResult;
+        }
+
+        private async Task<IResult> HandleCommandPipeline(MatchResult matchResult, ICommandContext context, IServiceProvider services)
+        {
+            if (!matchResult.IsSuccess)
+                return matchResult;
+
+            if (matchResult.Pipeline is ParseResult parseResult)
+            {
+                if (!parseResult.IsSuccess)
+                {
+                    await _commandExecutedEvent.InvokeAsync(matchResult.Match.Value.Command, context, parseResult);
+                    return parseResult;
+                }
+
+                var executeResult = await matchResult.Match.Value.ExecuteAsync(context, parseResult, services);
+
+                if (!executeResult.IsSuccess && !(executeResult is RuntimeResult || executeResult is ExecuteResult)) // succesful results raise the event in CommandInfo#ExecuteInternalAsync (have to raise it there b/c deffered execution)
+                    await _commandExecutedEvent.InvokeAsync(matchResult.Match.Value.Command, context, executeResult);
+                return executeResult;
+            }
+
+            if (matchResult.Pipeline is PreconditionResult preconditionResult)
+            {
+                await _commandExecutedEvent.InvokeAsync(matchResult.Match.Value.Command, context, preconditionResult).ConfigureAwait(false);
+                return preconditionResult;
+            }
+
+            return matchResult;
+        }
+
+        // Calculates the 'score' of a command given a parse result
+        float CalculateScore(CommandMatch match, ParseResult parseResult)
+        {
+            float argValuesScore = 0, paramValuesScore = 0;
+
+            if (match.Command.Parameters.Count > 0)
+            {
+                var argValuesSum = parseResult.ArgValues?.Sum(x => x.Values.OrderByDescending(y => y.Score).FirstOrDefault().Score) ?? 0;
+                var paramValuesSum = parseResult.ParamValues?.Sum(x => x.Values.OrderByDescending(y => y.Score).FirstOrDefault().Score) ?? 0;
+
+                argValuesScore = argValuesSum / match.Command.Parameters.Count;
+                paramValuesScore = paramValuesSum / match.Command.Parameters.Count;
+            }
+
+            var totalArgsScore = (argValuesScore + paramValuesScore) / 2;
+            return match.Command.Priority + totalArgsScore * 0.99f;
+        }
+
+        /// <summary>
+        /// Validates and gets the best <see cref="CommandMatch"/> from a specified <see cref="SearchResult"/>
+        /// </summary>
+        /// <param name="matches">The SearchResult.</param>
+        /// <param name="context">The context of the command.</param>
+        /// <param name="provider">The service provider to be used on the command's dependency injection.</param>
+        /// <param name="multiMatchHandling">The handling mode when multiple command matches are found.</param>
+        /// <returns>A task that represents the asynchronous validation operation. The task result contains the result of the
+        ///     command validation as a <see cref="MatchResult"/> or a <see cref="SearchResult"/> if no matches were found.</returns>
+        public async Task<IResult> ValidateAndGetBestMatch(SearchResult matches, ICommandContext context, IServiceProvider provider, MultiMatchHandling multiMatchHandling = MultiMatchHandling.Exception)
+        {
+            if (!matches.IsSuccess)
+                return matches;
+
+            var commands = matches.Commands;
             var preconditionResults = new Dictionary<CommandMatch, PreconditionResult>();
 
-            foreach (var match in commands)
+            foreach (var command in commands)
             {
-                preconditionResults[match] = await match.Command.CheckPreconditionsAsync(context, services).ConfigureAwait(false);
+                preconditionResults[command] = await command.CheckPreconditionsAsync(context, provider);
             }
 
             var successfulPreconditions = preconditionResults
@@ -529,19 +651,16 @@ namespace Discord.Commands
             {
                 //All preconditions failed, return the one from the highest priority command
                 var bestCandidate = preconditionResults
-                    .OrderByDescending(x => x.Key.Command.Priority)
-                    .FirstOrDefault(x => !x.Value.IsSuccess);
-
-                await _commandExecutedEvent.InvokeAsync(bestCandidate.Key.Command, context, bestCandidate.Value).ConfigureAwait(false);
-                return bestCandidate.Value;
+                   .OrderByDescending(x => x.Key.Command.Priority)
+                   .FirstOrDefault(x => !x.Value.IsSuccess);
+                return MatchResult.FromSuccess(bestCandidate.Key,bestCandidate.Value);
             }
 
-            //If we get this far, at least one precondition was successful.
+            var parseResults = new Dictionary<CommandMatch, ParseResult>();
 
-            var parseResultsDict = new Dictionary<CommandMatch, ParseResult>();
             foreach (var pair in successfulPreconditions)
             {
-                var parseResult = await pair.Key.ParseAsync(context, searchResult, pair.Value, services).ConfigureAwait(false);
+                var parseResult = await pair.Key.ParseAsync(context, matches, pair.Value, provider).ConfigureAwait(false);
 
                 if (parseResult.Error == CommandError.MultipleMatches)
                 {
@@ -556,53 +675,31 @@ namespace Discord.Commands
                     }
                 }
 
-                parseResultsDict[pair.Key] = parseResult;
+                parseResults[pair.Key] = parseResult;
             }
 
-            // Calculates the 'score' of a command given a parse result
-            float CalculateScore(CommandMatch match, ParseResult parseResult)
-            {
-                float argValuesScore = 0, paramValuesScore = 0;
+            var weightedParseResults = parseResults
+               .OrderByDescending(x => CalculateScore(x.Key, x.Value));
 
-                if (match.Command.Parameters.Count > 0)
-                {
-                    var argValuesSum = parseResult.ArgValues?.Sum(x => x.Values.OrderByDescending(y => y.Score).FirstOrDefault().Score) ?? 0;
-                    var paramValuesSum = parseResult.ParamValues?.Sum(x => x.Values.OrderByDescending(y => y.Score).FirstOrDefault().Score) ?? 0;
-
-                    argValuesScore = argValuesSum / match.Command.Parameters.Count;
-                    paramValuesScore = paramValuesSum / match.Command.Parameters.Count;
-                }
-
-                var totalArgsScore = (argValuesScore + paramValuesScore) / 2;
-                return match.Command.Priority + totalArgsScore * 0.99f;
-            }
-
-            //Order the parse results by their score so that we choose the most likely result to execute
-            var parseResults = parseResultsDict
-                .OrderByDescending(x => CalculateScore(x.Key, x.Value));
-
-            var successfulParses = parseResults
+            var successfulParses = weightedParseResults
                 .Where(x => x.Value.IsSuccess)
                 .ToArray();
 
-            if (successfulParses.Length == 0)
+            if(successfulParses.Length == 0)
             {
-                //All parses failed, return the one from the highest priority command, using score as a tie breaker
                 var bestMatch = parseResults
                     .FirstOrDefault(x => !x.Value.IsSuccess);
 
-                await _commandExecutedEvent.InvokeAsync(bestMatch.Key.Command, context, bestMatch.Value).ConfigureAwait(false);
-                return bestMatch.Value;
+                return MatchResult.FromSuccess(bestMatch.Key, bestMatch.Value);
             }
 
-            //If we get this far, at least one parse was successful. Execute the most likely overload.
             var chosenOverload = successfulParses[0];
-            var result = await chosenOverload.Key.ExecuteAsync(context, chosenOverload.Value, services).ConfigureAwait(false);
-            if (!result.IsSuccess && !(result is RuntimeResult || result is ExecuteResult)) // succesful results raise the event in CommandInfo#ExecuteInternalAsync (have to raise it there b/c deffered execution)
-                await _commandExecutedEvent.InvokeAsync(chosenOverload.Key.Command, context, result);
-            return result;
-        }
 
+            return MatchResult.FromSuccess(chosenOverload.Key, chosenOverload.Value);
+        }
+        #endregion
+
+        #region Dispose
         protected virtual void Dispose(bool disposing)
         {
             if (!_isDisposed)
@@ -620,5 +717,6 @@ namespace Discord.Commands
         {
             Dispose(true);
         }
+        #endregion
     }
 }

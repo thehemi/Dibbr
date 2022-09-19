@@ -458,8 +458,8 @@ public class Mention
 
 public class MessageReference
 {
-    public string ChannelId { get; set; }
-    public string GuildId { get; set; }
+   // public string ChannelId { get; set; }
+  //  public string GuildId { get; set; }
     public string MessageId { get; set; }
 }
 

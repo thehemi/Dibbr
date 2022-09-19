@@ -15,7 +15,7 @@ namespace Discord.WebSocket
     ///     </note>
     /// </remarks>
     [DebuggerDisplay(@"{DebuggerDisplay,nq}")]
-    public class SocketNewsChannel : SocketTextChannel
+    public class SocketNewsChannel : SocketTextChannel, INewsChannel
     {
         internal SocketNewsChannel(DiscordSocketClient discord, ulong id, SocketGuild guild)
             :base(discord, id, guild)
@@ -23,7 +23,7 @@ namespace Discord.WebSocket
         }
         internal new static SocketNewsChannel Create(SocketGuild guild, ClientState state, Model model)
         {
-            var entity = new SocketNewsChannel(guild.Discord, model.Id, guild);
+            var entity = new SocketNewsChannel(guild?.Discord, model.Id, guild);
             entity.Update(state, model);
             return entity;
         }
@@ -35,5 +35,6 @@ namespace Discord.WebSocket
         /// </remarks>
         public override int SlowModeInterval
             => throw new NotSupportedException("News channels do not support Slow Mode.");
+
     }
 }

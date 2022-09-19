@@ -55,5 +55,20 @@ namespace Discord
         ///     The width of this attachment if it is a picture; otherwise <c>null</c>.
         /// </returns>
         int? Width { get; }
+        /// <summary>
+        ///     Gets whether or not this attachment is ephemeral.
+        /// </summary>
+        /// <returns>
+        ///     <see langword="true"/> if the attachment is ephemeral; otherwise <see langword="false"/>.
+        /// </returns>
+        bool Ephemeral { get; }
+        /// <summary>
+        ///     Gets the description of the attachment; or <see langword="null"/> if there is none set.
+        /// </summary>
+        string Description { get; }
+        /// <summary>
+        ///     Gets the media's <see href="https://en.wikipedia.org/wiki/Media_type">MIME type</see> if present; otherwise <see langword="null"/>.
+        /// </summary>
+        string ContentType { get; }
     }
 }

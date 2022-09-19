@@ -19,17 +19,17 @@ namespace Discord.WebSocket
         public override ushort DiscriminatorValue { get; internal set; }
         /// <inheritdoc />
         public override string AvatarId { get; internal set; }
+
         /// <inheritdoc />
         public override bool IsBot { get; internal set; }
-        
+
         /// <inheritdoc />
         public override bool IsWebhook => false;
         /// <inheritdoc />
         internal override SocketPresence Presence { get { return new SocketPresence(UserStatus.Offline, null, null); } set { } }
         /// <inheritdoc />
         /// <exception cref="NotSupportedException">This field is not supported for an unknown user.</exception>
-        internal override SocketGlobalUser GlobalUser =>
-            throw new NotSupportedException();
+        internal override SocketGlobalUser GlobalUser { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
         internal SocketUnknownUser(DiscordSocketClient discord, ulong id)
             : base(discord, id)

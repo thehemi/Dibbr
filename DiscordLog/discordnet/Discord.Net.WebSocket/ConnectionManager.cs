@@ -44,6 +44,8 @@ namespace Discord
                     var ex2 = ex as WebSocketClosedException;
                     if (ex2?.CloseCode == 4006)
                         CriticalError(new Exception("WebSocket session expired", ex));
+                    else if (ex2?.CloseCode == 4014)
+                        CriticalError(new Exception("WebSocket connection was closed", ex));
                     else
                         Error(new Exception("WebSocket connection was closed", ex));
                 }
@@ -55,6 +57,9 @@ namespace Discord
 
         public virtual async Task StartAsync()
         {
+            if (State != ConnectionState.Disconnected)
+                throw new InvalidOperationException("Cannot start an already running client.");
+
             await AcquireConnectionLock().ConfigureAwait(false);
             var reconnectCancelToken = new CancellationTokenSource();
             _reconnectCancelToken?.Dispose();
@@ -75,6 +80,9 @@ namespace Discord
                         }
                         catch (OperationCanceledException ex)
                         {
+                            // Added back for log out / stop to client. The connection promise would cancel and it would be logged as an error, shouldn't be the case.
+                            // ref #2026
+
                             Cancel(); //In case this exception didn't come from another Error call
                             await DisconnectAsync(ex, !reconnectCancelToken.IsCancellationRequested).ConfigureAwait(false);
                         }

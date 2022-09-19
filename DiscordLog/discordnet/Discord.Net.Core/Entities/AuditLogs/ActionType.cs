@@ -61,6 +61,18 @@ namespace Discord
         ///     A guild member's role collection was updated.
         /// </summary>
         MemberRoleUpdated = 25,
+        /// <summary>
+        ///     A guild member moved to a voice channel.
+        /// </summary>
+        MemberMoved = 26,
+        /// <summary>
+        ///     A guild member disconnected from a voice channel.
+        /// </summary>
+        MemberDisconnected = 27,
+        /// <summary>
+        ///     A bot was added to this guild.
+        /// </summary>
+        BotAdded = 28,
 
         /// <summary>
         ///     A role was created in this guild.
@@ -117,6 +129,82 @@ namespace Discord
         /// <summary>
         ///     A message was deleted from this guild.
         /// </summary>
-        MessageDeleted = 72
+        MessageDeleted = 72,
+        /// <summary>
+        ///     Multiple messages were deleted from this guild.
+        /// </summary>
+        MessageBulkDeleted = 73,
+        /// <summary>
+        ///     A message was pinned from this guild.
+        /// </summary>
+        MessagePinned = 74,
+        /// <summary>
+        ///     A message was unpinned from this guild.
+        /// </summary>
+        MessageUnpinned = 75,
+
+        /// <summary>
+        ///     A integration was created
+        /// </summary>
+        IntegrationCreated = 80,
+        /// <summary>
+        ///     A integration was updated
+        /// </summary>
+        IntegrationUpdated = 81,
+        /// <summary>
+        /// An integration was deleted
+        /// </summary>
+        IntegrationDeleted = 82,
+        /// <summary>
+        ///     A stage instance was created.
+        /// </summary>
+        StageInstanceCreated = 83,
+        /// <summary>
+        ///     A stage instance was updated.
+        /// </summary>
+        StageInstanceUpdated = 84,
+        /// <summary>
+        ///     A stage instance was deleted.
+        /// </summary>
+        StageInstanceDeleted = 85,
+
+        /// <summary>
+        ///     A sticker was created.
+        /// </summary>
+        StickerCreated = 90,
+        /// <summary>
+        ///     A sticker was updated.
+        /// </summary>
+        StickerUpdated = 91,
+        /// <summary>
+        ///     A sticker was deleted.
+        /// </summary>
+        StickerDeleted = 92,
+
+        /// <summary>
+        ///     A scheduled event was created.
+        /// </summary>
+        EventCreate = 100,
+        /// <summary>
+        ///     A scheduled event was created.
+        /// </summary>
+        EventUpdate = 101,
+        /// <summary>
+        ///     A scheduled event was created.
+        /// </summary>
+        EventDelete = 102,
+
+        /// <summary>
+        ///     A thread was created.
+        /// </summary>
+        ThreadCreate = 110,
+        /// <summary>
+        ///     A thread was updated.
+        /// </summary>
+        ThreadUpdate = 111,
+        /// <summary>
+        ///     A thread was deleted.
+        /// </summary>
+        ThreadDelete = 112
     }
 }

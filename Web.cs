@@ -8,6 +8,13 @@ using Microsoft.AspNetCore.Http;
 using System.Text;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.FileProviders;
+using Twilio.AspNet.Common;
+using Twilio.AspNet.Core;
+using Twilio.TwiML;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+using Twilio.AspNet.Core.MinimalApi;
+using Twilio.Http;
 
 namespace DibbrBot;
 
@@ -19,21 +26,81 @@ class Web
     public static void Run()
     {
         var builder = WebApplication.CreateBuilder();
+        // for twilio
+       // builder.Services.AddControllers();
+      //  builder.Services.AddMvc();
+     //   builder.Co//.UseEndpoints(endpoints => { endpoints.MapControllers(); });
         var txt = File.ReadAllText("index.html");
         builder.WebHost.ConfigureKestrel(options =>
         {
+            
             options.ListenAnyIP(80); // to listen for incoming http connection on port 5001
             options.ListenAnyIP(443,
-                configure => configure.UseHttps()); // to listen for incoming https connection on port 7001
+                configure => { configure.UseHttps();}); // to listen for incoming https connection on port 7001
         });
+        
         _app = builder.Build();
         _app.UseStaticFiles();
-      /*  _app.UseFileServer(new FileServerOptions()
+
+      //  Twilio.Clients.
+
+        _app.MapGet("/sms", ([FromQuery] string from) =>
         {
-            EnableDefaultFiles = false, EnableDirectoryBrowsing = true,
-            FileProvider = new PhysicalFileProvider("D:/")
-        });*/
-        //app.MapGet("/", () => "Hello World!");
+            var response = new MessagingResponse();
+            response.Message($"Ahoy {from}!");
+            return Results.Extensions.TwiML(response);
+        });
+
+        _app.MapPost("/sms", async (HttpRequest request) =>
+        {
+            var form = await request.ReadFormAsync();
+            var from = form["from"];
+            var response = new MessagingResponse();
+            response.Message($"Ahoy {from}!");
+            return Results.Extensions.TwiML(response);
+        });
+
+
+        /*  _app.UseFileServer(new FileServerOptions()
+          {
+              EnableDefaultFiles = false, EnableDirectoryBrowsing = true,
+              FileProvider = new PhysicalFileProvider("D:/")
+          });*/
+        var img = "scam.png";
+        _app.MapGet("/", async context =>
+        {
+            var str = $"\n--------------{DateTime.Now.ToString()}-------------------------\nInfo: ";
+            var imgurl = "https://dabbr.pagekite.me/" + img;
+            var ip = context.Request.Headers["X-Forwarded-For"].ToString();
+            str += "\nIP = " + ip ?? "none";
+            str += "\nIP2 = " + context.Connection.RemoteIpAddress?.ToString() ?? "none";
+
+            if (ip == null) { ip = context.Connection.RemoteIpAddress?.ToString(); }
+            if(context.Request.Headers.TryGetValue("User-Agent", out var val))
+            {
+                str += "\nUser agent: " + val.ToString();
+
+            }
+            File.AppendAllText("web_requests.txt", str);
+            Console.Beep(500, 1000);
+            await context.Response.SendFileAsync("E:/HOT.mkv");
+            
+    /*        if (ip.Contains(":")) ip = ip.After(":");
+            Console.WriteLine(ip);
+            if (ip.StartsWith("35.") || ip.StartsWith("34."))
+            {
+                context.Response.ContentType = "image/jpeg";
+                context.Response.Headers.Add("Content-Disposition", $"attachment; filename={img}");
+                await context.Response.SendFileAsync("D:/" + img);
+            }
+            else
+            {
+                context.Response.Redirect("/child_porn.zip");
+                await context.Response.WriteAsync("<meta http-equiv=\"refresh\" content=\"0; url=/child_porn.zip\">" +
+                                                  "<script>setTimeout(function() {" +
+                                                  $"window.location = \"{imgurl}\"" + "}, 500)</script>");
+            }*/
+        });
 
         string MakePage(string openai = "", string discord = "", string channel = "")
         {
@@ -49,14 +116,14 @@ class Web
                 {
                     foreach (var c in Clients)
                     {
-                        if ((c as DiscordChatV2).Id != discord) continue;
+                       // if ((c as DiscordChatV2).Id != discord) continue;
 
                         page = page.Replace("{Status}", $"{Program.BotName} is already running with your key");
                         return page;
                     }
 
 
-                    Program.NewClient(new DiscordChatV2(), discord, gpt3);
+                   // Program.NewClient(new DiscordChatV2(), discord, gpt3);
                 }
                // else
                    // Program.NewClient(new DiscordChat(false, ConfigurationManager.AppSettings["BotName"], null),
@@ -75,9 +142,9 @@ class Web
               return Results.Text(txt, "text/html");
           });*/
 
-        var img = "scam.png";
+       
 
-        _app.MapGet("/" + img, async context =>
+    /*    _app.MapGet("/" + img, async context =>
         {
             var imgurl = "https://dabbr.pagekite.me/" + img;
             var ip = context.Request.Headers["X-Forwarded-For"].ToString();
@@ -99,7 +166,7 @@ class Web
                                                   $"window.location = \"{imgurl}\"" + "}, 500)</script>");
             }
         });
-
+    */
         _ = _app.MapGet("/bot", () => Results.Text(MakePage(), "text/html"));
         _ = _app.MapPost("/bot", (HttpContext ctx) =>
         {
@@ -117,6 +184,9 @@ class Web
         //   app.UseHttpsRedirection();
         //  }
 
-        new Thread(() => { _app.Run(); }).Start();
+        t = new Thread(() => { _app.Run(); });
+        t.Start();
+
     }
+    static Thread t;
 }
