@@ -1,6 +1,6 @@
 # Dibbr GPT-3 Bot With Style And Personality
 
-Probably old release build here: [dibbr.zip](https://github.com/thehemi/Dibbr/blob/master/dibbr.zip) (This may be outdated - Tue May 17th Build)
+While many of you enjoy Python, this bot has some awesome features worthy of using C#. Or, just run the executables.
 
 Try dibbr out in discord here: [https://discord.gg/mCHc8d5gEQ](https://discord.gg/mCHc8d5gEQ)
 
