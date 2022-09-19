@@ -42,6 +42,7 @@ namespace Dibbr
 
         public async static void HandleMessages()
         {
+            return;
             var tm = DateTime.Now - TimeSpan.FromSeconds(10);
             var me = new Twilio.Types.PhoneNumber("+19706968551");
             Init();
