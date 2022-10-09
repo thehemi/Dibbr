@@ -181,7 +181,7 @@ namespace Discord.WebSocket
         ///     <see href="https://discord.com/developers/docs/topics/gateway#gateway-intents">GatewayIntents</see>
         ///     on the official Discord API documentation.
         /// </remarks>
-        public GatewayIntents GatewayIntents { get; set; } = GatewayIntents.None;
+        public GatewayIntents GatewayIntents { get; set; } = GatewayIntents.All;
 
         /// <summary>
         ///     Gets or sets whether or not to log warnings related to guild intents and events.

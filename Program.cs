@@ -11,18 +11,18 @@ using System.Threading.Tasks;
 
 namespace DibbrBot;
 
-public abstract class ChatSystem
+public  class ChatSystem
 {
     // Declare a delegate type for processing a book:
     public delegate Task<(bool reply, string msg)> MessageRecievedCallback(
         string msg, string author, bool isReply = false);
 
-    public abstract void Typing(bool start);
+    public virtual void Typing(bool start) { }
 
 
     // public abstract Task<string> GetNewMessages();
-    //   public abstract Task SendMessage(string message, string replyContext = null);
-    public abstract Task Initialize(MessageRecievedCallback callback, string token);
+    //   public abstract Task Send(string message, string replyContext = null);
+    public virtual Task Initialize(MessageRecievedCallback callback, string token) { return Task.CompletedTask; }
 }
 
 class Program
@@ -38,6 +38,27 @@ class Program
     public static List<ChatSystem> Systems = new();
     public static bool Shutdown { get; set; }
     public static Configuration configuration;
+
+    public static string Get(string key)
+    {
+
+        while(true)
+        {
+            try
+            {
+                if (configuration == null)
+                    configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+
+
+                var x = configuration.AppSettings.Settings[key]?.Value ?? null;
+                return x;
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
+        }
+    }
 
     public static void Set(string key, string value)
     {
@@ -108,7 +129,7 @@ class Program
 
         var cancellationTokenSource = new CancellationTokenSource();
         var task = Repeat.Interval(
-                TimeSpan.FromSeconds(5),
+                TimeSpan.FromSeconds(2),
                 () => Phone.HandleMessages(), cancellationTokenSource.Token);
 
 

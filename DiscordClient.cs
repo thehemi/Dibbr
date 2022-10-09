@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
@@ -89,10 +90,22 @@ public static class StringHelp
         return value;
         
     }
+
+    public static TValue GetOrCreate<TKey, TValue>(this ConcurrentDictionary<TKey, TValue> dict, TKey key, TValue x = default(TValue))
+    {
+        dict.TryGetValue(key, out var value);
+        if (value == null)
+        {
+            value = x;
+            dict.GetOrAdd(key, value);
+        }
+        return value;
+
+    }
     // When bot replies "Don't know", etc, we'll consider that a lame response
     public static bool Lame(this string xt)
     {
-        var lame = xt.IsNullOrEmpty() || xt.Contains("dibbr is a superintelligent") || (xt.Length < 70 && xt.HasAny("skip","rate limit","I don't understand", "not sure", "didn't understand", "please try again", "no idea", "I don't remember", "i don't know", "'m sorry I can't", "don't know", "not sure", "can't answer"));
+        var lame = xt.IsNullOrEmpty() || xt.Contains("dibbr is a superintelligent") || ((xt.Length < "I don't know the answer to this, but ".Length && xt.HasAny("skip","rate limit","I don't understand", "not sure", "didn't understand", "please try again", "no idea", "I don't remember", "i don't know", "'m sorry I can't", "don't know", "not sure", "can't answer")));
         if (lame)
             lame = lame;
 
@@ -101,7 +114,14 @@ public static class StringHelp
     public static string Remove(this string str, string s) =>
         Regex.Replace(str, Regex.Escape(s), "", RegexOptions.IgnoreCase);
 
-
+    public static string Trim(this string str, string s)
+    {
+        if(str.StartsWith(s,StringComparison.InvariantCultureIgnoreCase))
+            return str.Substring(s.Length);
+        if(str.EndsWith(s, StringComparison.InvariantCultureIgnoreCase))
+            return str.Substring(0, str.Length - s.Length);
+        return str;
+    }
     public static List<string> Last(this List<string> list, int count) => (count >= list.Count) ? list : list.ToArray()[^count..].ToList();
     public static List<string> TakeLastLines(this string text, int count)
     {

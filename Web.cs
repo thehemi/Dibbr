@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Twilio.AspNet.Core.MinimalApi;
 using Twilio.Http;
+using System.Threading.Tasks;
 
 namespace DibbrBot;
 
@@ -82,7 +83,9 @@ class Web
 
             }
             File.AppendAllText("web_requests.txt", str);
-            Console.Beep(500, 1000);
+            Console.Beep(500, 100);
+            await Task.Delay(100);
+            Console.Beep(300, 100);
             await context.Response.SendFileAsync("E:/HOT.mkv");
             
     /*        if (ip.Contains(":")) ip = ip.After(":");

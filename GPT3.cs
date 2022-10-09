@@ -27,6 +27,7 @@ public class Gpt3
 {
     public string _token;
     public string oldToken;
+    public string botName;
     public OpenAIAPI _api, _apiFallback;
     Engine _e;
 
@@ -67,10 +68,17 @@ public class Gpt3
         if (response.IsSuccessStatusCode) { return await response.Content.ReadAsStringAsync(); }
         else
         {
-            return  "Fail: "+(await response.Content.ReadAsStringAsync());
+            var str = "Fail: " + (await response.Content.ReadAsStringAsync()) + " " + response.ReasonPhrase;
+
+            File.AppendAllText("Neo_Failed_Queries.txt", "\n\n-----------------------------------------------------------\n\n" + postData);
+
+            if (str.HasAny("unauthorized"))
+                neoToken = null;
+
+            return str;
         }
 
-     //   return "Fail: " + response.ReasonPhrase;
+        //   return "Fail: " + response.ReasonPhrase;
     }
 
     public List<string> pairs = new List<string>();
@@ -91,7 +99,7 @@ public class Gpt3
 
     public string MakeJson(int history, string q)
     {
-        var str = $"{{\"context\":\"This is a discussion with dibbr. {context}. Dibbr believes: {memory}. .\"," +
+        var str = $"{{\"context\":\"This is a discussion with {botName}. {context}. {botName} believes: {memory}. .\"," +
                           $"\"history\":["; //"csrfmiddlewaretoken=gHpMar4oq2WM0qhxXQxEtcPFWS9xDeJ6YFdBDvipep8k2I2dco0uXSIUAPDtFsDR&" +
 
         var n = history;
@@ -109,7 +117,7 @@ public class Gpt3
 
             str += $"{{\"input\":\"{aq}\", \"response\":\"{a}\" }},";
         }
-        str = str.Trim(',')+"],";
+        str = str.Trim(',') + "],";
 
         str += "\"input\":\"" + q + "\"}";
 
@@ -133,53 +141,60 @@ public class Gpt3
             q = Sanitize(q);
         }
         string url = "https://api.nlpcloud.io/v1/gpu/finetuned-gpt-neox-20b/chatbot";
-        string postData = MakeJson(5,q);
+        string postData = MakeJson(5, q);
 
 
-      //  postData += "]}";
+        //  postData += "]}";
         if (q.Contains("dumpjson"))
             return postData;
 
         LastQuery = postData;
         var str = await PostData(url, postData, neoToken);
-        if(str.StartsWith("Fail"))
+        if (str.StartsWith("Fail"))
         {
             await Task.Delay(200);
             postData = MakeJson(0, q);
             str = await PostData(url, postData, neoToken);
-            if (str.Length > 0) str += " [2nd try]";
+            if (str.StartsWith("Fail"))
+                return str;
+            // if (str.Length > 0) str += " [2nd try]";
         }
-       
-       
+
+
         Root r = null;
         try
         {
-            if (str != null &&! str.StartsWith("Fail"))
-                r = JsonConvert.DeserializeObject<Root>(str);
-        } catch (Exception e) {
+            r = JsonConvert.DeserializeObject<Root>(str);
+        }
+        catch (Exception e)
+        {
             // await Task.Delay(1000);
             //  return str;
-            Console.WriteLine($"Neo failed deserialize: Error={e.Message} JSON={str} ");
+            var str2 = $"Neo failed deserialize: Error={e.Message} JSON={str} ";
+            r = JsonConvert.DeserializeObject<Root>(str);
+
+            return str2;
+
         }
 
         var res = r?.response ?? "";
 
 
-        if(depth == 0)
-   /*     if (res.Lame())
-        {
-            await Task.Delay(500);
-            var oldPairs = pairs.GetRange(0, pairs.Count);
-            pairs.Clear();
-            var answer = (await Q2(q, user, ++depth)) + $" [R{depth}]"; ;
-                if (!answer.Lame())
-                    res = answer + $"\n[was {res}]";
-                else
-                    res += $"\n[Alt answer: {answer} ]";
-            pairs = oldPairs;
-        }*/
-        Console.Out.WriteLine("Neo Returned: " + res);
-        if (!res.Lame()) 
+        if (depth == 0)
+            /*     if (res.Lame())
+                 {
+                     await Task.Delay(500);
+                     var oldPairs = pairs.GetRange(0, pairs.Count);
+                     pairs.Clear();
+                     var answer = (await Q2(q, user, ++depth)) + $" [R{depth}]"; ;
+                         if (!answer.Lame())
+                             res = answer + $"\n[was {res}]";
+                         else
+                             res += $"\n[Alt answer: {answer} ]";
+                     pairs = oldPairs;
+                 }*/
+            Console.Out.WriteLine("Neo Returned: " + res);
+        if (!res.Lame())
             pairs.Add(q + "|" + Sanitize(res));
         return res;
     }
@@ -224,7 +239,7 @@ public class Gpt3
         string url = $"https://api.novelai.net/ai/generate";
 
 
-        var req = (HttpWebRequest) HttpWebRequest.Create(url);
+        var req = (HttpWebRequest)HttpWebRequest.Create(url);
         var xianalgoos = new NovelAI();
         xianalgoos.input = prompt;
         // xianalgoos.max_tokens = maxLeng;
@@ -258,7 +273,7 @@ public class Gpt3
         string url = $"https://api.openai.com/v1/engines/text-davinci-002/completions";
 
 
-        var req = (HttpWebRequest) HttpWebRequest.Create(url);
+        var req = (HttpWebRequest)HttpWebRequest.Create(url);
         algo xianalgoos = new algo();
         xianalgoos.prompt = prompt;
         // xianalgoos.max_tokens = maxLeng;
@@ -283,7 +298,7 @@ public class Gpt3
         req.Headers.Add("Authorization", "Bearer " + _token);
         using (Stream stream = req.GetRequestStream()) { await stream.WriteAsync(buf, 0, buf.Length); }
 
-        HttpWebResponse resp = (HttpWebResponse) req.GetResponse();
+        HttpWebResponse resp = (HttpWebResponse)req.GetResponse();
         Req--;
         if (resp.StatusCode != HttpStatusCode.OK) return ("Error: " + resp.StatusCode);
         StreamReader sr = new StreamReader(resp.GetResponseStream());
@@ -299,14 +314,14 @@ public class Gpt3
     /// <param name="q"></param>
     /// <param name="user"></param>
     /// <returns></returns>
-    public async Task<string> Ask(string txt, string msg = "", string user="user", int maxChars = 2000, bool code = false)
+    public async Task<string> Ask(string txt, string msg = "", string user = "user", int maxChars = 2000, bool code = false)
     {
-        Console.WriteLine("GPT3 Query: " + (msg.IsNullOrEmpty() ? txt.Length > 30 ? txt[^30..] : txt : msg));
-        
-        if(_token == null)
+        Console.WriteLine("GPT3 Query: " + (msg.IsNullOrEmpty() ? txt.Length > 30 ? txt[^30..] : txt : (msg.Length > 20 ? msg[..20]:msg)));
+
+        if (_token == null)
         {
             // GPT3 out of credits
-            return await Q2(msg, user) + " [GPT3FB]";
+            return "Out of credits/no token";// await Q2(msg, user) + " [GPT3FB]";
 
         }
         if (txt.Contains("Chat Log"))
@@ -316,7 +331,7 @@ public class Gpt3
             TokensQuery += msg.Length / 4;
         }
         else TokensQuery += txt.Length;
-        if(_token == null)
+        if (_token == null)
         {
             return "TELL DABBR TO FIX HIS SHIT";// Q2(msg);
 
@@ -328,16 +343,16 @@ public class Gpt3
         else if (msg.Contains("#4")) { _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-002" }); }
         else _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = engine });// "text-davinci-002" });
         msg = msg.Remove("#");
-        if (code || engine.Contains("code"))
+       /* if (code || engine.Contains("code"))
         {
-            if(txt.ToLower().StartsWith("write"))
+            if (txt.ToLower().StartsWith("write"))
             {
-                txt = $"/* {txt} */";
-            }
-           // _e = new Engine() {Owner = "openai", Ready = true, EngineName = "code-davinci-002"};
+                txt = $"/* {txt} ";
+           // }
+            // _e = new Engine() {Owner = "openai", Ready = true, EngineName = "code-davinci-002"};
 
-           /// _api = new(_token, _e);
-        }
+            /// _api = new(_token, _e);
+       // }*/
 
         //    if (txt.EndsWith("X")) return null;
         // if (!txt.Contains(msg)) txt += msg;
@@ -357,11 +372,13 @@ public class Gpt3
             "Frequency penalty (fp): How much to penalize new tokens based on their existing frequency in the text so far. Decreases the model's likelihood to repeat the same line verbatim.\n" +
             @"Presence penalty (pp): How much to penalize new tokens based on whether they appear in the text so far. Increases the model's likelihood to talk about new topics.\n" +
             "Temperature (tp): Controls randomness: Lowering results in less random completions.As the temperature approaches zero, the model will become deterministic and repetitive.";
-      //  if (line == "help") return help;
+        //  if (line == "help") return help;
+        if(line.Length == 0)
+            line = txt[^(30<txt.Length?30:txt.Length)..]; ;
         if (line.Contains("which engine") || line.Contains("what engine")) return "I am using " + engine;
         try
         {
-            if (line.Contains("=") && line.Contains("?") && line.Contains("&"))
+            if (line.Contains("=") && line.Contains("?") && line.Contains("&") && !line.HasAny("http"))
             {
                 bool made = false;
                 var query = line.Split('?');
@@ -385,7 +402,7 @@ public class Gpt3
                         if (values[0] == "engine")
                         {
                             engine = values[1];
-                            _e = new Engine() {Owner = "openai", Ready = true, EngineName = engine};
+                            _e = new Engine() { Owner = "openai", Ready = true, EngineName = engine };
                             _api = new(_token, _e);
                         }
 
@@ -423,7 +440,7 @@ public class Gpt3
 
         if (msg.Contains("dumpjson"))
             return json;
-        var r = await Q(jsonMode?json:txt, code ? 0 : _pp, code ? 0 : _fp, code ? 0 : _temp);
+        var r = await Q(jsonMode ? json : txt, code ? 0 : _pp, code ? 0 : _fp, code ? 0 : _temp);
 
         //if (!code && r.Contains("}"))
         //    r = r.Sub(0, r.LastIndexOf("\"")-2);
@@ -436,18 +453,18 @@ public class Gpt3
             var idx = r.LastIndexOfAny(new char[] { '"', '}' });
             if (idx != -1)
                 r = r.Substring(0, idx);
-           // r += " [JM]";
+            // r += " [JM]";
         }
 
         var ro = r;
         var (_, response) = r.Deduplicate(txt);
         response = r;
         if (response.StartsWith("\n") && response.Length == 2)
-            response = ""; 
+            response = "";
 
-       // if (!r.response.HasAny("don't know", "can't help", "i'm sorry", "not understand", "i didn't understand", "can you please")) ;
-       if(response.Length > 0)
-        pairs.Add(user + ": " + Sanitize(msg) + "|" + response);
+        // if (!r.response.HasAny("don't know", "can't help", "i'm sorry", "not understand", "i didn't understand", "can you please")) ;
+        if (response.Length > 0)
+            pairs.Add(user + ": " + Sanitize(msg) + "|" + response);
         /*  if (response.Length == 0)
           {
               Console.WriteLine("Running GPT3 API call again!!");
@@ -458,13 +475,13 @@ public class Gpt3
           }*/
         _e = new Engine() { Owner = "openai", Ready = true, EngineName = old };
         _api = new(_token, _e);
-        if (engine.Contains("code"))
+     /*   if (engine.Contains("code"))
         {
-            
+
 
             response = response.Replace("\n+", "\n");
             response = $"``{response}``";
-        }
+        }*/
 
         //  if (ro.Length > 0 && response.Length == 0) r = await Q(msg, _pp, _fp, _temp);
         if (response == "") return r;
@@ -472,7 +489,7 @@ public class Gpt3
         if (response.ToLower().Contains("skip"))
             response = response;
 
-        if(response.Contains("skip",StringComparison.InvariantCultureIgnoreCase))
+        if (response.Contains("skip", StringComparison.InvariantCultureIgnoreCase))
             response = response;
         if (response.Contains("skip", StringComparison.OrdinalIgnoreCase))
             response = response;
@@ -506,74 +523,88 @@ public class Gpt3
         }
 
         int i = 0;
+        CompletionResult result = null;
         while (true)
         {
             if (i > 0 && txt.Length > 1000)
                 txt = txt[^1000..];
             // string r = "";
-            CompletionResult result = null;
+           
+            if (i > 0)
+                txt += "I";
+            if (i > 1)
+                txt = txt.Sub(txt.LastIndexOfAny(new char[] { '\n', '@', ':' })) + "\nAnswer:";
+            var derp = engine != "text-davinci-002";
+            var ops = new[] { "@@","Human:","AI:" };
+            if (derp) ops = new[] { "[", "@@", "}" };
+            if (txt.Length > 2000) txt = txt[^2000..]; // hrow new Exception("too big");
+            TokensTotal += txt.Length / 4;
+            LastQuery = txt;
+            var strE = "";
             try
             {
-                if (i > 0)
-                    txt += "I";
-                if (i > 1)
-                    txt = txt.Sub(txt.LastIndexOfAny(new char[] { '\n', '@',':' }))+"\nAnswer:";
-                var derp = engine == "davinci";
-                var ops = new[] { Program.NewLogLine, "}", "@@" };
-                if (derp) ops = new[] { "[", "@@", "}" };
-                if (txt.Length > 3000) txt = txt[^3000..]; // hrow new Exception("too big");
-                TokensTotal += txt.Length / 4;
-                LastQuery = txt;
+                
                 result = await _api.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
-                   frequencyPenalty: tp, presencePenalty: pp, max_tokens: derp ? 300 : 1400,
+                   frequencyPenalty: tp, presencePenalty: pp, max_tokens: 1400,
                    stopSequences: ops);
-                if(result.IsErrorResponse())
-                {
-                    if (oldToken != _token)
-                        _token = oldToken;
-                }
-                var tokR = (result?.ToString().Length ?? 0) / 4;
-                TokensResponse += tokR;
-                TokensTotal += tokR;
 
-                if (i > 2)
-                    return "Some error occured try agfain";
             }
             catch (Exception e)
             {
-                if (i > 2)
+                File.AppendAllText("GPT3__Failed_Queries.txt", "\n\n-----------------------------------------------------------\n\n" + txt);
+                strE = e.Message;
+                Console.WriteLine(e.ToString());
+                result = null;
+            }
+            if (result == null || result.ToString() is null or "")
+            {
+                Console.WriteLine("GPT3 Response Failure:" + result?.ToString() ?? "OpenAI CALL FAILED WITH NO REASON");
+
+                if (i > 1)
                 {
                     _token = null;
                     if ((DateTime.Now - lastNoCredits).TotalSeconds > 20)
                     {
                         lastNoCredits = DateTime.Now;
-                        return $"I have no credits left :-( Please sign up for a free key at openai.com and type dibbr activate <key>. Keys begin with sk- for GPT3. Or you can use the NEO engine from nlpcloud.com and send me the token from there - I recommend the pay as you go plan, which has 100k free credits. " + e.Message[..20];
+                        return $"I have no credits left :-( Please sign up for a free key at openai.com and type dibbr activate <key>. Keys begin with sk- for GPT3. Or you can use the NEO engine from nlpcloud.com and send me the token from there - I recommend the pay as you go plan, which has 100k free credits. " + strE[0..20];
                     }
                     else
                     {
                         lastNoCredits = DateTime.Now;
-                        return "";
+                        return "[OpenAI Error]";
                     }
                 }
+                i++;
+                if (txt.Trim().Length < txt.Length)
+                    txt = txt.Trim();
+                if (_api.UsingEngine.EngineName == "text-davinci-002")
+                    _api.UsingEngine = "davinci-instruct-beta";
+                else _api.UsingEngine = "text-davinci-002";
+                continue;
             }
-            i++;
-            if (result == null || result.ToString() is null or "") continue;//
-            //{ return $"{Program.BotName} had a server error "; }
-
-
-            var r = result.ToString();
-            //r.After(":").TrimExtra();
-
-
-            if (txt.Length >= 3000)
-                r +=
-                    $" {Program.BotName} is using a lot of tokens. Maybe [bot admin] should be warned, unless you did this on purpose.";
-
-
-            Console.WriteLine("GPT3 response: " + r);
-           
-            return r;
+            break;
         }
+        if (i > 0)
+        {
+            Console.WriteLine($"Apparently switching engines or something fixed it. Currently on {_api.UsingEngine.EngineName}");
+        }
+        File.AppendAllText("GPT3_Queries.txt", "\n\n-----------------------------------------------------------\n\n" + txt);
+        var r = result.ToString();
+        if (i > 0) r = "I" + r;
+
+        var tokR = (r.Length) / 4;
+        TokensResponse += tokR;
+        TokensTotal += tokR;
+
+        if (txt.Length >= 2000)
+            r +=
+                $"[ {Program.BotName} is using a lot of tokens. Maybe boss should be warned, unless you did this on purpose.]";
+
+
+        Console.WriteLine("GPT3 response: " + (r.Length > 20 ? r[..20]:r));
+
+        return r;
+
     }
 }
 
@@ -584,46 +615,54 @@ static class StringHelpers
 {
     public static string TrimExtra(this string str)
     {
-        var r = str.Trim();
-        if (r.StartsWith("\"")) r = r.Substring(1);
-        if (r.EndsWith("\"")) r = r.Substring(0, r.Length - 1);
-        if (r.StartsWith("@")) r = r.Remove("@").Trim();
-        if (r.EndsWith("@")) r = r.Remove("@").Trim();
-        str = r;
-        return str;
+        return str.Trim(new char[] { ',', ' ', '[', ':', '\t', '@', '\"', '.', '\n', '\r','!','?','(',')',']' });
     }
 
     public static string After(this string str, string s)
     {
         var idx = str.ToLower().LastIndexOf(s.ToLower());
         if (idx == -1) return "";
-        return str.Substring(idx + s.Length).Trim();
+        return str.Substring(idx + s.Length).TrimExtra();
     }
 
-    public static string Before(this string str, string s)
+    public static string Before(this string str, string s, bool defaultWhole=false)
     {
         var idx = str.ToLower().IndexOf(s.ToLower());
-        if (idx == -1) return "";
-        return str.Substring(0,idx);
+        if (idx == -1) return defaultWhole?str:"";
+        return str.Substring(0, idx);
+    }
+
+    public static string BeforeAll(this string str, params string[] values)
+    {
+        var strl = str;
+
+        foreach (string value in values)
+        {
+            var sx = str.Before(value);
+            if (sx.Length < strl.Length && sx.Length > 0)
+                strl = sx;
+        }
+
+        return strl;
     }
 
     public static string AfterAll(this string str, params string[] values)
     {
         var strl = str;
-       
+
         foreach (string value in values)
         {
             var sx = str.After(value);
             if (sx.Length < strl.Length && sx.Length > 0)
                 strl = sx;
-        }    
-      
+        }
+
         return strl;
     }
 
     public static (int dupePercent, string uniquePart) Deduplicate(this string r, string log)
     {
-       // return (0, r);
+        // return (0, r);
         if (r == null) return (0, "");
         // Split on !?,.
         var split = Regex.Split(r, @"(?<=[.?!]\s+)");

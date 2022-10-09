@@ -156,7 +156,12 @@ namespace Discord.WebSocket
             State = new ClientState(0, 0);
             Rest = new DiscordSocketRestClient(config, ApiClient);
             _heartbeatTimes = new ConcurrentQueue<long>();
-            _gatewayIntents = config.GatewayIntents;
+            if(TokenType != TokenType.User)
+               _gatewayIntents = config.GatewayIntents;
+            else
+            {
+                _gatewayIntents = GatewayIntents.GuildMembers;
+            }
             _defaultStickers = ImmutableArray.Create<StickerPack<SocketSticker>>();
 
             _stateLock = new SemaphoreSlim(1, 1);
@@ -2213,10 +2218,10 @@ namespace Discord.WebSocket
                                     }
                                     else
                                     {
-                                        var groupChannel = GetChannel(data.ChannelId.Value) as SocketGroupChannel;
+                                        var groupChannel = GetChannel(data.ChannelId.HasValue? data.ChannelId.Value:0) as SocketGroupChannel;
                                         if (groupChannel == null)
                                         {
-                                            await UnknownChannelAsync(type, data.ChannelId.Value).ConfigureAwait(false);
+                                            await UnknownChannelAsync(type, data.ChannelId.HasValue ? data.ChannelId.Value : 0).ConfigureAwait(false);
                                             return;
                                         }
                                         if (data.ChannelId != null)

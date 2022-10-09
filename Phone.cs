@@ -1,5 +1,6 @@
 ﻿using DibbrBot;
 using Discord;
+using ServiceStack;
 using SlackNet.Interaction;
 using System;
 using System.Collections.Generic;
@@ -28,21 +29,23 @@ namespace Dibbr
         {
             if (init) return;
             string accountSid = "AC4273ddc8dda4d514a340e942936412aa";// Environment.GetEnvironmentVariable("TWILIO_ACCOUNT_SID");
-            string authToken = "c7487769707ff93a1d0e1d3ece089c55";// Environment.GetEnvironmentVariable("TWILIO_AUTH_TOKEN");
+            string authToken = Program.Get("TwilioAuth");// Environment.GetEnvironmentVariable("TWILIO_AUTH_TOKEN");
+            if (authToken == null)
+                return;
 
             TwilioClient.Init(accountSid, authToken);
             if (gpt == null)
-                gpt = new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002");
+                gpt = new Gpt3(Program.Get("OpenAI"), "text-davinci-002");
             init = true;
         }
         public static Gpt3 gpt;
-
+        public static Dictionary<string, List<string>> Logs = new Dictionary<string, List<string>>();
         public static Dictionary<string, string> Messages = new Dictionary<string, string>();
         public static List<string> questions = new List<string>();
 
         public async static void HandleMessages()
         {
-            return;
+           // return;
             var tm = DateTime.Now - TimeSpan.FromSeconds(10);
             var me = new Twilio.Types.PhoneNumber("+19706968551");
             Init();
@@ -50,8 +53,10 @@ namespace Dibbr
             var opt = new ReadMessageOptions();
             opt.DateSentAfter = tm;
             //opt.
-
-             var messages = await MessageResource.ReadAsync(opt);
+            try
+            {
+                var messages = await MessageResource.ReadAsync(opt);
+           
             ret += "\nMessages Recieved: \n";
             foreach (var m in messages)
             {
@@ -60,9 +65,14 @@ namespace Dibbr
                 questions.Add(m.Body);
                 Console.Beep();
                 Console.WriteLine("SMS: "+m.Body);
-                var response = await gpt.Q2(m.Body, "");
+                var logs = Logs.GetOrCreate(m.From.ToString(), new List<string>());
+                logs.Add("Q: " + m.Body);
+                var response = await gpt.Ask(string.Join("\n",logs)+"\nA:",m.Body, "");
                 if (response.Length > 0)
                 {
+                   
+                   
+                    logs.Add("A: " + response);
                     Console.WriteLine("SMS: " + response);
                     var message = MessageResource.Create(
                        body: response,
@@ -75,6 +85,11 @@ namespace Dibbr
                
 
                 ret += $"From:{m.From.ToString()} Body:{m.Body}\n";
+                }
+            }
+            catch (Exception ex)
+            {
+                ret = ex.Message;
             }
 
 

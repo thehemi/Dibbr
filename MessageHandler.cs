@@ -16,6 +16,8 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using Microsoft.CodeAnalysis.Scripting.Hosting;
+using NAudio.Wave;
+using OpenAI_API;
 using ServiceStack;
 using ServiceStack.Logging;
 using ServiceStack.Script;
@@ -40,10 +42,16 @@ class Command
 public class MessageHandler
 {
     public readonly int AngerOdds = 10; // 1 in ANGER_ODDS chance of being angry
-    public readonly ChatSystem Client;
+    public  ChatSystem Client;
     public bool SayHelo = false;
     public DateTime HelloTimer = DateTime.MaxValue;
     public string BotName;
+    public class Identity
+    {
+        public string BotName;
+        public string Prompt;
+    }
+    public List<Identity> identities = new List<Identity>();
     public string Channel;
     public bool UseNeo  = true;
     // Store chat for each user, useful for future bot functionality
@@ -66,7 +74,7 @@ public class MessageHandler
     public int MessageHistoryLimit = 10;
     public bool Muted = false;
     public Speech Speech = new();
-
+    public bool AIMode = false;
     public int TalkInterval = 10; // How often to talk unprompted (in messages in chat)
 
 
@@ -80,10 +88,12 @@ public class MessageHandler
 
     public MessageHandler(ChatSystem client, Gpt3 gpt3 = null)
     {
-        this.Client = client;
-        this.Gpt3 = gpt3;
+        Client = client;
+        Gpt3 = gpt3;
         if (gpt3 == null)
-                    this.Gpt3 = new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002");
+        {
+            Gpt3 = new Gpt3(Program.Get("OpenAI"), "text-davinci-002");
+        }
                    
         BreakTime = DateTime.Now;
     }
@@ -94,6 +104,10 @@ public class MessageHandler
 
     public async Task OnUpdate(Action<string> sendMsg, bool dm)
     {
+        for (int m = 0; m < Log.Count; m++)
+        {
+            Log[m] = Log[m].Replace(": ", " said \'") + "'";
+        }
         /* if (SayHelo && (HelloTimer == DateTime.MaxValue || MessageCount < 20))
          {
              HelloTimer = DateTime.Now.AddSeconds(120);
@@ -104,7 +118,7 @@ public class MessageHandler
          if (HelloTimer < DateTime.Now)
          {
              var str = ConfigurationManager.AppSettings["Hello"];
-             var msg = await Gpt3.Ask("", Log + $"{Program.NewLogLine}{BotName}: " + str, "", "");
+             var msg = await Gpt3.Ask("", Log + $"{BotName}: " + str, "", "");
              sendMsg(str + msg);
              HelloTimer = DateTime.MaxValue;
          }**/
@@ -161,56 +175,74 @@ public class MessageHandler
     public async Task<(bool isReply, string msg)> OnMessage(string msg, string user, bool isAutoMessage = false,
                                                             bool isReply = true)
     {
+        for (int mx = 0; mx < Log.Count; mx++)
+        {
+            Log[mx] = Log[mx].Replace(": ", " said \'") + "'";
+          //  Log[mx] = Log[mx].Replace(" said \'", ": ");
+            //Log[mx] = Log[mx].Trim('\'');
+        }
+        if(!msg.HasAny(BotName))
+        {
+            foreach(var id in identities)
+            {
+                if(msg.HasAny(id.BotName))
+                {
+                    BotName = id.BotName;
+                    PrimeText = id.Prompt;
+                    Gpt3.context = id.Prompt;
+                }
+            }
+        }
         var useNeo = UseNeo;// && msg.Contains("$$");
         if (msg.EndsWith("debug on"))
         {
             DebugMode = true;
-            return (true, "Debug mode on");
+            return (false, "[Debug mode on]");
         }
         if (msg.EndsWith("debug off"))
         { 
             DebugMode = false;
-            return (true, "Debug mode off");
+            return (false, "[Debug mode off]");
         }
 
-        bool IsDupe(string txt) => (Log.Last(3).Where(s => s.Contains(txt, StringComparison.InvariantCultureIgnoreCase)).Count() > 0 || (Usernames.ContainsKey(BotName) &&
-                                                  StringHelpers.Get(Usernames[BotName].TakeLastLines(1)?[0], txt) >
-                                                   0.4));
-        bool IsContinue(string m) => m.Contains("continue") || (m.Contains("rewrite") && m.Length < 30) || m.Contains("more detail") || m.Contains("go on") || m.Contains("keep going");
-        bool IsWriting(string m) => m.Remove("please").Remove("can you").StartsWithAny("write") || (m.HasAny("write", "design", "create", "compose", "generate") && m.HasAny(" rap", "article", "story", "long", "dialog", "discussion", "script", "game",
-            "detailed", "screenplay", "letter", "episode", "design", "theory", "explanation", "essay"));
-        bool IsQuestion(string m) => m.StartsWithAny("calculate", "when ", "where ", "where's", "would ", "can ", "does ", "could ", "why ",
-            "how ", "what ", "can someone", "what's", "name  ") || m.Contains("?") ;
-        var queryOnly = msg.Contains("!!!");
-        var isForBot = true;
+        Gpt3.botName = BotName;
+
+    
+     
         if (user == BotName) { LastMessageTime = DateTime.Now; }
 
-        if (user.ToLower() == BotName.ToLower() && !msg.ToLower().StartsWithAny(BotName.ToLower())) return (isReply, null);
+        if (user.ToLower() == BotName.ToLower() && !msg.ToLower().StartsWithAny(BotName.ToLower())) return (false, "");
 
         if (PrimeText == null || PrimeText.Length == 0)
         {
-            PrimeText = ConfigurationManager.AppSettings[this.Channel + "PrimeText"] ?? ConfigurationManager.AppSettings["PrimeText"];
+            PrimeText = Program.Get(Channel + "PrimeText"+BotName)?? Program.Get(Channel + "PrimeText") ?? Program.Get("PrimeText" +BotName) ?? Program.Get("PrimeText");
+
+            PrimeText = PrimeText.Replace("dibbr", "xev");
+            PrimeText = PrimeText.Replace("xev", BotName);
+        
             Gpt3.context = PrimeText;
+            Program.Set(Channel + "PrimeText", PrimeText);
+            Program.Set(Channel + "PrimeText"+BotName, PrimeText);
         }
         // log is injected
         //Log += msg + ": " + user + "\n\r"; 
 
         // Hey DIBBR what's the time => what's the time
         var m = msg.Rem(BotName,"please","can you").Replace(", "," ").Replace("  "," ").Trim(new char[] {' ',',','\n','\r','.'});
+        m = m.Remove(BotName.Before(" "));
 
-
-        if (m.StartsWithAny("shutdown123")) { Program.Shutdown = true; return (true, "Shutting down.."); }
+        if (m.StartsWithAny("shutdown123")) { Program.Shutdown = true; return (false, "[Shutting down.."); }
 
         if (m.Contains("reddit.com"))
         {
-            return (true, "https://www.unddit.com/" + m.After("reddit.com/"));
+            return (false, "[https://www.unddit.com/" + m.After("reddit.com/"));
 
         }
         if (m.StartsWithAny("what is your prompt") || m.StartsWithAny("what prompt"))
         {
             var idx1 = PrimeText.IndexOf("..");
             if (idx1 == -1) idx1 = PrimeText.Length;
-            return (isReply, PrimeText);//.Substring(0, idx1)) ;
+            return (false, PrimeText);//.Substring(0, idx1)) ;
         }
         if (m.StartsWithAny("is my daddy")) msg = "Tell me about being my daddy";
 
@@ -218,28 +250,38 @@ public class MessageHandler
         {
             PrimeText +=
                 $"{msg.Substring(11)}";
-            return (isReply, "ok");
+            return (false, "[ok");
+        }
+        if(m.StartsWith("you are now"))
+        {
+            var name = msg.After("you are now");
+            var info = name.After(".");
+            BotName = name;
+            m = msg = "set prompt " + info;
+
         }
 
-        if (m.StartsWithAny("set prompt"))
+        if (m.StartsWithAny("set prompt") || m.StartsWith("from now on"))
         {
-            PrimeText =
-                $"{msg.After("set prompt")}";
-            Gpt3.context = $"{msg.After("set prompt")}"; ;
+            var prompt = msg.AfterAll("from now on", "set prompt");
+            PrimeText = prompt.Replace("you ", BotName + " ");
+            Gpt3.context = prompt; 
+            Gpt3.pairs.Clear();
+            Log.Clear();
             Program.Set(Channel + "Prime", PrimeText);
-            if (user != "dabbr" && user != "edge_case" && !user.Contains("dΦbbr")) return (isReply, $"k dude");
+            Program.Set(Channel + "PrimeText" + BotName, PrimeText);
 
-            return (isReply, $"ok");
+            return (false, $"Hello");
         }
         else if (m.StartsWithAny("reset"))
         {
             Gpt3.pairs.Clear();
             Memory = "";
             Log.Clear();
-            PrimeText = ConfigurationManager.AppSettings["PrimeText"];
-            Gpt3.context = PrimeText;
+            PrimeText = ""; // This will force it to get reloaded properly
+       
             // replyPrompt = "";
-            return (true, "Reset all");
+            return (false, "[Reset all]");
         }
         if(m.EndsWith("->") && m.Contains("+"))
         {
@@ -252,91 +294,41 @@ public class MessageHandler
         if (m == "neo on")
         {
             UseNeo = true;
-            return (true, "Neo enabled");
+            return (false, "[Neo enabled]");
         }
         if (m == "neo off")
         {
             UseNeo = false;
-            return (true, "GPT3 enabled");
+            return (false, "[GPT3 enabled]");
         }
+        if (m.StartsWithAny("which engine","what engine")) return (false,"I am using " + (useNeo?"Neo20B engine":Gpt3.engine));
+        if(m.StartsWithAny("set engine")) { Gpt3.engine = m.After("set engine").Trim();return (false,$"Engine set {(useNeo?"But Neo engine is on. Type <botname> neo off to switch to GPT3":"")}]"); }
 
-        // This handles people replying quickly, where it should be assumed it is a reply, even though they don't say botname,
-        // eg bot: hey
-        // user: hey!
-        // (bot should know that is a reply)
-        // Is for bot if the last user to ask a question is the one saying something now
-        //      isForBot |= (LastMsgUser == user && m.Contains("?"));
-
-        // Is for bot if bot mentioned -----------in first 1/4th
-        var idx = msg.ToLower().IndexOf(BotName);
-        isForBot |= idx != -1; // && idx < msg.Length / 3;
-
-        if (isForBot)
-        {
-            LastMessageTime = DateTime.Now;
-            // 
-            if (user != BotName) LastMsgUser = user;
-        }
-
-
-        var isComment = false; //198225782156427265
 
         // All messages are replies unless marked otherwise
 
-        var muted = this.Muted; // so we can change locally temporarily
+        var muted = Muted; // so we can change locally temporarily
         Regex hasMath = new Regex(@"(?<num1>[0-9]+)(?<op>[\*\-\+\\\^])(?<num2>[0-9]+)");
-        var math = hasMath.IsMatch(m);
-        var useSteps = m.HasAny("steps", "??", "calculate", "solve", "given ", "if there are","explain","what is "," how ","what would","how do i","what will") || math || m.Has(2,"how","what","why","when","where");
-
-        // Good questions will use step mode
-        //  if (IsQuestion(m) && m.Length > "What is the bible".Length)
-        //      useSteps = true;
-
-        if (Personal(m))
-            ConversationFactor += 2;
-        else ConversationFactor -= 1;
-        if(ConversationFactor < -2) ConversationFactor = -2;
-
-       // if(ConversationFactor > 3) 
-
-        if (Personal(m) || isAutoMessage)
-            useSteps = false;
-
-        if (useSteps)
-            useNeo = false;
-       
-
-        /// if (UseNeo) useSteps = false;
-        
-        if (m.Contains("??"))
-            useSteps = true;
-
-        msg = msg.Replace("??", "?");
-
-
-        if (!isForBot)
-        {
-            Console.WriteLine($"Skipped {msg} notForBot");
-            return (isReply, null);
-        }
+        var math = hasMath.IsMatch(m) || m.HasAny(" sin ","/x", " cos ","cosine"," sine");
+    
 
         if (DateTime.Now < BreakTime)
         {
-            if (m.StartsWithAny("come back")) return (true, "I can't, it's too late");
+            if (m.StartsWithAny("come back")) return (false, "[I can't, it's too late");
             if (m.StartsWithAny("wake") || m.StartsWithAny("awake")) { BreakTime = DateTime.MinValue; }
             else
-                return (isReply, null);
+                return (false, "");
         }
 
         // All potential trigger words for sleeping
         if (m.Length < 14)
         {
-            if (m.HasAny("be quiet", "stupid bot", "timeout", "go away", "shut down", "shutdown", "fuck off", "silence", "shut up", "sleep", "mute", "be quiet", "ban") || m.Contains("stop talking") ||
+            if (m.HasAny("be quiet", "stupid bot", "timeout", "go away", "shut down", "shutdown", "fuck off", "silence", "shut up", "sleep", "mute", "be quiet") || m.Contains("stop talking") ||
                 m.StartsWithAny("stop") || m.StartsWithAny("off") || m.StartsWithAny("turn off") || m.Contains("timeout") ||
                 Is("timeout") || Is("please stop") || Is("take a break"))
             {
                 BreakTime = DateTime.Now.AddMinutes(30);
-                return (isReply, "I'm sorry :( I will timeout for 30 minutes. You can wake me with the wake keyword");
+                return (false, $"[I'm sorry for bothering you all, especially {user}! I will timeout for 30 minutes. You can wake me with the wake keyword]");
             }
         }
 
@@ -348,26 +340,31 @@ public class MessageHandler
                 if (t == null) continue;
 
 
-                var ret = await this.Gpt3.Test(t);
+                var ret = await Gpt3.Test(t);
                 if (ret.Length > 0)
                 {
                     Gpt3._token = t;
-                    return (true, $"Key {i} works!");
+                    return (false, $"Key {i} works!");
                 }
             }
-            return (true, $"no keys work");
+            return (false, $"no keys work");
         }
 
         // Commands
         // 0. Help
         if (m == "help")
         {
-            return (isReply,
-                @$"{BotName} interval 3 // how many chat messages befoire he will ask his own question or reply to a comment, depending on whether the comment is a quesiton or not. Default is 10\n
-{BotName} ask questions // ask questions or not. Default is true
-{BotName} stop asking  // stop asking questions
+            return (false,
+                @$"Quick List: {BotName} debug on/off | neo on/off | dump last query | remember <thing> | speak <query> | ?engine=davinci-instruct-beta& | 
+{BotName} interval 3 // how many chat messages befoire he will ask his own question or reply to a comment, depending on whether the comment is a quesiton or not. Default is 10\n
+{BotName} set name Trump // set new name for dibbr, he will then respond to this
+{BotName} set prompt <text> e.g. {BotName} is a sassy bot that takes no shit
+{BotName} from now on <text> e.g. you are Donald Trump.
 {BotName} mute // mute the bot
-{BotName} unmute // unmute the bot
+{BotName} <query>?? in query = Reply will be broken down into steps, for a better answer
+{BotName} <query>!! = don't include the chat log
+{BotName} <query>!!! = Don't send anything but the question being asked
+{BotName}: <start text> e.g. dibbr: m am a silly --> dibbr: m am a silly bot
 {BotName} timeout / please stop / take a break // break the bot for 10 minutes
 {BotName} wake // wake the bot up
 {BotName} wipe memory // wipe the bot's memory
@@ -383,7 +380,7 @@ public class MessageHandler
          {
              var channel = m.After("join ");
              (Client as DiscordChat).AddChannel(channel, false, new MessageHandler(Client, Gpt3), true);
-             return (true, "Joined channel!");
+             return (false, "[Joined channel!");
          }*/
 
         // 1. Wipe memory
@@ -391,10 +388,10 @@ public class MessageHandler
         {
             //if (BotName is "dibbr")
             //     if (user != "dabbr" && user != "edge_case")
-            //         return (isReply, "Denied");
+            //         return (false, "[Denied");
             Log.Clear();
             Gpt3.pairs = new List<string>();
-            return (isReply, "Memory erased");
+            return (false, "[Memory erased");
         }
 
      
@@ -413,12 +410,12 @@ public class MessageHandler
         }
         if(m.Contains("what's your number"))
         {
-            return (true, "You can SMS me at (USA+1) 970-696-8551");
+            return (false, "[You can SMS me at (USA+1) 970-696-8551");
         }
         if(m.StartsWith("smsdump"))
         {
             var res = Dibbr.Phone.Send("", "");
-            return (true, res);
+            return (false, res);
         }
         if (m.StartsWithAny("text"))
         {
@@ -428,16 +425,54 @@ public class MessageHandler
                 number = number.Sub(0, number.IndexOf(" "));
                 var sms = msg.After(number);
                 var res = Dibbr.Phone.Send(number, sms);
-                return (true, res);
+                return (false, res);
             }
-            catch (Exception e) { return (true, "Sorry I crashed"); }
+            catch (Exception e) { return (false, "[Sorry I crashed"); }
         }
         if (Is("interval "))
         {
             TalkInterval = int.Parse(m.Replace("interval ", ""));
-            return (isReply, "Interval set to " + TalkInterval);
+            return (false, "[Interval set to " + TalkInterval);
         }
+        
+        if(m.StartsWithAny("set name","add name"))
+        {
+            var add = m.Contains("add name");
+            var b = msg.AfterAll("set name", "add name").BeforeAll(",",".").Trim();
+            var desc = msg.AfterAll(",", ".");
+            if (desc.Length == msg.Length)
+                desc = "This is a conversation between " + b + " and other people";
+            // Save old identity
+            // if(!add)
+            if (identities.Where(d=>d.BotName == msg.AfterAll("set name", "add name").Trim()).Count() == 0)
+                 identities.Add(new Identity() { BotName = BotName, Prompt = PrimeText });
+           
+            var oldName = BotName;
+            BotName = b;
+            for (int k = 0; k < Log.Count; k++)
+            {
+                string l = Log[k];
+                if(!add)
+                    Log[k] = l.Replace(oldName, BotName);
+            }
+            if (PrimeText.Contains(BotName))
+            {
 
+            }
+            else if(!add){
+                PrimeText = desc;
+                PrimeText = PrimeText.Replace(oldName, BotName); 
+            }
+
+            if (BotName.Contains(" "))
+                BotName = BotName.After(" ");
+
+            // Save new identity
+            identities.Add(new Identity() { BotName = BotName, Prompt = PrimeText });
+
+            return (false, "I'm now " + BotName);
+            
+        }
         if (Is("print scores"))
         {
             var msgScore = "The scores (characters used) are:\n";
@@ -457,7 +492,7 @@ public class MessageHandler
                 Console.WriteLine($"{k} = {val}");
             }
 
-            return (isReply, msgScore);
+            return (false, msgScore);
         }
 
         if (msg.ToLower().Contains("replyprompt"))
@@ -465,7 +500,7 @@ public class MessageHandler
             m = m.Remove("ReplyPrompt").Trim();
             replyPrompt = m + ":";
             if (replyPrompt.StartsWithAny(BotName)) replyPrompt = replyPrompt.Substring(BotName.Length + 1);
-            return (true, "Reply prompt set as " + replyPrompt);
+            return (false, "[Reply prompt set as " + replyPrompt);
         }
 
         var dumb = BotName.ToLower().Contains("xib");
@@ -474,144 +509,126 @@ public class MessageHandler
         var history = MessageHistory;
         if (!Personal(m))
             history /= 2;
-        if (useSteps)
-        {
-           // history = 1;
-        }
-        /*if (Is("remember") || m.HasAny("chat log", "do you remember", "you remember", "what was the", "what did i",
-                "how old", "what i said", "who has", "who is your", "what do you think of", "what is my", "who here",
+
+        /*if (Is("remember") || m.HasAny("chat log", "do you remember", "you remember", "what was the", "what did k",
+                "how old", "what k said", "who has", "who is your", "what do you think of", "what is my", "who here",
                 "who do", "users", "in this channel", "who is"))
             history = MessageHistoryLimit;*/
 
         //   if (user == "timmeh")
         //       MessageHistory = MessageHistory * 2;
+        bool IsDupe(string txt) => (Log.Last(3).Where(s => s.Contains(txt, StringComparison.InvariantCultureIgnoreCase)).Count() > 0 || (Usernames.ContainsKey(BotName) &&
+                                              StringHelpers.Get(Usernames[BotName].TakeLastLines(1)?[0], txt) >
+                                               0.4));
+        bool IsContinue(string m) => m.Contains("response") || m.Contains("continue") || (m.Contains("rewrite") && m.Length < 30) || m.Contains("more detail") || m.Contains("go on") || m.Contains("keep going");
+        bool IsWriting(string m) => m.Remove("please").Remove("can you").StartsWithAny("write") || (m.HasAny("write","make ", "design", "create", "compose", "generate") && m.HasAny(" rap", "article", "story", "long", "dialog", "discussion", "script", "game",
+            "detailed", "screenplay", "letter", "episode", "design", "theory", "explanation", "essay"));
+        bool IsQuestion(string m) => m.StartsWithAny("is ","calculate", "when ", "where ", "where's", "would ", "can ", "does ", "could ", "why ",
+            "how ", "what ", "can someone", "what's", "name  ") || m.HasAny("?");
+        var queryOnly = msg.Contains("!!!");
+        if (queryOnly)
+            useNeo = false;
+        var writeSong = (m.HasAny(" rap","lyrics","song") &&
+                        !m.HasAny("mode2")) && IsWriting(m);
+        var rewrite = msg.HasAny("rewrite", "write it again", "more ", "less ", "try again", "write it", "change ", "longer", "shorter");
 
+        var useSteps = msg.HasAny("steps", "??","calculate", "solve", "given ", "if there are", "explain", 
+            "what is ", " how ", "what would", "how do k", "what will") || math || m.Has(2, "how", "what", "why", "when", "where");
 
+        useSteps = msg.HasAny("?", "??") || math;
 
-        var writeStuff = IsWriting(m);
-        var writeSong = (m.Contains("song") || m.Contains(" rap ") || m.Contains("lyrics ")) &&
-                        !m.HasAny("mode2");
-
-
-        if (!Personal(m) && writeStuff && !IsContinue(m) && !m.HasAny("mode2") && !isAutoMessage)
-        { 
-            
-                queryOnly = true;
-                history = 3;
-        }
-
-        if(!Personal(m) &&  m.Length > 50)
-        {
-            history = 0;
+        msg = msg.Replace("??", "?");
+        if ((IsQuestion(m)||IsWriting(m)) && !IsContinue(m) && !Personal(m))
             queryOnly = true;
+
+        if (BotName != "dibbr")
+        {
+            queryOnly = false;
+            useSteps = false;
         }
+       // if (IsQuestion(m)) 
+         //   useSteps = true;
 
-     
+        if (useSteps)
+            useNeo = false;
+ 
+        if (Personal(m))
+            ConversationFactor += 2;
+        else ConversationFactor -= 1;
+        if (ConversationFactor < -2) ConversationFactor = -2;
+
+        if (isAutoMessage || rewrite || IsWriting(m) || Personal(m))
+            if(!msg.Contains("??"))
+            useSteps = false;
+
+        
+        var oldBotName = BotName;
+        var suffix = $"{(AIMode ? "AI" : BotName)}'s long response to {user}: "+(useSteps?"Let's think in steps and end with a conclusion.":"");
 
 
-
-        var suffix = IsQuestion(m)?$"{Program.NewLogLine}{BotName}:":$"{Program.NewLogLine}{BotName}:";
-        // var suffix2 = IsQuestion(m)?"\nAnswer:":"";
-        var prefix = "";
-        //  if(!suffix.EndsWith("#"))
         if (writeSong)
-        {
-            suffix = $"{Program.NewLogLine}{BotName}: These are the lyrics I composed:";
+            suffix += "Here are the lyrics:";
+        else if (IsWriting(m) && m.HasAny("story"))
+            suffix +=
+                   $" Here is the story:";
+        else if (IsWriting(m) && m.HasAny("screenplay"))
+            suffix += $"Here is the screenplay:";
+        else if (IsWriting(m) && m.HasAny("article"))
+            suffix += $"Here is the article";
+        else if(IsWriting(m) && m.HasAny("pa"))
 
-            var rewrite = msg.HasAny("rewrite", "write it again", "more ", "less ", "try again", "write it", "change ", "longer", "shorter");
-            if(!rewrite)
-            {
-               // prefix = "This is an award winning "
-                queryOnly = true;
-                history = 0;
-            }
-        }
-        else if (writeStuff)
-        {
-            if (msg.Length > 30)
-                queryOnly = true;
-            //suffix2 = "\nWritten Answer:";
-            suffix =
-                $"{Program.NewLogLine}{BotName}'s lengthy, well thought out, brilliant, hilarious writing:";
-            history = 0;
-        }
-        // else if (isQuestion)
-        //      suffix = $"{Program.NewLogLine}dibbr's Answer:";
-       // else
-         //   suffix = $"{Program.NewLogLine}{BotName}'s response:";
-
-
-
-        if (m.Contains("$1"))
-        {
-            suffix = $"{Program.NewLogLine}{BotName}:";
-        }
-        if (m.Contains("$2"))
-        {
-            suffix = $"{Program.NewLogLine}{BotName}'s Factual Answer:";
-        }
-        if (m.Contains("$3"))
-        {
-            suffix = $"{Program.NewLogLine}{BotName}'s Funny Answer:";
-        }
-        if (m.Contains("$4"))
-        {
-            suffix = $"{Program.NewLogLine}{BotName}'s Answer:";
-        }
-        if (m.Contains("$5"))
-        {
-            suffix = $"{Program.NewLogLine}{BotName}: I'll explain it like you're smart.";
-        }
-        msg = msg.Remove("$1").Remove("$2").Remove("$3").Remove("$4").Remove("$5");
-        m = m.Remove("$1").Remove("$2").Remove("$3").Remove("$4").Remove("$5");
-        if (Gpt3.engine.Contains("code"))
-            suffix = "";
-
-        if (isAutoMessage)
-            suffix = $"{Program.NewLogLine}{BotName}:";
-        // else { suffix = $"The following is {BotName}'s lengthy, funny, brilliant, multi-paragraph attempt:"; }
-
-       
-        Console.WriteLine(suffix);
-        if (m.Contains("dump last query"))
-            return (true, $"[{Gpt3.LastQuery}]");
-        if (m.Contains("dump memory"))
-            return (true, Memory);
-        if (m.Trim() == "cost")
-            return (true, Gpt3.Stats());
-
-
-        if (useSteps) suffix += $"Let's think step by step and end with a conclusion.";
-        if(m.HasAny("thoughts","you think","your thoughts","critique my","me feedback","response to my","to my","my message"))
+       /// if (useSteps) 
+         //       suffix += $"Let's think step by step and end with a conclusion.";
+        if (m.HasAny("thoughts", "you think", "your thoughts", "critique my", "me feedback", "response to my", "to my", "my message"))
         {
             suffix += "Here is my balanced critique of your message:";
         }
 
 
+      //  if (Gpt3.engine.Contains("code"))
+        //    suffix = "";
+
+        // else { suffix = $"The following is {BotName}'s lengthy, funny, brilliant, multi-paragraph attempt:"; }
+
+       
+        Console.WriteLine("Suffix == "+suffix);
+        if (m.StartsWith("AIMode on")) AIMode = true;
+        if (m.StartsWith("AIMode off")) AIMode = false;
+
+        if (m.Contains("dump last query"))
+            return (false, $"[{Gpt3.LastQuery}]");
+        if (m.Contains("dump memory"))
+            return (false, Memory);
+        if (m.Trim() == "cost")
+            return (false, Gpt3.Stats());
+
+
+   
+
         if (m.Contains("max memory"))
         {
             MessageHistory = 20;
-            return (isReply, "");//, "+MessageHistory+" lines"); //$"Memory boosted to {MessageHistory} log lines");
+            return (false, "[");//, "+MessageHistory+" lines"); //$"Memory boosted to {MessageHistory} log lines");
         }
 
         if (m.Contains("boost memory"))
         {
             MessageHistory = MessageHistory * 3;
-            return (isReply, "");//, "+MessageHistory+" lines"); //$"Memory boosted to {MessageHistory} log lines");
+            return (false, "[");//, "+MessageHistory+" lines"); //$"Memory boosted to {MessageHistory} log lines");
         }
 
         if (m.Contains("shrink memory"))
         {
             MessageHistory = MessageHistory / 2;
-            return (isReply, $"Memory shrank to {MessageHistory} log lines");
+            return (false, $"Memory shrank to {MessageHistory} log lines");
         }
 
-        if (m.Contains("the way") || m.Contains("da wae"))
-            return (true, "Do you need to find da wae? https://www.youtube.com/watch?v=MtzMUJIofNg");
+        if (m.Contains("find the way") || m.Contains("da wae"))
+            return (false, "[Do you need to find da wae? https://www.youtube.com/watch?v=MtzMUJIofNg");
 
         //   if (Die(AngerOdds)) suffix += $"{BotName}: [Bot State=Angry] ";
         //  if (user.ToLower().Contains("pep") && x++ < 44)
-        //      return (isReply, "I said no, faggot boy");
+        //      return (false, "[I said no, faggot boy");
         if (m.Contains("list "))
         {
 
@@ -623,7 +640,8 @@ public class MessageHandler
 
                 msg = m;
             }
-            history = 0;
+            if(!Personal(m))
+               history = 0;
 
 
 
@@ -663,7 +681,7 @@ public class MessageHandler
 
 
             }
-        }
+        }/*
         string Exec2(string str)
         {
             return "";
@@ -697,13 +715,13 @@ public class MessageHandler
            // Console.SetOut(originalConsoleOut); // restore Console.Out
             return str2;
 
-        }
+        }*/
         if (m.StartsWithAny("execute","evaluate","run this","exec"))
         {
             var c = msg.AfterAll("execute","evaluate","run this","exec").Trim();
            
            
-          //  return (true, Exec2(c));
+           // return (false, Exec2(c));
            
            
         }
@@ -721,20 +739,20 @@ public class MessageHandler
         if (msg.Contains("set memory"))
         {
             // if (!user.Contains("dabbr") && !user.Contains("dΦbbr"))
-            //   return (true, "Denied!");
+            //   return (false, "[Denied!");
             Memory = msg.After("set memory");
-            return (isReply, $"ok, i will remember that");
+            return (false, $"ok, k will remember that");
         }
         if (m.StartsWithAny("remember"))
         {
             // if (!user.Contains("dabbr"))
-            //      return (true, "Denied!");
+            //      return (false, "[Denied!");
             Memory += ", " + msg.After("remember ");
             ConfigurationManager.AppSettings[Channel] = Memory;
-            return (isReply, $"ok, i will remember that");
+            return (false, $"ok, k will remember that");
         }
 
-        if (msg.HasAny("dump memory", "what do you remember", "recall")) { return (isReply, " Memory is " + Memory); }
+        if (msg.HasAny("dump memory", "what do you remember", "recall") && !msg.HasAny("?","do you")) { return (false, "[ Memory is " + Memory); }
 
         List<string> TrimLines(List<string> lines)
         {
@@ -743,8 +761,6 @@ public class MessageHandler
             {
                 string l = lines[i];
 
-   
-                
                 if(( l.Length < 150) || i<lines.Count-1)
                     newLines.Add(l);
             }
@@ -758,7 +774,7 @@ public class MessageHandler
       
         // This is begin bot reply mode, by inserting botname: at end of msg
         // Allows you to force a reply to start with given text
-        idx = msg.ToLower().IndexOf($"{BotName.ToLower()}:");
+        var idx = msg.IndexOf($"{BotName}:",StringComparison.InvariantCultureIgnoreCase);
         if (idx != -1)
         {
             startTxt = msg.After($"{BotName}:");
@@ -768,16 +784,25 @@ public class MessageHandler
             startTxt += " ";
         }
 
-        // Make sure the chat line is in the log
-      //  idx = log.IndexOf(msg);
+     
 
+        var codeMode = m.StartsWithAny("code ","write a python","write python","write a function","write C#","write code");
 
-        var codeMode = m.StartsWithAny("code ");
-
-        
-        bool Personal(string xt) => ConversationFactor > 0 && xt.HasAny("your","my", " you ", " we ", " our ") && !xt.HasAny("how do you","can you","said");
+        bool Personal(string xt)
+        {
+            var hasP = xt.HasAny("said","you're","your", "my"," it", " you ","said","him", "anyone", " we ", " our ", " he ", " his ", " she ", " her ", " here","this","more "," my "," our ", " this ","user","discord","chat ","remember"," i ", " that ")
+                || xt.StartsWithAny("he","you","I ","but","then ","that","it","we","this")
+                || (Client as DiscordV3).HasUsername(xt);
+            var p2 = xt.HasAny("are you", "can you", "did you", "have you", "could you", "would you", "will you", " my ");
+            if (p2) return true;
+          //  var probQ = xt.StartsWithAny("tell me", "what", "how", "where", "when", "give me");
+           // if (probQ && xt.HasAny("?"))
+            //    return false;
+            return hasP ;
+        }
+            // && !xt.HasAny("how do you","can you","said","what is") && !xt.Has(2,"write","song","rap","lyrics");
         string txt = "";
-        //if (testRun) return (true, "Would Respond");
+        //if (testRun) return (false, "[Would Respond");
 
         Gpt3.memory = Memory;
        // useNeo = false;
@@ -787,62 +812,70 @@ public class MessageHandler
         if (Client != null)
             Client.Typing(true);
 
+        if (Gpt3.neoToken == null)
+            useNeo = false;
         var debug = "";
-        //  if (m.StartsWithAny("create")) return (isReply, "Create not supported by dibbr. Did you mean dalle create?");
+        //  if (m.StartsWithAny("create")) return (false, "[Create not supported by dibbr. Did you mean dalle create?");
         if (m.StartsWithAny("dalle create"))
         {
-            //  if (user != "dabbr") return (isReply, "Not authorized");
+            //  if (user != "dabbr") return (false, "[Not authorized");
             var cur = Blackboard.ContainsKey(user) ? Blackboard[user] : 0;
 
-            if (cur > 3 && (user != "dabbr" && user != "edge_case")) return (isReply, "You are at your DALL-E quota!");
+            if (cur > 3 && (user != "dabbr" && user != "edge_case")) return (false, "[You are at your DALL-E quota!");
             Blackboard[user] = cur + 1;
             var req = m.After("dalle create ");
             txt = await Gpt3.Dalle(req);
             await Program.Log("DALLE_REQUESTS.txt", "\n\n\n" + txt);
-            return (isReply, txt);
+            return (false, txt);
         }
-        else if (DebugMode || writeSong || writeStuff)
+        else if (DebugMode)
         {
             txt = "[**First Attempt (Neo):**]\n";
-            txt += (await Gpt3.Q2(msg.Remove("$$"), user)).Trim();
+            txt += (await Gpt3.Q2(msg.Remove("$$"), AIMode?"":user)).Trim();
             if (txt.Length == 0)
             {
                 txt = "[**Second Attempt (Neo):**]\n";
                 Gpt3.pairs.Clear();
-                txt += await Gpt3.Q2(msg.Remove("$$"), user);
+                txt += await Gpt3.Q2(msg.Remove("$$"), AIMode?"":user);
             }
             txt += "\n [**Second Attempt (GPT3):**\n";
 
             if (queryOnly)// && !m.HasAny("your","you","my "," our ","thoughts"))
             {
-                txt += await Gpt3.Ask((IsQuestion(msg) ? "Question " : "") + msg.Remove(BotName) + "\nAnswer: " + (useSteps ? ". Let's think in steps and end with our conclusion." : suffix), user);
+                //txt += await Gpt3.Ask((IsQuestion(msg) ? "Question " : "") + msg.Remove(BotName) + "\nAnswer: " + suffix, user);
             }
 
-            else
+           // else
             {
                 // if(msg.Contains("dibbrjones"))
                 //     Gpt3.
-                txt += await Gpt3.Ask(MakeText(history, $"{user}:", suffix), msg, user, 2000, codeMode);
+                txt += await Gpt3.Ask(MakeText(history, $"{(AIMode?"Human":user)}:", suffix), msg, user, 2000, codeMode);
 
             }
             txt += "]";
         }
         else if (useNeo)
-            txt = await Gpt3.Q2(msg.Remove("$$"), user);
-        else if (queryOnly && !Personal(m))// && !m.HasAny("your","you","my "," our ","thoughts"))
+            txt = await Gpt3.Q2(msg.Remove("$$"), AIMode ? "" : user);
+        else if (queryOnly)// && !m.HasAny("your","you","my "," our ","thoughts"))
         {
-            txt = await Gpt3.Ask((IsQuestion(msg) ? "Question " : "") + msg.Remove(BotName) + "\nAnswer: " + (useSteps ? ". Let's think in steps and end with our conclusion." : ""), user);
+            txt = await Gpt3.Ask(msg.Remove(BotName).TrimExtra() + "\nAnswer: " + suffix.Remove(BotName), user);
         }
-
+       
         else
         {
             // if(msg.Contains("dibbrjones"))
             //     Gpt3.
-            txt = await Gpt3.Ask(MakeText(history, $"{user}:", suffix), msg, user, 2000, codeMode);
+            txt = await Gpt3.Ask(MakeText(history, $"{(AIMode?"Human":user)}:", suffix), msg, user, 2000, codeMode);
         }
 
         debug += $"\n[UseNeo={useNeo}, history={history},useSteps={useSteps},isSong={writeSong}, queryOnly={queryOnly}, query length={Gpt3.LastQuery.Length},IsQuestion={IsQuestion(m)},IsWriting={IsWriting(m)}] ";
 
+        if (txt.Contains("skip", StringComparison.InvariantCultureIgnoreCase) && txt.Length < 10)
+        {
+            if (isAutoMessage)
+                return (false, "[[Debug: dibbr decided not to respond to this message]");
+            else return (false, $"[Dibbr refuses to answer or engage with your message, {user}]");
+        }
 
 
         ////////////////////////////////////////////// Response Reply //////////////////////////////
@@ -853,60 +886,60 @@ public class MessageHandler
         txt = tx;
 
         if (txt.Lame() && isAutoMessage)
-            return (true, DebugMode ? "Returning because lame and automsg" : "");
+            return (false, DebugMode ? "Returning because lame and automsg" : "");
 
         Console.WriteLine(txt.Length); ;
 
+        var test = @"First, it's important to remember that everyone is different and there isn't necessarily one ""perfect"" way to eat less food. Just as importantly, don't be too hard on yourself - changing your eating habits can be difficult, and you're more likely to be successful if you approach it in a positive and gentle way.
+
+That said, here are a few tips that might help you eat less food:
+- Make sure you're eating regular meals, and try to space them out evenly throughout the day. This will help to control your hunger levels and avoid overeating.
+- When you do sit down to eat, take the time to really savor your food. Savor the taste, texture, and smell of what you're eating. This will help you feel more satisfied with smaller amounts of food.
+- Avoid eating high-calorie foods or snacks mindlessly. If you're going to eat something that isn't particularly healthy, make sure it's something that you really enjoy and savor.
+- Try to focus on consuming more nutrient-dense foods rather than calorie-dense foods. This means eating more fruits, vegetables, lean proteins, etc., and fewer processed foods. nutrient-rich foods tend to be more filling than calorie-rich foods, so this can also help you eat less overall.
+
+Hope these tips are helpful! Best of luck in reducing your food intake - I'm rooting for you!";
+        if (test.Lame())
+        {
+            test = test;
+        }
         // Q: blah
         // A: not sure
         //
         // Let's try stripping everything but the Q/A pair
         //
-        if ((txt.Lame()||IsDupe(txt)))
+        if (txt.Lame()||IsDupe(txt))
         {
-       
-            if (m.Length <= "dibbr! ".Length || isAutoMessage)
-                return (true, "[Debug: Dibbr chose to ignore this message. Was this correct?]");
 
-            if (useNeo)
+            if (m.Length <= "dibbr! ".Length || isAutoMessage)
+            { }
+            else
+            if (!IsQuestion(m) && m.Length > "What is the blahest bla".Length)
             {
                 // try GPT3 - it tends to give less lame answers
-                var txt2 = await Gpt3.Ask(MakeText(history, $"{user}:", suffix), msg, user, 2000, codeMode);
+                var txt2 = await Gpt3.Ask(MakeText(history, $"{(AIMode?"Humaan":user)}:", suffix), msg, user, 2000, codeMode);
                 if(txt2 is not null or "")
                 {
                     debug += $"\n[Original: {txt}]";
                     txt = txt2 + " [GPT3]";
-                   // return (true, txt);
+                   // return (false, txt);
                 }
             }
-
-                //  if (isQuestion && m.Length > 10)
-                //      txt = await Gpt3.Ask("Question: "+msg.Remove("!!!").Remove(BotName) + (useSteps ? ".\n:Answer: Let's think in steps." : "\nAnswer:"), user);
-                //  else
-
-                // ZERO HISTORY
-             if (IsQuestion(m) && m.Length > "What is the blahest bla".Length)
+            else 
             {
+              //  debug +=
                 useSteps = true;
-                var context = $"This is an interview between the world's smartest human, {user}, and the world's leading expert, who happens to be a superintelligent AI.";
+                var context = $"This is an interview between the world's smartest human, and a superintelligent AI.";
                 var txt2 = await Gpt3.Ask(MakeText(history: 0, suf: "Answer: Let's think in steps, and end with a conclusion.", context: context), msg, user, 2000, codeMode);
                 int delame = 1;
                 if (txt2.Lame() || IsDupe(txt2))
                 {
-                    txt2 = await Gpt3.Q2(msg, user);
+                   var  txt3 = await Gpt3.Q2(msg, AIMode ? "" : user);
+                    txt = txt3 + "\nOld Answer:" + txt2 + "\nReally old answer:" + txt;
                     delame++;
                 }
 
-                if (txt2.Length > txt.Length)
-                {
-                    debug += $" \n[Originaly answer Was Lame: {txt} ]";
-                    txt = txt2 + $" [DeLamed {delame}]";
-                }
-                else
-                {
-                    debug += $"\n[Original answer was lame, but new query was lamer: '{txt2}']";
-                    txt += $" [Delame failed]";
-                }
+          
             }
         }
 
@@ -917,26 +950,21 @@ public class MessageHandler
                 txt += "\nOutput: " + str;
         }
        */
-        if (txt.Contains("skip", StringComparison.InvariantCultureIgnoreCase) && txt.Length < 10)
-        {
-            if (isAutoMessage)
-                return (true, "[Debug: dibbr decided not to respond to this message]");
-            else return (true, $"[Dibbr refuses to answer or engage with your message, {user}]");
-        }
-
+      
         //
         // Step 2 - Check for duplicate data
         //
        
         // If repetitive, try again
 
-        if (IsDupe(txt))
+        if (false)//IsDupe(txt))
         {
-            if (isAutoMessage) return (true, "");
+            if (isAutoMessage) return (false, "[[Debug: No response. Is this ok?]");
             Console.WriteLine("Trying again..");
             var txt2 = await Gpt3.Ask(MakeText(0));
             debug += $" [First Resposne Seemed Like Duplicate: '{txt}' ]";
-            txt = txt2 + "\n[Original Was Duplicate: "+txt+"]";
+            if(txt.Length > 0)
+            txt = txt2 + "\n[Original seemed like Duplicate: "+txt+"]";
             //   txt += "\nDev Note: Second response. First had a Levenshtein distance too high";
         }
 
@@ -944,10 +972,10 @@ public class MessageHandler
 
  
 
-        if (txt.IsNullOrEmpty() && isAutoMessage) return (isReply, DebugMode?debug:"");
+        if (txt.IsNullOrEmpty() && isAutoMessage) return (false, DebugMode?debug:"");
         if (txt.IsNullOrEmpty() && !isAutoMessage)
         {
-            // return (isReply, null);
+            // return (false, null);
         }
 
 
@@ -1039,7 +1067,7 @@ public class MessageHandler
             c.StartsWithAny("no comment"))
         {
             Console.WriteLine("No response desired!!!!");
-            return (true, "Dibbr did not wish to address your comment");
+            return (false, "[Dibbr did not wish to address your comment");
         }*/
        
         if (m.Contains("speak"))
@@ -1054,7 +1082,7 @@ public class MessageHandler
         }
 
   
-        return (isReply, startTxt + txt + (DebugMode?debug:""));
+        return (true, startTxt + txt + (DebugMode?debug:""));
 
         async Task<string> GetAudio(string str2)
         {
@@ -1080,11 +1108,11 @@ public class MessageHandler
                 return $"[Spoken Audio]({url}) ";
 
             }
-            return "";
+            return "[Spoken audio failed]";
         }
         string MakeText(int history, string prefix="", string suf="",string context="")
         {
-            if (Gpt3.engine.Contains("code")) return msg.Remove("dibbr");// + suffix;
+           // if (Gpt3.engine.Contains("code")) return msg.Remove("dibbr");// + suffix;
             var warn = ""; //" (NOTE, If a leading question implies a fact, dibbr should not assume it is true) ";
 
             if (context is null or "")
@@ -1093,48 +1121,56 @@ public class MessageHandler
             if (suf is null or "")
                 suf = suffix;
 
-          //  context = "This is a conversation with the world's smartest humans and an AI, dibbr. dibbr thinks in steps, gives long responses and knows everything. Dibbr is one of our brightest minds, hilarious and sarcastic.";
+            //  context = "This is a conversation with the world's smartest humans and an AI, dibbr. dibbr thinks in steps, gives long responses and knows everything. Dibbr is one of our brightest minds, hilarious and sarcastic.";
+            if (IsQuestion(m) && !isAutoMessage)
+                history = 0;
 
-            
-            var log1 = Log.Last(history);
+                var log1 = Log.Last(history);
 
             // Remove the user query from the log, because we add it back later
-            if (log1.Count > 1)
+            //       if (log1.Count > 1)
+            //         log1.RemoveAt(log1.Count - 1);
+            if (log1.Count > 1 && log1.Last().Contains(msg))
                 log1.RemoveAt(log1.Count - 1);
+            var pre = "@@";
 
             // Make it into a string
-            var log = string.Join("\n@@", TrimLines(log1.Last(history))).Replace(BotName,"",StringComparison.InvariantCultureIgnoreCase);
+            var log = pre+string.Join($"\n{pre}", TrimLines(log1.Last(history)))+$"\n{pre}";
 
             if (log.Length > 2000)
                 log = log;
 
 
             if (log.Length > 1000)
+            {
                 log = log[^1000..].Trim();
+                var start = log.IndexOf("@@");
+                log = log.Substring(start != -1 ? start : 0);
+            }
            // if(!isAutoMessage)
              //   log += "\n-------------Question & Answer with dibbr----------------------\n";
-
+                                                                                                                          
            //  debug += $"\n[log.size={log.Length}] ";
 
 
             // var idx = log.LastIndexOf(msg.Sub(0, 20));
             if (IsQuestion(m) && !isAutoMessage)
             {
-                log += $"\n@@Question: (from {user}): {msg}";
-               // $"\n@@Answer (from {BotName}):";
+                log += $"Question: (from {user}): {msg}";
+               // $"\n{pre}Answer (from {BotName}):";
             }
             else
             {
-                log += $"\n@@{user}: {msg}";
-               // log += $"\n@@{BotName}:";
+                log += $"{user} said '{msg}'";
+               // log += $"\n{pre}{BotName}:";
             }
-            log += suffix;
+            log += $"\n{pre}"+ suffix;
             // log += $"Question: (from {user}): {msg}\n"; // Program.NewLogLine;
 
             // if (isQuestion)
             //     log += user + ": Question: " + msg + "\nAnswer:";
 
-            return $"Date: {DateTime.Now}\nThe following is a conversation between {BotName} and humans.\n {context}.\nMemory: {Memory}\nConversation:\n {log}";
+            return $"Date: {DateTime.Now}\nThe following is a conversation between {BotName} and humans.\nContext:{context}\nMemory: {(Memory.Length>0?$"Memory: {Memory}":"")}\nConversation:\n{log}";
 
 
             return "Date: " + DateTime.Now.ToString("F") + " PST.\n Context:" + PrimeText + "\nMemory: " + Memory + "\nConversation (format is name: message):\n" +
@@ -1150,16 +1186,40 @@ static class StringHelp2
 {
     public static bool HasAny(this string str, params string[] values) => Has(str,1, values);
 
+    /// <summary>
+    /// Must have at least numMatch
+    /// providing " what" will only find the word what, looking for 'what ...', ',what, etc, and not swhat etc
+    /// </summary>
+    /// <param name="str"></param>
+    /// <param name="numMatch"></param>
+    /// <param name="values"></param>
+    /// <returns></returns>
     public static bool Has(this string str, int numMatch = 1, params string[] values)
     {
         var strl = str;
         var count = 0;
         foreach (string value in values)
         {
+            var idx = strl.IndexOf(value.Trim(),StringComparison.InvariantCultureIgnoreCase);
+            // We're matching words if there is a space in front, otherwise subsring is ok
             // String: 'hey dibbr, how r u'
             // ' hey' -> Matches b/c startswith case. so space at start says essentially 'space or start'
-            if (strl.Contains(value, StringComparison.InvariantCultureIgnoreCase) || strl.Equals(value, StringComparison.InvariantCultureIgnoreCase)
-                || strl.StartsWith(value.Trim(), StringComparison.InvariantCultureIgnoreCase)) count++;
+            if (idx != -1 && value.StartsWith(" "))
+            {
+                var c = "";
+                if (idx > 0)
+                    c = str.Substring(idx - 1, 1);
+                if (c == " " || c == "," || c == "." || c == "" || c == "\udd16" || c == "\n" || c == "\t" || c == "\r")
+                { 
+                    count++;
+                    continue;
+                }
+            }
+            // If no space, check for containing or matching string
+            if (strl.Contains(value, StringComparison.InvariantCultureIgnoreCase) ||
+                strl.Equals(value, StringComparison.InvariantCultureIgnoreCase))
+                count++;
+             //   || strl.TrimExtra().StartsWith(value.TrimExtra(), StringComparison.InvariantCultureIgnoreCase)) count++;
 
             if (count >= numMatch)
                 return true;
