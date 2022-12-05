@@ -12,6 +12,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using ChatGPT3;
 using Newtonsoft.Json;
 using OpenAI_API;
 using ServiceStack;
@@ -30,16 +31,15 @@ public class Gpt3
     public string botName;
     public OpenAIAPI _api, _apiFallback;
     Engine _e;
-
+    ChatGPT chatgpt = new ChatGPT();
 
     public static int TokensTotal, TokensLog, TokensQuery, TokensResponse = 0;
 
     public string engine;
     public string LastQuery = "";
-    //string _engine = "text-davinci-002";
     float _fp = 0.7f, _pp = 1.1f, _temp = 1.0f;
     public string neoToken;
-    public Gpt3(string token, string engine)
+    public Gpt3(string token, string engine = "text-davinci-003")
     {
         this.engine = engine;
         _token = token;
@@ -96,6 +96,9 @@ public class Gpt3
         p = p.Replace("\b", "");
         return p;
     }
+
+
+  
 
     public string MakeJson(int history, string q)
     {
@@ -262,7 +265,7 @@ public class Gpt3
 
     static int Req = 0;
 
-    public async Task<string> Query(string prompt)
+  /*  public async Task<string> Query(string prompt)
     {
         // C# code to create a post request to OpenAI's completion endpoint with json and read the results into a string
         while (Req > 0) await Task.Delay(100);
@@ -307,6 +310,13 @@ public class Gpt3
 
         #endregion
     }
+  */
+
+
+    public async Task<string> Chat(string msg)
+    {
+        return await chatgpt.Next(msg);
+    }
 
     /// <summary>
     ///     Asks OpenAI
@@ -337,23 +347,9 @@ public class Gpt3
 
         }
         var old = engine;
-        if (msg.Contains("#1")) { _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = "davinci" }); }
-        else if (msg.Contains("#2")) { _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = "davinci-instruct-beta" }); }
-        else if (msg.Contains("#3")) { _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-001" }); }
-        else if (msg.Contains("#4")) { _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-002" }); }
-        else _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = engine });// "text-davinci-002" });
+        _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = engine });// "text-davinci-003" });
         msg = msg.Remove("#");
-       /* if (code || engine.Contains("code"))
-        {
-            if (txt.ToLower().StartsWith("write"))
-            {
-                txt = $"/* {txt} ";
-           // }
-            // _e = new Engine() {Owner = "openai", Ready = true, EngineName = "code-davinci-002"};
-
-            /// _api = new(_token, _e);
-       // }*/
-
+    
         //    if (txt.EndsWith("X")) return null;
         // if (!txt.Contains(msg)) txt += msg;
         // Set variables like this
@@ -432,9 +428,9 @@ public class Gpt3
 
         json = json[..^1];
         var jsonMode = false;
-        if (msg.Contains("##"))
+        if (msg.Contains(">>"))
         {
-            msg = msg.Remove("##");
+            msg = msg.Remove(">>");
             jsonMode = true;
         }
 
@@ -501,7 +497,7 @@ public class Gpt3
     {
         try
         {
-            _api = new(tok, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-002" });
+            _api = new(tok, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-003" });
             var result = await _api.Completions.CreateCompletionAsync("Who invented the spork?", temperature: 1, top_p: 1,
                      frequencyPenalty: 1, presencePenalty: 1, max_tokens: 222);
             if (result.IsErrorResponse())
@@ -513,9 +509,9 @@ public class Gpt3
     }
 
     static DateTime lastNoCredits = DateTime.Now;
-    public async Task<string> Q(string txt, float pp = 0.6f, float tp = 0, float temp = 0.9f)
+    public async Task<string> Q(string txt, float pp = 0.6f, float tp = 0, float temp = 0.1f)
     {
-        if (_api == null)
+      //  if (_api == null)
         {
             //   _e = new(_engine) {Owner = "openai", Ready = true};
             _api = new(_token, _e);
@@ -534,9 +530,9 @@ public class Gpt3
                 txt += "I";
             if (i > 1)
                 txt = txt.Sub(txt.LastIndexOfAny(new char[] { '\n', '@', ':' })) + "\nAnswer:";
-            var derp = engine != "text-davinci-002";
-            var ops = new[] { "@@","Human:","AI:" };
-            if (derp) ops = new[] { "[", "@@", "}" };
+            var derp = engine != "text-davinci-003";
+            var ops = new[] { ">>","Human:","AI:" };
+            if (derp) ops = new[] { "[", ">>", "}" };
             if (txt.Length > 2000) txt = txt[^2000..]; // hrow new Exception("too big");
             TokensTotal += txt.Length / 4;
             LastQuery = txt;
@@ -556,17 +552,21 @@ public class Gpt3
                 Console.WriteLine(e.ToString());
                 result = null;
             }
-            if (result == null || result.ToString() is null or "")
+            if(result?.ToString().Trim().Length < 3)
+            {
+                Console.WriteLine("GPT3:" + result.ToString());
+            }
+            if (result == null || result.ToString().Trim() is null or "")
             {
                 Console.WriteLine("GPT3 Response Failure:" + result?.ToString() ?? "OpenAI CALL FAILED WITH NO REASON");
 
                 if (i > 1)
                 {
-                    _token = null;
+                  //  _token = null;
                     if ((DateTime.Now - lastNoCredits).TotalSeconds > 20)
                     {
                         lastNoCredits = DateTime.Now;
-                        return $"I have no credits left :-( Please sign up for a free key at openai.com and type dibbr activate <key>. Keys begin with sk- for GPT3. Or you can use the NEO engine from nlpcloud.com and send me the token from there - I recommend the pay as you go plan, which has 100k free credits. " + strE[0..20];
+                        return $"I have no credits left :-( Please sign up for a free key at openai.com and type {botName} activate <key>. Keys begin with sk- for GPT3. Or you can use the NEO engine from nlpcloud.com and send me the token from there - I recommend the pay as you go plan, which has 100k free credits. " + strE[0..20];
                     }
                     else
                     {
@@ -577,9 +577,9 @@ public class Gpt3
                 i++;
                 if (txt.Trim().Length < txt.Length)
                     txt = txt.Trim();
-                if (_api.UsingEngine.EngineName == "text-davinci-002")
+                if (_api.UsingEngine.EngineName.Contains("text-davinci"))
                     _api.UsingEngine = "davinci-instruct-beta";
-                else _api.UsingEngine = "text-davinci-002";
+                else _api.UsingEngine = engine;
                 continue;
             }
             break;

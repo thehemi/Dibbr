@@ -1,4 +1,6 @@
-﻿using DibbrBot;
+﻿// LEGACY FILE
+
+using DibbrBot;
 using Discord;
 using Discord.WebSocket;
 using System;
@@ -27,6 +29,7 @@ using MessageReference = Discord.MessageReference;
 using ServiceStack;
 using System.Net.Http.Json;
 using System.Collections.Concurrent;
+using ChatGPT3;
 
 public class DiscordV3 : ChatSystem
 {
@@ -58,195 +61,12 @@ public class DiscordV3 : ChatSystem
         public MessageHandler handler;
         public bool Disabled;
     }
-
+   
+ 
     ConcurrentDictionary<string, Room> Rooms = new ConcurrentDictionary<string, Room>();
     static ConcurrentDictionary<ulong, User> Users = new ConcurrentDictionary<ulong, User>();
 
-    static async Task GetFromJsonAsync(HttpClient client)
-    {
-
-        var todos = await client.GetFromJsonAsync<Root>(
-            "todos?userId=1&completed=false");
-
-      //  WriteLine("GET https://jsonplaceholder.typicode.com/todos?userId=1&completed=false HTTP/1.1");
-       // todos?.ForEach(WriteLine);
-    }
-
-        public async Task FindHer()
-    {
-        using HttpClient c = new()
-        {
-            BaseAddress = new Uri("https://prod.whisper.sh")
-           
-        };
-        c.DefaultRequestHeaders.Add("Version", "android_9.39.0");
-        var url = "whispers/nearby?" +
-            "uid=059f5cf0aaf2f81867f3bacfacfe90959dd3a1&lon=-117.0422404&band=0&lat=32.8113989";
-        var page = "&scroll_id=";
-        var whispers = new List<Root>();
-
-        var w = await c.GetFromJsonAsync<Root>(url);
-        whispers.Add(w);
-        for(int i=0;i<50;i++)
-        {
-            w = await c.GetFromJsonAsync<Root>(url+page+w.scroll_id);
-            whispers.Add(w);
-            //File.WriteAllText("Whispers.txt", JsonConvert.SerializeObject(whispers));
-        }
-        File.WriteAllText("Whispers.txt",JsonConvert.SerializeObject(whispers));
-    }
-
-    // Root myDeserializedClass = JsonConvert.DeserializeObject<Root>(myJsonResponse);
-    public class AdUnit
-    {
-        public string ad_type { get; set; }
-        public int ana_timeout_millis { get; set; }
-        public string id { get; set; }
-        public string location { get; set; }
-        public string platform { get; set; }
-        public string position_logic { get; set; }
-    }
-
-    public class AdUnit2
-    {
-        public string ad_type { get; set; }
-        public int ana_timeout_millis { get; set; }
-        public string id { get; set; }
-        public string location { get; set; }
-        public string platform { get; set; }
-        public string position_logic { get; set; }
-        public int queue_size { get; set; }
-    }
-
-    public class Assets
-    {
-        public string full_size { get; set; }
-        public string full_size_wm { get; set; }
-        public string narrow_thumbnail { get; set; }
-        public string portrait_thumbnail { get; set; }
-        public string wide_thumbnail { get; set; }
-        public string video_url { get; set; }
-    }
-
-    public class Card
-    {
-        public string button_text { get; set; }
-        public string color { get; set; }
-        public Colors colors { get; set; }
-        public Content content { get; set; }
-        public string id { get; set; }
-        public string image_url { get; set; }
-        public double sort { get; set; }
-        public string text { get; set; }
-        public string title { get; set; }
-        public string type { get; set; }
-    }
-
-    public class Colors
-    {
-        public string background_color { get; set; }
-        public string button_color { get; set; }
-        public string button_text_color { get; set; }
-        public string text_color { get; set; }
-    }
-
-    public class Content
-    {
-        public AdUnit ad_unit { get; set; }
-    }
-
-    public class Feeds
-    {
-        public To to { get; set; }
-        public From from { get; set; }
-    }
-
-    public class From
-    {
-        public Images images { get; set; }
-        public bool display { get; set; }
-        public string id { get; set; }
-        public string name { get; set; }
-        public string displayname { get; set; }
-        public string feed_type { get; set; }
-        public string feed_sub_type { get; set; }
-        public bool user_added { get; set; }
-    }
-
-    public class Images
-    {
-        public string browser { get; set; }
-        public string home { get; set; }
-        public string list { get; set; }
-    }
-
-    public class Meta
-    {
-        public string rec_type { get; set; }
-        public double display_value { get; set; }
-        public string display_unit { get; set; }
-    }
-
-    public class OtherBand
-    {
-    }
-
-    public class RepliesList
-    {
-        public string nickname { get; set; }
-        public string text { get; set; }
-        public string wid { get; set; }
-    }
-
-    public class Root
-    {
-        public string scroll_id { get; set; }
-        public int num_users { get; set; }
-        public double distance { get; set; }
-        public List<OtherBand> other_bands { get; set; }
-        public List<Whisper> whispers { get; set; }
-        public List<Card> cards { get; set; }
-        public List<AdUnit> ad_units { get; set; }
-    }
-
-    public class To
-    {
-        public Images images { get; set; }
-        public string id { get; set; }
-        public string name { get; set; }
-        public string displayname { get; set; }
-        public string feed_type { get; set; }
-        public string feed_sub_type { get; set; }
-        public bool user_added { get; set; }
-        public bool subscribed { get; set; }
-    }
-
-    public class Whisper
-    {
-        public object sort { get; set; }
-        public Meta meta { get; set; }
-        public Assets assets { get; set; }
-        public string media_type { get; set; }
-        public bool is_ad { get; set; }
-        public List<RepliesList> replies_list { get; set; }
-        public string format { get; set; }
-        public int view_count { get; set; }
-        public double popularity { get; set; }
-        public List<object> places { get; set; }
-        public Feeds feeds { get; set; }
-        public string wid { get; set; }
-        public string puid { get; set; }
-        public string nickname { get; set; }
-        public object ts { get; set; }
-        public string url { get; set; }
-        public string text { get; set; }
-        public string geo_title { get; set; }
-        public string in_reply_to { get; set; }
-        public int me2 { get; set; }
-        public int replies { get; set; }
-    }
-
-
+   
     //
     /// <summary>
     /// This will flag account as spammer but does join - beware!!
@@ -350,6 +170,7 @@ public class DiscordV3 : ChatSystem
         var config = new DiscordSocketConfig
         {
             AlwaysDownloadUsers = true,
+            DefaultRetryMode= RetryMode.AlwaysRetry,
             MessageCacheSize = 10000,
             
             
@@ -387,7 +208,8 @@ public class DiscordV3 : ChatSystem
     static Dictionary<string, string> BlackBoard = null;
     public void AddKey(string key, string val)
     {
-        BlackBoard.TryAdd(key, val);
+        if (!BlackBoard.TryAdd(key, val))
+            BlackBoard[key] = val;
         File.WriteAllText("BlackBoard.Txt", JsonConvert.SerializeObject(BlackBoard));
     }
 
@@ -466,9 +288,20 @@ public class DiscordV3 : ChatSystem
     {
         curMsg = arg;
         var botName = arg.Discord.CurrentUser.Username;
-        var guild = _client.GetGuild((arg.Channel as SocketGuildChannel)?.Guild?.Id ?? 0);
-        var isForBot = ForBot();
+        if (botName == "xev")
+            return;
+            var guild = _client.GetGuild((arg.Channel as SocketGuildChannel)?.Guild?.Id ?? 0);
         var channelName = arg.Channel.Name ?? arg.Channel.Id.ToString();
+        var model = "text-davinci-002";
+        if (botName == "xev")
+            model = "text-davinci-003";
+        var room = Rooms.GetOrCreate(channelName ?? "Group", new Room()
+        {
+            handler = new MessageHandler(null, null) { Channel = arg.Channel.Id.ToString(), BotName = botName }
+        });
+        curRoom = room;
+        var isForBot = ForBot();
+      
 
 
         //    if(d++ == 0)
@@ -605,11 +438,7 @@ public class DiscordV3 : ChatSystem
 
 
 
-        var room = Rooms.GetOrCreate(channelName ?? "Group", new Room()
-        {
-            handler = new MessageHandler(null, null) { Channel = arg.Channel.Id.ToString(), BotName = botName }
-        });
-        curRoom = room;
+       
         if (arg.Content.StartsWith("("))
             return;
 
@@ -677,22 +506,7 @@ public class DiscordV3 : ChatSystem
 
 
             #region APIKeys
-            /*   if (arg.Content.Contains("sk-"))
-               {
-                   var key = arg.Content.Substring(arg.Content.IndexOf("sk-"));
-                   var idx = key.IndexOf(" ");
-                   if (idx == -1) idx = key.Length;
-                   key = key.Substring(0, idx);
-
-                 //  Program.Set("OpenAI_OLD", Gpt3._token);
-                 //  Program.Set("OpenAI", key);
-               //    Gpt3._token = key;
-                   //_api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-002" });
-                   user.Queries = -1000;
-                   await arg.Channel.SendMessageAsync("Thank you for the key, " + arg.Author.Username + ", I have applied it. You get unlimited queries now.");
-                   return;
-
-               }*/
+       
 
             #endregion
 
@@ -952,10 +766,12 @@ public class DiscordV3 : ChatSystem
                         {
                             room.handler.Gpt3._token = key;
                             AddKey(guild?.Name ?? arg.Author.Username, key);
+                     //       NeedsKey = false;
                             await arg.Channel.SendMessageAsync("Activated GPT3!");
                         }
                         else
                         {
+                    //        NeedsKey = false;
                             AddKey((guild?.Name ?? arg.Author.Username + "Neo"), key);
                             room.handler.Gpt3.neoToken = "Token " + key;
                             await arg.Channel.SendMessageAsync("Activated NEO!");
@@ -973,6 +789,7 @@ public class DiscordV3 : ChatSystem
                 if (NeedsKey)
                 {
                     var val = BlackBoard.TryGetValue(guild?.Name ?? arg.Author.Username, out var key);
+                    
                     room.handler.Gpt3._token = key;
 
                     val = BlackBoard.TryGetValue((guild?.Name ?? arg.Author.Username) + "Neo", out key);
@@ -999,6 +816,8 @@ public class DiscordV3 : ChatSystem
                 else
                     room.handler.Log = user.Log;
 
+                if (arg.Discord.CurrentUser.Username != "dibbr" && content.Contains("dibbr"))
+                    return;
                 using (arg.Channel.EnterTypingState())
                 {
                     try
@@ -1024,7 +843,7 @@ public class DiscordV3 : ChatSystem
                     {
                         void FixLog(List<string> log)
                         {
-                            for (int x = log.Count - 2; x < log.Count; x++)
+                            for (int x = log.Count >=2?log.Count - 2:log.Count-1; x < log.Count; x++)
                                 if (log[x].StartsWith(">"))
                                     log.RemoveAt(x);
                         }
@@ -1180,6 +999,13 @@ public class DiscordV3 : ChatSystem
           
 
             var mentionsAnyone = MessageAuthors.TryGetValue(message.Reference?.MessageId.ToString() ?? "null", out string name);
+           foreach(var id in room.handler.identities)
+            {
+                if (name == id.BotName)
+                    return true;
+            }
+            // if (mentionsAnyone)
+           //r     return true
             // var mentions = name == botName;
             if (name == botName)
                 return true;

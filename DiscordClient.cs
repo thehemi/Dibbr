@@ -133,7 +133,7 @@ public static class StringHelp
         {
             var l = lines[index];
             if (l.Length < 4) continue;
-            lines[index] = "@@" + l;
+            lines[index] = ">>" + l;
             newLines.Add(lines[index]);
         }
 

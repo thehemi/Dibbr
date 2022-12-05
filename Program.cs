@@ -33,7 +33,7 @@ class Program
 
     public static string
         NewLogLine =
-            "\n@@"; // Must be different from \n to seperate multi-line messages from new chats. Can't be \r\n because that's a newline in a reply.
+            "\n>>"; // Must be different from \n to seperate multi-line messages from new chats. Can't be \r\n because that's a newline in a reply.
 
     public static List<ChatSystem> Systems = new();
     public static bool Shutdown { get; set; }
@@ -62,16 +62,29 @@ class Program
 
     public static void Set(string key, string value)
     {
-        File.AppendAllText("Keys.txt",key+" = "+value+"\n"); 
+        try
+        {
+            File.AppendAllText("Keys.txt", key + " = " + value + "\n");
 
-        if(configuration == null)
-            configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+            if (configuration == null)
+                configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
 
-        configuration.AppSettings.Settings.Remove(key);
-        configuration.AppSettings.Settings.Add(key, value);
-        configuration.Save(ConfigurationSaveMode.Modified, false);
-        ConfigurationManager.RefreshSection("appSettings");
-        Console.WriteLine($"Set {key} to {value}");
+            configuration.AppSettings.Settings.Remove(key);
+            configuration.AppSettings.Settings.Add(key, value);
+            configuration.Save(ConfigurationSaveMode.Modified, false);
+            ConfigurationManager.RefreshSection("appSettings");
+            Console.WriteLine($"Set {key} to {value}");
+        }
+        catch(Exception e)
+        {
+            Thread.Sleep(10);
+            if (configuration == null)
+                configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+
+            configuration.AppSettings.Settings.Add(key, value);
+            configuration.Save(ConfigurationSaveMode.Modified, false);
+
+        }
     }
 
     public static int Increment(string key, int amt = 1)
@@ -260,46 +273,7 @@ class Program
             //
 
             // Selfbot
-            /*  var token = ConfigurationManager.AppSettings["Discord"];
-              if (token is {Length: > 0})
-              {
-                  // Start the logger client
-                  var logClient = new DiscordV3();
-                  await logClient.Init(ConfigurationManager.AppSettings["Discord"]);
-
-                  var client = new DiscordChat(false, BotName, BotName);
-                  Console.WriteLine($"{client} initializing....");
-
-                  foreach (var words in chats.Select(chat => chat.Split(' ')))
-                  {
-                      Console.WriteLine("Discord Self Bot Added to " + words[0] + " channel " + words[1]);
-                      var gpt3 = new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002");
-                      client.AddChannel(words[1], words[0] == "DM", new(client, gpt3));
-                  }
-
-
-                  _ = client.Initialize(async (msg, user, isReply) => { return (false, null); }, token);
-                  Systems.Add(client);
-              }*/
-
-            // Selfbot #2
-            /*   token = ConfigurationManager.AppSettings["Discord_dabbr"];
-               if (token is {Length: > 0})
-               {
-                   var client = new DiscordChat(false, "dabbr", "dabbr");
-                   Console.WriteLine($"{client} initializing....");
-   
-                   foreach (var words in chats.Select(chat => chat.Split(' ')))
-                   {
-                       Console.WriteLine("Discord Self Bot Added to " + words[0] + " channel " + words[1]);
-   
-                       client.AddChannel(words[1], words[0] == "DM", new(client, gpt3));
-                   }
-   
-   
-                   _ = client.Initialize(async (msg, user, isReply) => { return (false, null); }, token);
-                   Systems.Add(client);
-               }*/
+           
 
             Console.WriteLine("All initialization done");
         }).Start();

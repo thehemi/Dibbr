@@ -52,12 +52,12 @@ namespace Discord
         ///     This intent includes all but <see cref="GuildMembers"/> and <see cref="GuildPresences"/>
         ///     which are privileged and must be enabled in the Developer Portal.
         /// </summary>
-        AllUnprivileged = Guilds | GuildBans | GuildEmojis | GuildIntegrations | GuildWebhooks | GuildInvites |
+        AllUnprivileged = Guilds | GuildBans | GuildEmojis | GuildIntegrations | GuildWebhooks  |
             GuildVoiceStates | GuildMessages | GuildMessageReactions | GuildMessageTyping | DirectMessages |
-            DirectMessageReactions | DirectMessageTyping | GuildScheduledEvents,
+            DirectMessageReactions | DirectMessageTyping,
         /// <summary>
         ///     This intent includes all of them, including privileged ones.
         /// </summary>
-        All = AllUnprivileged | GuildMembers | GuildPresences | MessageContent
+        All = AllUnprivileged | GuildMembers | MessageContent
     }
 }

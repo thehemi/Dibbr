@@ -114,7 +114,7 @@ class Web
 
             if (discord.Length > 0 && openai.Length > 0)
             {
-                var gpt3 = new Gpt3(openai, "text-davinci-002");
+                var gpt3 = new Gpt3(openai);
                 if (channel == "")
                 {
                     foreach (var c in Clients)

@@ -35,7 +35,7 @@ namespace Dibbr
 
             TwilioClient.Init(accountSid, authToken);
             if (gpt == null)
-                gpt = new Gpt3(Program.Get("OpenAI"), "text-davinci-002");
+                gpt = new Gpt3(Program.Get("OpenAI"));
             init = true;
         }
         public static Gpt3 gpt;
