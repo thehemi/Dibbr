@@ -12,12 +12,6 @@ using System.Reflection.Metadata.Ecma335;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using DSharpPlus;
-using DSharpPlus.Entities;
-using DSharpPlus.EventArgs;
-using ServiceStack;
-using ServiceStack.Host;
-using ServiceStack.Text;
 
 //using DSharpPlus.CommandsNext;
 
@@ -105,7 +99,7 @@ public static class StringHelp
     // When bot replies "Don't know", etc, we'll consider that a lame response
     public static bool Lame(this string xt)
     {
-        var lame = xt.IsNullOrEmpty() || xt.Contains("dibbr is a superintelligent") || ((xt.Length < "I don't know the answer to this, but ".Length && xt.HasAny("skip","rate limit","I don't understand", "not sure", "didn't understand", "please try again", "no idea", "I don't remember", "i don't know", "'m sorry I can't", "don't know", "not sure", "can't answer")));
+        var lame = (xt is null or "") || xt.Contains("dibbr is a superintelligent") || ((xt.Length < "I don't know the answer to this, but ".Length && xt.HasAny("skip","rate limit","I don't understand", "not sure", "didn't understand", "please try again", "no idea", "I don't remember", "i don't know", "'m sorry I can't", "don't know", "not sure", "can't answer")));
         if (lame)
             lame = lame;
 
@@ -133,7 +127,7 @@ public static class StringHelp
         {
             var l = lines[index];
             if (l.Length < 4) continue;
-            lines[index] = ">>" + l;
+            lines[index] = "@@" + l;
             newLines.Add(lines[index]);
         }
 

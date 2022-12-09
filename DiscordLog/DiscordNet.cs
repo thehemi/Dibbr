@@ -288,13 +288,10 @@ public class DiscordV3 : ChatSystem
     {
         curMsg = arg;
         var botName = arg.Discord.CurrentUser.Username;
-        if (botName == "xev")
-            return;
+    
             var guild = _client.GetGuild((arg.Channel as SocketGuildChannel)?.Guild?.Id ?? 0);
         var channelName = arg.Channel.Name ?? arg.Channel.Id.ToString();
-        var model = "text-davinci-002";
-        if (botName == "xev")
-            model = "text-davinci-003";
+   
         var room = Rooms.GetOrCreate(channelName ?? "Group", new Room()
         {
             handler = new MessageHandler(null, null) { Channel = arg.Channel.Id.ToString(), BotName = botName }
@@ -458,18 +455,11 @@ public class DiscordV3 : ChatSystem
         User user = Users.GetOrCreate(arg.Author.Id, new User() { Name = userName });
 
         string content = Regex.Replace(arg.Content, @" \[(.*?)\]", string.Empty);
-        var q = $"{userName}: {content.Trim(botName)}";
+        var q = $"{userName}: {content}'";
         await Program.Log("chat_log_" + channelName + ".txt", $"{q}");
 
-
-        if (!content.StartsWith("["))
-        {
-
-            user.Log.Add(q);
-            room.Log.Add(q);
-            user.Log = user.Log.Distinct().ToList();
-            room.Log = room.Log.Distinct().ToList();
-        }
+        user.Log.Add(q);
+        room.Log.Add(q);
 
 
        // room.thread = new Thread(async delegate ()
@@ -708,7 +698,8 @@ public class DiscordV3 : ChatSystem
 
 
 
-
+            if (wasAutoMessage && content.Replace(botName, "", StringComparison.InvariantCultureIgnoreCase).Length < 6)
+                return;
 
             if (!isForBot)
                 return;
@@ -804,7 +795,7 @@ public class DiscordV3 : ChatSystem
                            // if (Message.TryGetValue(message.Reference?.MessageId.Value ?? 0, out string context) && context != null && context != "")
                 {
 
-
+                    if(user.Log.Count > 1)
                     user.Log.Insert(user.Log.Count - 1,">"+ MessageAuthors[message.Reference.MessageId.ToString()] + ": " + msg.Content);
                     room.Log.Insert(room.Log.Count - 1, ">" + MessageAuthors[message.Reference.MessageId.ToString()] + ": " + msg.Content);
                 }
@@ -865,12 +856,7 @@ public class DiscordV3 : ChatSystem
                     //       user.Log.Remove(user.Log.Last());
                 }
 
-                if (str is not null or "" && !str.StartsWith("["))
-                {
-                    var a = $"{botName}: {str}";
-                    room.Log.Add(a);
-                    user.Log.Add(a);
-                }
+              
 
                 if (str == null)
                     str = "";
@@ -879,9 +865,6 @@ public class DiscordV3 : ChatSystem
 
                 if (qas.Count > 0 && qas.Last().EndsWith(":"))
                     qas[qas.Count - 1] = qas.Last() + $"\"{str}\"";
-
-                //user.Log.Add("AI: " + str);
-                // room.Log.Add(botName+": "+str);
 
                 if (randChat && (str.Lame() || str.HasAny("[", ":", "error")))
                     return;
@@ -1062,7 +1045,7 @@ public class DiscordV3 : ChatSystem
             fg = ConsoleColor.Red;
             new Thread(delegate ()
             {
-                Console.Beep(369, 50);
+              //  Console.Beep(369, 50);
             }).Start();
         }
         if (arg.Content.Contains("@everyone"))

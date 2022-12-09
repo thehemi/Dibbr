@@ -16,7 +16,6 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using Microsoft.CodeAnalysis.Scripting.Hosting;
-using NAudio.Wave;
 using OpenAI_API;
 using ServiceStack;
 using ServiceStack.Logging;
@@ -46,7 +45,7 @@ public class MessageHandler
     public bool SayHelo = true;
     public DateTime HelloTimer = DateTime.MaxValue;
     public string BotName;
-    public bool NewEngine = true;
+    public bool NewEngine = false;
     public class Identity
     {
         public string BotName;
@@ -74,7 +73,7 @@ public class MessageHandler
 
     public int MessageHistoryLimit = 10;
     public bool Muted = false;
-    public Speech Speech = new();
+  //  public Speech Speech = new();
     public bool AIMode = false;
     public int TalkInterval = 10; // How often to talk unprompted (in messages in chat)
 
@@ -105,12 +104,7 @@ public class MessageHandler
 
     public async Task OnUpdate(Action<string> sendMsg, bool dm)
     {
-       /* for (int m = 0; m < Log.Count; m++)
-        {
-            Log[m] = Log[m].Replace(": ", " said \'") + "'";
-        }*/
-      
- 
+  
          if (HelloTimer < DateTime.Now)
          {
              var str = ConfigurationManager.AppSettings["Hello"];
@@ -171,13 +165,7 @@ public class MessageHandler
     public async Task<(bool isReply, string msg)> OnMessage(string msg, string user, bool isAutoMessage = false,
                                                             bool isReply = true)
     {
-        for (int mx = 0; mx < Log.Count; mx++)
-        {
-      //      Log[mx] = Log[mx].Replace(": ", " said \'") + "'";
-          //  Log[mx] = Log[mx].Replace(" said \'", ": ");
-            //Log[mx] = Log[mx].Trim('\'');
-        }
-        if(!msg.HasAny(BotName))
+       
         {
             foreach(var id in identities)
             {
@@ -531,7 +519,7 @@ public class MessageHandler
         var useSteps = msg.HasAny("steps", "??","calculate", "solve", "given ", "if there are", "explain", 
             "what is ", " how ", "what would", "how do k", "what will") || math || m.Has(2, "how", "what", "why", "when", "where");
 
-        useSteps = msg.HasAny("?", "??") || math;
+        useSteps = msg.HasAny( "??") || math;
 
         msg = msg.Replace("??", "?");
        // if ((IsWriting(m)) && !IsContinue(m) && !Personal(m))
@@ -559,7 +547,8 @@ public class MessageHandler
 
         
         var oldBotName = BotName;
-        var suffix = $"{(AIMode ? "AI" : BotName)}'s "+(math?"answer":"reply")+$" to {user}: "+(useSteps||math?"Let's think in steps and end with a conclusion.":"");
+        //var suffix = $"{(AIMode ? "AI" : BotName)}'s "+((math||IsQuestion(msg))?"answer":"reply")+$" to {user}: "+(useSteps||math?"Let's think in steps and end with a conclusion.":"");
+        var suffix = $"{(AIMode ? "AI" : BotName)}'s " + ((math || IsQuestion(msg)) ? "answered" : "replied") + $" to {user} saying \"" + (useSteps || math ? "Let's think in steps and end with a conclusion." : "");
 
 
         if (writeSong)
@@ -861,34 +850,63 @@ public class MessageHandler
         else
         {
             var oldEngine = Gpt3.engine;
-
-
+            var oldNew = NewEngine;
+            var engine = Gpt3.engine;
             // GPT3.3 is better at these things
-            if (math || msg.Has(2,"tell","joke") || writeSong)
-                if(!msg.HasAny("rude","racist","offensive","sexist","bitch","fuck","shit","rape","sex","your","women"))
-                 Gpt3.engine = "text-davinci-003";
+            if (math || msg.Has(2, "tell", "joke") || writeSong || IsWriting(msg) || msg.HasAny("write a rap", "write a song"))
+
+            {
+                if (!msg.HasAny("rude", "racist", "offensive", "sexist", "bitch", "fuck", "shit", "rape", "sex", "your", "women"))
+                {
+                    //NewEngine = true;
+                   // engine = "text-davinci-003";
+                }
+            }
+            Gpt3.engine = engine;
             // if(msg.Contains("dibbrjones"))
             //     Gpt3.
-            var useNew = (msg.Contains("!NewEngine") || NewEngine) && BotName == "dibbr";
+            var useNew = (msg.Contains("!NewEngine") || msg.Contains("!ChatGPT") || NewEngine);
             if (msg.Contains("NewEngine off"))
             {
                 NewEngine = false;
-                return (true, "NewEngine off");
+                return (true, "done");
             }
             if (msg.Contains("NewEngine on"))
             {
                 NewEngine = true;
-                return (true, "NewEngine on");
+                return (true, "done");
             }
-            msg = msg.Replace("!NewEngine","");
+            msg = msg.Replace("!NewEngine","").Replace("!ChatGPT","");
             if (useNew)
             {
+                string RemoveSentence(string txt, string str)
+                {
+                    idx = txt.IndexOf(str);
+                    if (idx != -1)
+                    {
+                        var idx2 = txt.IndexOf(".", idx);
+                        if (idx2 != -1)
+                            txt = txt.Remove(idx, idx2 - idx);
+                        else txt = txt.Replace(str, "");
+                    }
+                    return txt; 
+                }
                 msg = msg.Replace(BotName, "");
                 txt = await Gpt3.Chat(msg);
-                if (txt == "Failure" || txt.HasAny("appropriate","inappropriate","language model","openai"))
+                txt = RemoveSentence(txt, "My purpose is to assist with generating human-like text");
+                txt = RemoveSentence(txt, "I'm sorry, but");
+                txt = RemoveSentence(txt, "as a large language model trained by OpenAI");
+
+           
+                    NewEngine = oldNew;
+                if (txt.StartsWith("Failure") || txt.Length == 0)// || txt.HasAny("appropriate","inappropriate","language model","openai"))
                 {
+                    if (m.Contains("!NewEngine") || m.Contains("!ChatGPT"))
+                        return (true, txt);
                     Console.WriteLine("No good: " + txt);
                     useNew = false;
+                    NewEngine = false;
+                    engine = "text-davinci-002";
                 }
                 else
                 {
@@ -898,7 +916,7 @@ public class MessageHandler
                 txt = txt.TrimExtra();
                 txt += "[ChatGPT]";
             }
-            }
+            }   
             if (!useNew)
             {
                 txt = await Gpt3.Ask(MakeText(history), msg, user, 2000, codeMode);
@@ -969,8 +987,8 @@ Hope these tips are helpful! Best of luck in reducing your food intake - I'm roo
             {
               //  debug +=
                 useSteps = true;
-                var context = $"This is an interview between the world's smartest human, and a superintelligent AI.";
-                var txt2 = await Gpt3.Ask(MakeText(history: 0, suf: "Answer: Let's think step by step.", context: context), msg, user, 2000, codeMode);
+               // var context = $"This is an interview between the world's smartest human, and a superintelligent AI.";
+                var txt2 = await Gpt3.Ask(MakeText(history: 0, suf: "Answer: Let's think step by step.", context: PrimeText), msg, user, 2000, codeMode);
                 int delame = 1;
                 if (txt2.Lame() || IsDupe(txt2))
                 {
@@ -1165,7 +1183,8 @@ Hope these tips are helpful! Best of luck in reducing your food intake - I'm roo
             //if (IsQuestion(m) && !isAutoMessage)
               //  history = 0;
 
-                var log1 = Log.Last(history).Where(s=>s.Length>s.IndexOf(":")+1).ToList();
+                var log1 = Log.Last(history).ToList();
+            
             for (int m = 0; m < log1.Count; m++)
             {
                 log1[m] = log1[m].Replace(": ", " said \'") + "'";
@@ -1179,10 +1198,10 @@ Hope these tips are helpful! Best of luck in reducing your food intake - I'm roo
             {
             //    Console.WriteLine(msg + " not found in " + log1.Last());
             }
-            var pre = ">>";
+            var pre = "@@";
 
             // Make it into a string
-            var log = pre+string.Join($"\n{pre}", TrimLines(log1.Last(history)))+$"\n{pre}";
+            var log = pre+string.Join($"\n{pre}", TrimLines(log1.Last(history).Where(s => !s.Contains($"said ' said")||s.Contains($"{BotName}xx:")).ToList()))+$"\n{pre}";
 
             if (log.Length > 2000)
                 log = log;
@@ -1191,7 +1210,7 @@ Hope these tips are helpful! Best of luck in reducing your food intake - I'm roo
             if (log.Length > 1000)
             {
                 log = log[^1000..].Trim();
-                var start = log.IndexOf(">>");
+                var start = log.IndexOf("@@");
                 log = log.Substring(start != -1 ? start : 0);
             }
            // if(!isAutoMessage)
@@ -1207,11 +1226,8 @@ Hope these tips are helpful! Best of luck in reducing your food intake - I'm roo
                //log+= $"\n{pre}{suffix}";
             }
           //  else
-            {
-                log += $"{user} said '{msg}'\n{pre}";
-               // log += $"\n{pre}{suffix}";
-                //                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    log += $"\n{pre}{BotName}:";
-            }
+            
+            
             log += suffix;
 
             log = log.Replace("[ChatGPT]", "");

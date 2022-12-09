@@ -63,7 +63,7 @@ namespace Dibbr
                 var seen = Messages.TryAdd(m.Sid, m.Body) || questions.Where(q=>q==m.Body).Count() > 0;
                 if (seen || m.From.ToString() == me.ToString() || m.DateSent < tm) continue;
                 questions.Add(m.Body);
-                Console.Beep();
+                //Console.Beep();
                 Console.WriteLine("SMS: "+m.Body);
                 var logs = Logs.GetOrCreate(m.From.ToString(), new List<string>());
                 logs.Add("Q: " + m.Body);

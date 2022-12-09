@@ -326,7 +326,7 @@ public class Gpt3
     /// <returns></returns>
     public async Task<string> Ask(string txt, string msg = "", string user = "user", int maxChars = 2000, bool code = false)
     {
-        Console.WriteLine("GPT3 Query: " + (msg.IsNullOrEmpty() ? txt.Length > 30 ? txt[^30..] : txt : (msg.Length > 20 ? msg[..20]:msg)));
+        Console.WriteLine($"{engine} Query: " + (msg.IsNullOrEmpty() ? txt.Length > 30 ? txt[^30..] : txt : (msg.Length > 20 ? msg[..20]:msg)));
 
         if (_token == null)
         {
@@ -428,9 +428,9 @@ public class Gpt3
 
         json = json[..^1];
         var jsonMode = false;
-        if (msg.Contains(">>"))
+        if (msg.Contains("@@"))
         {
-            msg = msg.Remove(">>");
+            msg = msg.Remove("@@");
             jsonMode = true;
         }
 
@@ -531,8 +531,8 @@ public class Gpt3
             if (i > 1)
                 txt = txt.Sub(txt.LastIndexOfAny(new char[] { '\n', '@', ':' })) + "\nAnswer:";
             var derp = engine != "text-davinci-003";
-            var ops = new[] { ">>","Human:","AI:" };
-            if (derp) ops = new[] { "[", ">>", "}" };
+            var ops = new[] { "@@","Human:","AI:" };
+            if (derp) ops = new[] { "[", "@@", "}" };
             if (txt.Length > 2000) txt = txt[^2000..]; // hrow new Exception("too big");
             TokensTotal += txt.Length / 4;
             LastQuery = txt;
@@ -727,19 +727,6 @@ static class StringHelpers
     }
 }
 
-class algo
-{
-    public string prompt { get; set; }
-    public int max_tokens { get; set; } = 2000;
-    public double temperature { get; set; } = 0.7f;
-    public int top_p { get; set; } = 1;
-    public int frequency_penalty { get; set; } = 0;
-    public int presence_penalty { get; set; } = 0;
-    public int best_of { get; set; } = 1;
-    public bool echo { get; set; } = true;
-    public int logprobs { get; set; } = 0;
-    public bool stream { get; set; } = false;
-}
 
 public class Parameters
 {
