@@ -31,7 +31,7 @@ public class Gpt3
     public string botName;
     public OpenAIAPI _api, _apiFallback;
     Engine _e;
-    ChatGPT chatgpt = new ChatGPT();
+    public static ChatGPT chatgpt;// = new ChatGPT();
 
     public static int TokensTotal, TokensLog, TokensQuery, TokensResponse = 0;
 
@@ -41,6 +41,8 @@ public class Gpt3
     public string neoToken;
     public Gpt3(string token, string engine = "text-davinci-003")
     {
+        if(chatgpt == null)
+            chatgpt = new ChatGPT();
         this.engine = engine;
         _token = token;
         oldToken = token;

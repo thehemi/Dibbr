@@ -64,7 +64,7 @@ public class DiscordV3 : ChatSystem
    
  
     ConcurrentDictionary<string, Room> Rooms = new ConcurrentDictionary<string, Room>();
-    static ConcurrentDictionary<ulong, User> Users = new ConcurrentDictionary<ulong, User>();
+     ConcurrentDictionary<ulong, User> Users = new ConcurrentDictionary<ulong, User>();
 
    
     //
@@ -185,10 +185,17 @@ public class DiscordV3 : ChatSystem
         // Some alternative options would be to keep your token in an Environment Variable or json config
         // var token = Environment.GetEnvironmentVariable("NameOfYourEnvironmentVariable");
         //if (token == null)
-          //  token = File.ReadAllText("token.txt");
-        await _client.LoginAsync(bot?TokenType.Bot:TokenType.User, token);
-        await _client.StartAsync();
-
+        // [ token = File.ReadAllText("token.txt");
+        try
+        {
+            await _client.LoginAsync(bot ? TokenType.Bot : TokenType.User, token);
+            await _client.StartAsync();
+        }
+        catch(Exception e)
+        {
+            Log("errors.txt", e.Message);
+            Console.WriteLine(e.Message+"\n Failed  to login wth token " + token);
+        }
         var dms = await _client.GetDMChannelsAsync(); ;
         var group = await _client.GetGroupChannelsAsync();
         var conns = await _client.GetConnectionsAsync();
@@ -296,6 +303,7 @@ public class DiscordV3 : ChatSystem
         {
             handler = new MessageHandler(null, null) { Channel = arg.Channel.Id.ToString(), BotName = botName }
         });
+        
         curRoom = room;
         var isForBot = ForBot();
       
@@ -606,11 +614,7 @@ public class DiscordV3 : ChatSystem
             }
             else
             {
-                if (arg.Author.IsBot || arg.Author.Username == "dibbr")
-                {
-                    //return;
-                    // maybe ignore
-                }
+    
             }
 
 
@@ -806,7 +810,7 @@ public class DiscordV3 : ChatSystem
                     room.handler.Log = room.Log;
                 else
                     room.handler.Log = user.Log;
-
+                room.handler.BotName = botName;
                 if (arg.Discord.CurrentUser.Username != "dibbr" && content.Contains("dibbr"))
                     return;
                 using (arg.Channel.EnterTypingState())
@@ -815,7 +819,7 @@ public class DiscordV3 : ChatSystem
                     {
                         room.handler.Client = this;
                         (bReply, str) = await room.handler.OnMessage(content, userName, wasAutoMessage, true);
-                        botName = room.handler.BotName;
+                       // botName = room.handler.BotName;
                     }
                     catch (Exception e) { str = "Exception " + e.Message; }// _callback(content, arg.Author.Username, isReply);
                 }
@@ -950,8 +954,6 @@ public class DiscordV3 : ChatSystem
         #region Helpers
         bool ForBot()
         {
-            if (botName=="xev" && !arg.Content.HasAny("xev"))
-                return false;
 
             MessageAuthors[arg.Id.ToString()] = arg.Author.Username;
             Message[arg.Id] = arg.Content;

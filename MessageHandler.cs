@@ -45,7 +45,7 @@ public class MessageHandler
     public bool SayHelo = true;
     public DateTime HelloTimer = DateTime.MaxValue;
     public string BotName;
-    public bool NewEngine = false;
+    public bool NewEngine = true;
     public class Identity
     {
         public string BotName;
@@ -285,7 +285,8 @@ public class MessageHandler
             UseNeo = false;
             return (false, "[GPT3 enabled]");
         }
-        if (m.StartsWithAny("which engine","what engine")) return (false,"I am using " + (useNeo?"Neo20B engine":Gpt3.engine));
+        if (m.StartsWithAny("which engine","what engine")) 
+            return (false,"I am using " + (NewEngine?"ChatGPT3":(useNeo?"Neo20B engine":Gpt3.engine)));
         if(m.StartsWithAny("set engine")) { Gpt3.engine = m.After("set engine").Trim();return (false,$"Engine set {(useNeo?"But Neo engine is on. Type <botname> neo off to switch to GPT3":"")}]"); }
 
 
@@ -521,15 +522,11 @@ public class MessageHandler
 
         useSteps = msg.HasAny( "??") || math;
 
-        msg = msg.Replace("??", "?");
+       // msg = msg.Replace("??", "?");
        // if ((IsWriting(m)) && !IsContinue(m) && !Personal(m))
         //    queryOnly = true;
 
-        if (BotName != "dibbr")
-        {
-            queryOnly = false;
-            useSteps = false;
-        }
+     
        // if (IsQuestion(m)) 
          //   useSteps = true;
 
@@ -593,13 +590,13 @@ public class MessageHandler
         if (m.Contains("max memory"))
         {
             MessageHistory = 20;
-            return (false, "[");//, "+MessageHistory+" lines"); //$"Memory boosted to {MessageHistory} log lines");
+            return (false, "");//, "+MessageHistory+" lines"); //$"Memory boosted to {MessageHistory} log lines");
         }
 
         if (m.Contains("boost memory"))
         {
             MessageHistory = MessageHistory * 3;
-            return (false, "[");//, "+MessageHistory+" lines"); //$"Memory boosted to {MessageHistory} log lines");
+            return (false, "");//, "+MessageHistory+" lines"); //$"Memory boosted to {MessageHistory} log lines");
         }
 
         if (m.Contains("shrink memory"))
@@ -852,6 +849,8 @@ public class MessageHandler
             var oldEngine = Gpt3.engine;
             var oldNew = NewEngine;
             var engine = Gpt3.engine;
+            if (useSteps)
+                engine = "text-davinci-003";
             // GPT3.3 is better at these things
             if (math || msg.Has(2, "tell", "joke") || writeSong || IsWriting(msg) || msg.HasAny("write a rap", "write a song"))
 
@@ -862,10 +861,16 @@ public class MessageHandler
                    // engine = "text-davinci-003";
                 }
             }
-            Gpt3.engine = engine;
+
             // if(msg.Contains("dibbrjones"))
             //     Gpt3.
-            var useNew = (msg.Contains("!NewEngine") || msg.Contains("!ChatGPT") || NewEngine);
+            var useNew = msg.EndsWith("???") ||
+               msg.EndsWith('!') || (msg.Contains("!NewEngine")
+               || msg.Contains("!ChatGPT"));
+
+            var tryNew = (msg.Length > 10 && msg.Contains("?") && NewEngine) && !useNew;
+           
+            
             if (msg.Contains("NewEngine off"))
             {
                 NewEngine = false;
@@ -876,65 +881,81 @@ public class MessageHandler
                 NewEngine = true;
                 return (true, "done");
             }
+            if(msg.Contains("UpdateCookies"))
+            {
+                Gpt3.chatgpt.UpdateCookies(msg.After("UpdateCookies"));
+                NewEngine = true;
+                return (true, "Cookies updated! Try ChatGPT again now.");
+            }
             msg = msg.Replace("!NewEngine","").Replace("!ChatGPT","");
-            if (useNew)
+            if (useNew||tryNew)
             {
                 string RemoveSentence(string txt, string str)
                 {
-                    idx = txt.IndexOf(str);
+                    var idx = txt.IndexOf(str);
+
                     if (idx != -1)
                     {
+                        // Find start of sentence
+                        var idxp = txt.LastIndexOf('.', idx) + 1;
+
                         var idx2 = txt.IndexOf(".", idx);
                         if (idx2 != -1)
-                            txt = txt.Remove(idx, idx2 - idx);
+                            txt = txt.Remove(idxp, idx2 - idxp);
                         else txt = txt.Replace(str, "");
                     }
-                    return txt; 
+                    return txt.TrimExtra();
                 }
                 msg = msg.Replace(BotName, "");
-                txt = await Gpt3.Chat(msg);
+                var txt2 = await Gpt3.Chat(msg);
+                Console.WriteLine($"ChatGPT: {txt2}");
+                txt = RemoveSentence(txt2, "browse the internet");
                 txt = RemoveSentence(txt, "My purpose is to assist with generating human-like text");
-                txt = RemoveSentence(txt, "I'm sorry, but");
-                txt = RemoveSentence(txt, "as a large language model trained by OpenAI");
+                //txt = RemoveSentence(txt, "I'm sorry, but");
+             //   txt = RemoveSentence(txt, "as a large language model trained by OpenAI");
+                txt = RemoveSentence(txt, "model trained by OpenAI");
+                if (txt.Length == 0)
+                {
+                    txt = txt2 + " (there is a bug in your code, dabbr)";
+                }
 
+             
            
                     NewEngine = oldNew;
+                if(useNew && !tryNew)
                 if (txt.StartsWith("Failure") || txt.Length == 0)// || txt.HasAny("appropriate","inappropriate","language model","openai"))
                 {
-                    if (m.Contains("!NewEngine") || m.Contains("!ChatGPT"))
-                        return (true, txt);
-                    Console.WriteLine("No good: " + txt);
+                    //  if (m.Contains("!NewEngine") || m.Contains("!ChatGPT"))
+                   
+                    txt += ("\nTry updating cooies with UpdateCookies <ChatGPT3Cookies>. You can get this from the browser with F12. Until then NewEngine will be turned off " + txt);
                     useNew = false;
                     NewEngine = false;
-                    engine = "text-davinci-002";
+                    //  engine = "text-davinci-002";
+                    Console.WriteLine(txt);
+                    return (true, txt);
                 }
                 else
                 {
-                var idx2 = txt.IndexOfAny("she replied", "she asked");
-                if (idx2 > 0)
-                    txt = txt.Substring(0, idx2);
-                txt = txt.TrimExtra();
-                txt += "[ChatGPT]";
+      
+                    txt += " [ChatGPT]";
+                    return (true, txt);
+                }   
             }
-            }   
-            if (!useNew)
+            
+          //  if (!useNew)
             {
+                Gpt3.engine = engine;
                 txt = await Gpt3.Ask(MakeText(history), msg, user, 2000, codeMode);
                 txt = txt.Remove("[ChatGPT]");
-               
+                Gpt3.engine = oldEngine;
+
             }
-            Gpt3.engine = oldEngine;
+           
         }
 
         debug += $"\n[UseNeo={useNeo}, history={history},useSteps={useSteps},isSong={writeSong}, queryOnly={queryOnly}, query length={Gpt3.LastQuery.Length},IsQuestion={IsQuestion(m)},IsWriting={IsWriting(m)}] ";
 
-        if (txt.Contains("skip", StringComparison.InvariantCultureIgnoreCase) && txt.Length < 10)
-        {
-            if (isAutoMessage)
-                return (false, "[[Debug: dibbr decided not to respond to this message]");
-            else return (false, $"[Dibbr refuses to answer or engage with your message, {user}]");
-        }
-
+  
 
         ////////////////////////////////////////////// Response Reply //////////////////////////////
         ///
@@ -948,123 +969,10 @@ public class MessageHandler
 
         Console.WriteLine(txt.Length); ;
 
-        var test = @"First, it's important to remember that everyone is different and there isn't necessarily one ""perfect"" way to eat less food. Just as importantly, don't be too hard on yourself - changing your eating habits can be difficult, and you're more likely to be successful if you approach it in a positive and gentle way.
 
-That said, here are a few tips that might help you eat less food:
-- Make sure you're eating regular meals, and try to space them out evenly throughout the day. This will help to control your hunger levels and avoid overeating.
-- When you do sit down to eat, take the time to really savor your food. Savor the taste, texture, and smell of what you're eating. This will help you feel more satisfied with smaller amounts of food.
-- Avoid eating high-calorie foods or snacks mindlessly. If you're going to eat something that isn't particularly healthy, make sure it's something that you really enjoy and savor.
-- Try to focus on consuming more nutrient-dense foods rather than calorie-dense foods. This means eating more fruits, vegetables, lean proteins, etc., and fewer processed foods. nutrient-rich foods tend to be more filling than calorie-rich foods, so this can also help you eat less overall.
-
-Hope these tips are helpful! Best of luck in reducing your food intake - I'm rooting for you!";
-        if (test.Lame())
-        {
-            test = test;
-        }
-        // Q: blah
-        // A: not sure
-        //
-        // Let's try stripping everything but the Q/A pair
-        //
-        if (txt.Lame()||IsDupe(txt))
-        {
-
-            if (m.Length <= "dibbr! ".Length || isAutoMessage)
-            { }
-            else
-            if (!IsQuestion(m) && m.Length > "What is the blahest bla".Length)
-            {
-                // try GPT3 - it tends to give less lame answers
-                var txt2 = await Gpt3.Ask(MakeText(history), msg, user, 2000, codeMode);
-                if(txt2 is not null or "")
-                {
-                    debug += $"\n[Original: {txt}]";
-                    txt = txt2 + " [GPT3]";
-                   // return (false, txt);
-                }
-            }
-            else 
-            {
-              //  debug +=
-                useSteps = true;
-               // var context = $"This is an interview between the world's smartest human, and a superintelligent AI.";
-                var txt2 = await Gpt3.Ask(MakeText(history: 0, suf: "Answer: Let's think step by step.", context: PrimeText), msg, user, 2000, codeMode);
-                int delame = 1;
-                if (txt2.Lame() || IsDupe(txt2))
-                {
-                   var  txt3 = await Gpt3.Q2(msg, AIMode ? "" : user);
-                    txt = txt3 + "\nOld Answer:" + txt2 + "\nReally old answer:" + txt;
-                    delame++;
-                }
-
-          
-            }
-        }
-
-       /* if (msg.HasAny("write","C#","code"))
-        {
-            var str = Exec2(txt);
-            if (!str.Contains("Exception"))
-                txt += "\nOutput: " + str;
-        }
-       */
-      
-        //
-        // Step 2 - Check for duplicate data
-        //
-       
-        // If repetitive, try again
-
-        if (false)//IsDupe(txt))
-        {
-            if (isAutoMessage) return (false, "[[Debug: No response. Is this ok?]");
-            Console.WriteLine("Trying again..");
-            var txt2 = await Gpt3.Ask(MakeText(0));
-            debug += $" [First Resposne Seemed Like Duplicate: '{txt}' ]";
-            if(txt.Length > 0)
-            txt = txt2 + "\n[Original seemed like Duplicate: "+txt+"]";
-            //   txt += "\nDev Note: Second response. First had a Levenshtein distance too high";
-        }
-
-       
-
- 
 
         if (txt.IsNullOrEmpty() && isAutoMessage) return (false, DebugMode?debug:"");
-        if (txt.IsNullOrEmpty() && !isAutoMessage)
-        {
-            // return (false, null);
-        }
-
-
-      /*  if (Lame(txt))
-        {
-            var m2 = msg.Remove("!!!").Remove(BotName).Remove("$$");
-            var log2 = Log.Last(1)[0].After(":");
-            var t = m2.Remove("!!!").Remove(BotName);//
-
-            t = $"\nQuestions & Answers:\nQuestion (from {user}) :" + t;
-            var txt2 = "";
-            if (useNeo)
-            {
-                txt2 = await Gpt3.Ask(MakeText(), msg, user, 2000, codeMode);
-               
-            }
-            else
-            {
-                useSteps = true;
-                // Gpt3.pairs.Add("")
-                txt2 = await Gpt3.Ask(msg.Remove("!!!").Remove(BotName) + (useSteps ? ".\n:Answer: Let's think in steps." : "\n"), user);
-            }
-
-            debug += $"\n[Original Answer Was Lame: {txt}, New Answer Lame={Lame(txt2)}]";
-            //  if (Lame(txt2))
-            //    txt = txt + " [OA: Same]";
-            // else
-            if (txt2.Length > txt.Length) txt = txt2;
-           // txt = txt2 + "\nOA: " + txt + "";
-        }*/
-
+     
         txt = txt.Replace("@everyone", "(at)everyone");
 
         if (txt.Contains("no credits left"))
@@ -1075,58 +983,14 @@ Hope these tips are helpful! Best of luck in reducing your food intake - I'm roo
         }
 
 
-
         // If the chat includes another chat starting, eg hi guys person: hey dibbr, filter it
-        if (txt.Contains("dibbr:"))//cards",StringComparison.OrdinalIgnoreCase) && (txt.Contains(":") && txt.IndexOf(":") > txt.Length/2))
+        if (txt.Contains($"{BotName}:"))//cards",StringComparison.OrdinalIgnoreCase) && (txt.Contains(":") && txt.IndexOf(":") > txt.Length/2))
         {
-            txt = txt.Substring(0, txt.IndexOf("dibbr:"));
+            txt = txt.Substring(0, txt.IndexOf($"{BotName}:"));
             txt = txt.Sub(0, txt.LastIndexOf(" "));
         }
 
-        new Thread(async delegate ()
-        {
-            //if (useNeo) return;
-            if (true) return;
-            if (Memory == null || Memory == "")
-                Memory = ConfigurationManager.AppSettings[Channel];
-            if (Memory != null && Memory.Length > 500)
-                Memory = Memory[..500];
 
-            if (Memory != "" && Memory != null)
-            {
-                try
-                {
-                    Program.Set(Channel, Memory);
-                }
-                catch (Exception e) { }
-            }
-
-            var newMemory = "";
-            txt = txt;
-           // if (0 == 1)
-            //    newMemory = await Gpt3.Ask(MakeText() + txt +
-             //                              "\nQ: what things do you want to remember if the chat log is wiped? Summarize the chat log in a few sentences. \nA:");
-            if (newMemory.Length > 0)
-            {
-                if (newMemory.Length > 500)
-                    newMemory = newMemory[..500];
-
-                Memory = newMemory;
-                Program.Set(Channel, Memory);
-            }
-        }).Start();
-
-       
-
-
-        // Bot may decide to not respond sometimes
-    /*    var c = txt.ToLower().Remove(BotName).Remove(":").Trim();
-        if (c.StartsWithAny("no response") || c.StartsWithAny("would not comment") || c.StartsWithAny("would not respond") ||
-            c.StartsWithAny("no comment"))
-        {
-            Console.WriteLine("No response desired!!!!");
-            return (false, "[Dibbr did not wish to address your comment");
-        }*/
        
         if (m.Contains("speak"))
         {
@@ -1170,7 +1034,7 @@ Hope these tips are helpful! Best of luck in reducing your food intake - I'm roo
         }
         string MakeText(int history, string prefix="", string suf="",string context="")
         {
-           // if (Gpt3.engine.Contains("code")) return msg.Remove("dibbr");// + suffix;
+            // if (Gpt3.engine.Contains("code")) return msg.Remove($"{BotName}");// + suffix;
             var warn = ""; //" (NOTE, If a leading question implies a fact, dibbr should not assume it is true) ";
 
             if (context is null or "")
@@ -1183,7 +1047,9 @@ Hope these tips are helpful! Best of luck in reducing your food intake - I'm roo
             //if (IsQuestion(m) && !isAutoMessage)
               //  history = 0;
 
-                var log1 = Log.Last(history).ToList();
+                var log1 = Log.Last(history+1).ToList();
+
+          //  if(history == 0)
             
             for (int m = 0; m < log1.Count; m++)
             {
