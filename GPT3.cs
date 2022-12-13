@@ -510,7 +510,7 @@ public class Gpt3
         return "";
     }
 
-    static DateTime lastNoCredits = DateTime.Now;
+    static public DateTime lastNoCredits = DateTime.Now;
     public async Task<string> Q(string txt, float pp = 0.6f, float tp = 0, float temp = 0.1f)
     {
       //  if (_api == null)
@@ -565,16 +565,16 @@ public class Gpt3
                 if (i > 1)
                 {
                   //  _token = null;
-                    if ((DateTime.Now - lastNoCredits).TotalSeconds > 20)
+                   // if ((DateTime.Now - lastNoCredits).TotalSeconds > 20)
                     {
                         lastNoCredits = DateTime.Now;
-                        return $"I have no credits left :-( Please sign up for a free key at openai.com and type {botName} activate <key>. Keys begin with sk- for GPT3. Or you can use the NEO engine from nlpcloud.com and send me the token from there - I recommend the pay as you go plan, which has 100k free credits. " + strE[0..20];
+                        return $"I have no credits :-( Please sign up for a free key at openai.com and type {botName} activate <key>. Keys begin with sk- for GPT3. Or you can use the NEO engine from nlpcloud.com and send me the token from there - I recommend the pay as you go plan, which has 100k free credits. " + strE[0..20];
                     }
-                    else
-                    {
-                        lastNoCredits = DateTime.Now;
-                        return "[OpenAI Error]";
-                    }
+                   // else
+                   // {
+                   //     lastNoCredits = DateTime.Now;
+                   //     return "[OpenAI Error]";
+                   // }
                 }
                 i++;
                 if (txt.Trim().Length < txt.Length)
