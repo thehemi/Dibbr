@@ -1,6 +1,6 @@
 # Dibbr ChatGPT / GPT-3.5 / GPT-3 Bot With Style And Personality
 
-While many of you enjoy Python, this bot has some awesome features worthy of using C#. Or, just run the executables.
+While many of you enjoy Python, this bot has some awesome features worthy of using C#. Runs on windows or mac or linux. Build yourself. 
 
 Try dibbr out in discord here: [https://discord.gg/mCHc8d5gEQ](https://discord.gg/mCHc8d5gEQ)
 
