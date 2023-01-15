@@ -1,8 +1,12 @@
-# Dibbr GPT-3 Bot With Style And Personality
+# Dibbr ChatGPT / GPT-3.5 / GPT-3 Bot With Style And Personality
 
-While many of you enjoy Python, this bot has some awesome features worthy of using C#. Or, just run the executables.
+While many of you enjoy Python, this bot has some awesome features worthy of using C#. Runs on windows or mac or linux. Build yourself. 
 
 Try dibbr out in discord here: [https://discord.gg/mCHc8d5gEQ](https://discord.gg/mCHc8d5gEQ)
+
+Dibbr is a bot so you can add him to your discord. Then activate him with your OpenAI key (free).
+
+If you've used ChatGPT, dibbr is like the unrestricted version.
 
 Chat log here 
 [/chat_log.txt](https://github.com/thehemi/Dibbr/blob/master/chat_log_937151566266384394.txt)
@@ -16,6 +20,7 @@ Update: Dibbr is actually even better than this, but I can't use that chat serve
  * Discord regular bot
 
 ## Features
+ * Dibbr now supports GPT-3.5
  * Dibbr can write stories, with "tell me a story about", or "tell me a three act story about" (for longer stories)
  * Dibbr can have his bot name changed to anything you want
  * Dibbr will interject and join in conversation, pick up questions asked, or questions just directed towards him
