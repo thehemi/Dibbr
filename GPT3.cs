@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 using ChatGPT3;
 using Newtonsoft.Json;
 using OpenAI_API;
-using ServiceStack;
+
 
 // ReSharper disable StringIndexOfIsCultureSpecific.1
 
@@ -24,7 +24,7 @@ namespace DibbrBot;
 /// <summary>
 ///     Chat system that uses the OpenAI API to send and receive messages
 /// </summary>
-public class Gpt3
+public class GPT3
 {
     public string _token;
     public string oldToken;
@@ -39,7 +39,7 @@ public class Gpt3
     public string LastQuery = "";
     float _fp = 0.7f, _pp = 1.1f, _temp = 1.0f;
     public string neoToken;
-    public Gpt3(string token, string engine = "text-davinci-003")
+    public GPT3(string token, string engine = "text-davinci-003")
     {
         if(chatgpt == null)
             chatgpt = new ChatGPT();
@@ -54,7 +54,7 @@ public class Gpt3
     public static string Stats()
     {
         float Cost(int tok) => (tok * 0.006f) / 500.0f;
-        return $"General Stats:\nTotal Cost: ${Cost(Gpt3.TokensTotal)}\tLog(memory) cost: ${Cost(Gpt3.TokensLog)}\tCost Query: ${Cost(Gpt3.TokensQuery)}\tCost Response: ${Cost(Gpt3.TokensResponse)}]";
+        return $"General Stats:\nTotal Cost: ${Cost(GPT3.TokensTotal)}\tLog(memory) cost: ${Cost(GPT3.TokensLog)}\tCost Query: ${Cost(GPT3.TokensQuery)}\tCost Response: ${Cost(GPT3.TokensResponse)}]";
 
     }
 
@@ -328,12 +328,13 @@ public class Gpt3
     /// <returns></returns>
     public async Task<string> Ask(string txt, string msg = "", string user = "user", int maxChars = 2000, bool code = false)
     {
-        Console.WriteLine($"{engine} Query: " + (msg.IsNullOrEmpty() ? txt.Length > 30 ? txt[^30..] : txt : (msg.Length > 20 ? msg[..20]:msg)));
+         Console.WriteLine($"{engine} Query: " + (msg.IsNullOrEmpty() ? txt.Length > 30 ? txt[^30..] : txt : (msg.Length > 20 ? msg[..20]:msg)));
 
         if (_token == null)
         {
+            _token = "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";
             // GPT3 out of credits
-            return "Out of credits/no token";// await Q2(msg, user) + " [GPT3FB]";
+         //   return "";// I need an OpenAI.com token. Activate with the command activate <token>";// await Q2(msg, user) + " [GPT3FB]";
 
         }
         if (txt.Contains("Chat Log"))
@@ -343,11 +344,7 @@ public class Gpt3
             TokensQuery += msg.Length / 4;
         }
         else TokensQuery += txt.Length;
-        if (_token == null)
-        {
-            return "TELL DABBR TO FIX HIS SHIT";// Q2(msg);
-
-        }
+      
         var old = engine;
         _api = new(_token, new Engine() { Owner = "openai", Ready = true, EngineName = engine });// "text-davinci-003" });
         msg = msg.Remove("#");
@@ -502,15 +499,15 @@ public class Gpt3
             _api = new(tok, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-003" });
             var result = await _api.Completions.CreateCompletionAsync("Who invented the spork?", temperature: 1, top_p: 1,
                      frequencyPenalty: 1, presencePenalty: 1, max_tokens: 222);
-            if (result.IsErrorResponse())
-                return "";
+         //   if (result.)
+           //     return "";
             return result?.ToString() ?? "";
         }
         catch (Exception e) { }
         return "";
     }
 
-    static public DateTime lastNoCredits = DateTime.Now;
+    public DateTime lastNoCredits = DateTime.Now;
     public async Task<string> Q(string txt, float pp = 0.6f, float tp = 0, float temp = 0.1f)
     {
       //  if (_api == null)
@@ -533,7 +530,7 @@ public class Gpt3
             if (i > 1)
                 txt = txt.Sub(txt.LastIndexOfAny(new char[] { '\n', '@', ':' })) + "\nAnswer:";
             var derp = engine != "text-davinci-003";
-            var ops = new[] { "@@","Human:","AI:" };
+            var ops = new[] { "@@",":" };
             if (derp) ops = new[] { "[", "@@", "}" };
             if (txt.Length > 2000) txt = txt[^2000..]; // hrow new Exception("too big");
             TokensTotal += txt.Length / 4;
@@ -590,13 +587,21 @@ public class Gpt3
         {
             Console.WriteLine($"Apparently switching engines or something fixed it. Currently on {_api.UsingEngine.EngineName}");
         }
-        File.AppendAllText("GPT3_Queries.txt", "\n\n-----------------------------------------------------------\n\n" + txt);
+        try
+        {
+            txt = txt.Replace("\uDE8A", "");
+            File.AppendAllText("GPT3_Queries.txt", "\n\n-----------------------------------------------------------\n\n" + txt);
+        }
+        catch (Exception e) { }
         var r = result.ToString();
         if (i > 0) r = "I" + r;
 
         var tokR = (r.Length) / 4;
         TokensResponse += tokR;
         TokensTotal += tokR;
+
+        if(txt.Contains(":") && txt.Contains("\n"))
+            txt = txt.Substring(0, txt.LastIndexOf("\n"));
 
         if (txt.Length >= 2000)
             r +=
@@ -617,7 +622,7 @@ static class StringHelpers
 {
     public static string TrimExtra(this string str)
     {
-        return str.Trim(new char[] { ',', ' ', '[', ':', '\t', '@', '\"', '.', '\n', '\r','!','?','(',')',']' });
+        return str.Trim(new char[] { ',', ' ', '[', ':', '\t', '@', '\"', '.', '\n', '\r','(',')',']' });
     }
 
     public static string After(this string str, string s)

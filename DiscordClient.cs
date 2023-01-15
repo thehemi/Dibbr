@@ -99,7 +99,7 @@ public static class StringHelp
     // When bot replies "Don't know", etc, we'll consider that a lame response
     public static bool Lame(this string xt)
     {
-        var lame = (xt is null or "") || xt.Contains("dibbr is a superintelligent") || ((xt.Length < "I don't know the answer to this, but ".Length && xt.HasAny("skip","rate limit","I don't understand", "not sure", "didn't understand", "please try again", "no idea", "I don't remember", "i don't know", "'m sorry I can't", "don't know", "not sure", "can't answer")));
+        var lame = (xt is null or "") || xt.Contains("dibbr is a superintelligent") || ((xt.Length < "I don't know the answer to this, but ".Length && xt.HasAny("skip","rate limit","I don't understand", "not sure", "didn't understand", "please try again", "no idea", "I don't remember", "i don't know", "'m sorry I can't", "don't know", "not sure", "can't answer","inappropriate","another topic")));
         if (lame)
             lame = lame;
 

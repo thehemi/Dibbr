@@ -52,7 +52,7 @@ namespace Discord
         ///     This intent includes all but <see cref="GuildMembers"/> and <see cref="GuildPresences"/>
         ///     which are privileged and must be enabled in the Developer Portal.
         /// </summary>
-        AllUnprivileged = Guilds | GuildBans | GuildEmojis | GuildIntegrations | GuildWebhooks  |
+        AllUnprivileged = Guilds |  GuildBans | GuildEmojis | GuildIntegrations | GuildWebhooks  |
             GuildVoiceStates | GuildMessages | GuildMessageReactions | GuildMessageTyping | DirectMessages |
             DirectMessageReactions | DirectMessageTyping,
         /// <summary>

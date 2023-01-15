@@ -8,17 +8,16 @@ using System.Threading.Tasks;
 using System.Security.Policy;
 using System.Text;
 using Newtonsoft.Json;
-using Microsoft.AspNetCore.Mvc.Filters;
-using ServiceStack;
+//using Microsoft.AspNetCore.Mvc.Filters;
+
 using DibbrBot;
-using Twilio.Jwt.AccessToken;
+//using Twilio.Jwt.AccessToken;
 using System.Net;
 using static ChatGPT3.ChatGPT;
 using System.Net.Http.Headers;
 using System.Diagnostics;
 using System.Linq;
-using ServiceStack.Host;
-using ServiceStack.Web;
+
 
 namespace ChatGPT3;
 
@@ -123,7 +122,7 @@ public class ChatGPT
             Console.WriteLine(e);
             return "Failure " + e.Message.ToString();
         }
-        var txt = lastResponse.message.content.parts.Join(" ");
+        var txt = string.Join(" ",lastResponse.message.content.parts);//.Concat((a,b)=>a+b);//.Join(" ");
         if (txt.Contains("Unauthorized"))
             return "Failure " + txt;
         return txt;
