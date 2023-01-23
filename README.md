@@ -1,5 +1,9 @@
 # Dibbr ChatGPT / GPT-3.5 / GPT-3 Bot With Style And Personality
 
+Add dibbr to your server by following this link: https://discord.com/api/oauth2/authorize?client_id=972013718168813599&permissions=1024&scope=bot
+
+Deploy dibbr to your server by building .NET Linux (Visual Studio->Publish) and run nohup /path/to/dibbr
+
 While many of you enjoy Python, this bot has some awesome features worthy of using C#. Runs on windows or mac or linux. Build yourself. 
 
 Try dibbr out in discord here: [https://discord.gg/mCHc8d5gEQ](https://discord.gg/mCHc8d5gEQ)
