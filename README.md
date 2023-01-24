@@ -55,6 +55,3 @@ Please use your own OpenAI key and discord keys, the app will run you through th
 5. Go to your slack room, and 'Add app', search for your app name e.g. dibbr
 6. Dibbr should be online and ready to go! Make sure the app is running
 
-
-![Selfbots](https://i.imgur.com/2mvBVVC.png)
-
