@@ -1,6 +1,6 @@
-# Dibbr ChatGPT / GPT-3.5 / GPT-3 Bot With Style And Personality
+# GPT3/ChatGPT Bot For Slack, Google Workspace, Discord
 
-Add dibbr to your server by following this link: https://discord.com/api/oauth2/authorize?client_id=972013718168813599&permissions=1024&scope=bot
+Add dibbr to your Discord server by following this link: https://discord.com/api/oauth2/authorize?client_id=972013718168813599&permissions=1024&scope=bot
 
 Deploy dibbr to your server by building .NET Linux (Visual Studio->Publish) and run nohup /path/to/dibbr
 
@@ -24,6 +24,7 @@ Update: Dibbr is actually even better than this, but I can't use that chat serve
  * Discord regular bot
 
 ## Features
+ * Dibbr can memorize your company or project wiki and answer any questions
  * Dibbr now supports GPT-3.5
  * Dibbr can write stories, with "tell me a story about", or "tell me a three act story about" (for longer stories)
  * Dibbr can have his bot name changed to anything you want
