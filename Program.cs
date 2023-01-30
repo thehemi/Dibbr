@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -64,7 +65,7 @@ class Program
     {
         try
         {
-            File.AppendAllText("Keys.txt", key + " = " + value + "\n");
+            File.AppendAllText("keys.txt", key + " = " + value + "\n");
 
             if (configuration == null)
                 configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
@@ -107,7 +108,7 @@ class Program
         return line;
     }
 
-    public static void NewClient(ChatSystem client, string token, Gpt3 gpt3)
+    public static void NewClient(ChatSystem client, string token, GPT3 gpt3)
     {
         if (token is not {Length: not 0}) return;
 
@@ -124,7 +125,12 @@ class Program
 
     public static async Task Log(string name, string txt)
     {
-        try { await File.AppendAllTextAsync(name, txt); }
+        try {
+            name = name.Replace(" ", "-");
+            name = name.Replace("--", "-");
+            name = Regex.Replace(name, "[^a-z0-9\\-]", "");
+
+            await File.AppendAllTextAsync(name, txt); }
         catch (Exception e)
         {
             try { await File.AppendAllTextAsync("1_" + name, txt); }
@@ -237,7 +243,7 @@ class Program
             Set("OpenAI",
                 token.StartsWith("sk") ? token : Prompt("Please paste your OpenAI Key here. It should start with sk-"));
         }
-        Web.Run();
+        //Web.Run();
         // Start the bot on all chat services
         new Thread(async () =>
         {
@@ -250,6 +256,7 @@ class Program
                 var logClient = new DiscordV3() { };
                // var c = chats.Where(c => c.Contains("ROOM")).Select(c => c.After("ROOM"));
                // logClient.Channels = c.ToList();
+                
                 await logClient.Init(token);
             }
             var botToken = ConfigurationManager.AppSettings["DiscordBot"];
@@ -262,14 +269,14 @@ class Program
                 
             //  new List<ChatSystem>();
             // NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken"],
-            //     new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
+            //     new GPT3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
             //  NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken2"],
-            //     new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
+            //     new GPT3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
 
             // TODO: Move to DiscordV3. Probably just need to add "Bot Token"
            // if(ConfigurationManager.AppSettings["DiscordBot"]!=null)
            //     NewClient(new DiscordChatV2(), ConfigurationManager.AppSettings["DiscordBot"],
-            //          new Gpt3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
+            //          new GPT3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
             //
 
             // Selfbot

@@ -43,7 +43,7 @@ public static class StringHelp
     public static string Sub(this string input, int start, int end=-1)
     {
         if (start == -1) return "";// start = 0;
-        if (end+start > input.Length || end == -1) end = input.Length - start;
+        if (end+start > input.Length || end == -1) end = Math.Max(0,input.Length - start);
         
         var result = input.Substring(start, end);
         return result;

@@ -1,6 +1,5 @@
 ﻿using DibbrBot;
 using Discord;
-using ServiceStack;
 using SlackNet.Interaction;
 using System;
 using System.Collections.Generic;
@@ -9,9 +8,9 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Twilio;
+/*using Twilio;
 using Twilio.Rest.Api.V2010.Account;
-using Twilio.TwiML.Voice;
+using Twilio.TwiML.Voice;*/
 using Task = System.Threading.Tasks.Task;
 
 namespace Dibbr
@@ -33,12 +32,12 @@ namespace Dibbr
             if (authToken == null)
                 return;
 
-            TwilioClient.Init(accountSid, authToken);
+            //TwilioClient.Init(accountSid, authToken);
             if (gpt == null)
-                gpt = new Gpt3(Program.Get("OpenAI"));
+                gpt = new GPT3(Program.Get("OpenAI"));
             init = true;
         }
-        public static Gpt3 gpt;
+        public static GPT3 gpt;
         public static Dictionary<string, List<string>> Logs = new Dictionary<string, List<string>>();
         public static Dictionary<string, string> Messages = new Dictionary<string, string>();
         public static List<string> questions = new List<string>();
@@ -46,21 +45,20 @@ namespace Dibbr
         public async static void HandleMessages()
         {
            // return;
-            var tm = DateTime.Now - TimeSpan.FromSeconds(10);
+           /* var tm = DateTime.Now - TimeSpan.FromSeconds(10);
             var me = new Twilio.Types.PhoneNumber("+19706968551");
             Init();
             var ret = ""; 
             var opt = new ReadMessageOptions();
-            opt.DateSentAfter = tm;
+            opt.DateSentAfter = tm;*/
             //opt.
-            try
-            {
-                var messages = await MessageResource.ReadAsync(opt);
+        
+               // var messages = await MessageResource.ReadAsync(opt);
            
-            ret += "\nMessages Recieved: \n";
-            foreach (var m in messages)
-            {
-                var seen = Messages.TryAdd(m.Sid, m.Body) || questions.Where(q=>q==m.Body).Count() > 0;
+          //  ret += "\nMessages Recieved: \n";
+        //    foreach (var m in messages)
+      
+             /*   var seen = Messages.TryAdd(m.Sid, m.Body) || questions.Where(q=>q==m.Body).Count() > 0;
                 if (seen || m.From.ToString() == me.ToString() || m.DateSent < tm) continue;
                 questions.Add(m.Body);
                 //Console.Beep();
@@ -85,12 +83,8 @@ namespace Dibbr
                
 
                 ret += $"From:{m.From.ToString()} Body:{m.Body}\n";
-                }
-            }
-            catch (Exception ex)
-            {
-                ret = ex.Message;
-            }
+                }*/
+     
 
 
         }
@@ -109,7 +103,7 @@ namespace Dibbr
             var ret = "";
             if (number.Length > 0)
             {
-                var message = MessageResource.Create(
+             /*   var message = MessageResource.Create(
                     body: msg,
                     from: new Twilio.Types.PhoneNumber("+19706968551"),
                     to: new Twilio.Types.PhoneNumber(number)
@@ -117,7 +111,7 @@ namespace Dibbr
 
                 ret += $"ok! sid {message.Sid} status {message.Status} ";
                 if (message.ErrorMessage is not null or "")
-                    ret += message.ErrorMessage;
+                    ret += message.ErrorMessage;*/
             }
 
 

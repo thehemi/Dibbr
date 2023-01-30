@@ -332,7 +332,6 @@ public class GPT3
 
         if (_token == null)
         {
-            _token = "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";
             // GPT3 out of credits
          //   return "";// I need an OpenAI.com token. Activate with the command activate <token>";// await Q2(msg, user) + " [GPT3FB]";
 
@@ -353,7 +352,7 @@ public class GPT3
         // if (!txt.Contains(msg)) txt += msg;
         // Set variables like this
         // dibbr hey ?fp=1&pp=2
-        var line = msg.Remove("dibbr").Trim();
+        var line = msg.Remove(Program.BotName).Trim();
         if (line.StartsWith("creativity"))
         {
             line = line.After("creativity ");
@@ -513,8 +512,8 @@ public class GPT3
       //  if (_api == null)
         {
             //   _e = new(_engine) {Owner = "openai", Ready = true};
-            _api = new(_token, _e);
-            _apiFallback = new(_token, new Engine(engine));
+            _api = new(_token, new Engine(engine));
+            _apiFallback = new(Program.Get("OpenAI"), new Engine(engine));
         }
 
         int i = 0;
@@ -525,10 +524,10 @@ public class GPT3
                 txt = txt[^1000..];
             // string r = "";
            
-            if (i > 0)
-                txt += "I";
-            if (i > 1)
-                txt = txt.Sub(txt.LastIndexOfAny(new char[] { '\n', '@', ':' })) + "\nAnswer:";
+          //  if (i > 0)
+            //    txt += "I";
+          //  if (i > 1)
+            //    txt = txt.Sub(txt.LastIndexOfAny(new char[] { '\n', '@', ':' })) + "\nAnswer:";
             var derp = engine != "text-davinci-003";
             var ops = new[] { "@@",":" };
             if (derp) ops = new[] { "[", "@@", "}" };
@@ -559,13 +558,24 @@ public class GPT3
             {
                 Console.WriteLine("GPT3 Response Failure:" + result?.ToString() ?? "OpenAI CALL FAILED WITH NO REASON");
 
+                if (i++ == 0)
+                {
+                    _api = _apiFallback;
+                    _token = _apiFallback.Auth.ApiKey;
+                    continue;
+                }
+
                 if (i > 1)
                 {
+                   
+
                   //  _token = null;
                    // if ((DateTime.Now - lastNoCredits).TotalSeconds > 20)
                     {
                         lastNoCredits = DateTime.Now;
-                        return $"I have no credits :-( Please sign up for a free key at openai.com and type {botName} activate <key>. Keys begin with sk- for GPT3. Or you can use the NEO engine from nlpcloud.com and send me the token from there - I recommend the pay as you go plan, which has 100k free credits. " + strE[0..20];
+                        _token = null;
+                       // foreach(var b in )
+                        return $"invalid token";// + strE[0..20];
                     }
                    // else
                    // {
@@ -573,12 +583,12 @@ public class GPT3
                    //     return "[OpenAI Error]";
                    // }
                 }
-                i++;
+              
                 if (txt.Trim().Length < txt.Length)
                     txt = txt.Trim();
-                if (_api.UsingEngine.EngineName.Contains("text-davinci"))
-                    _api.UsingEngine = "davinci-instruct-beta";
-                else _api.UsingEngine = engine;
+               // if (_api.UsingEngine.EngineName.Contains("text-davinci"))
+                 //   _api.UsingEngine = "davinci-instruct-beta";
+                 _api.UsingEngine = engine;
                 continue;
             }
             break;
@@ -594,7 +604,7 @@ public class GPT3
         }
         catch (Exception e) { }
         var r = result.ToString();
-        if (i > 0) r = "I" + r;
+        //if (i > 0) r = "I" + r;
 
         var tokR = (r.Length) / 4;
         TokensResponse += tokR;
@@ -627,14 +637,14 @@ static class StringHelpers
 
     public static string After(this string str, string s)
     {
-        var idx = str.ToLower().LastIndexOf(s.ToLower());
+        var idx = str.ToLower().IndexOf(s.ToLower());
         if (idx == -1) return "";
         return str.Substring(idx + s.Length).TrimExtra();
     }
 
     public static string Before(this string str, string s, bool defaultWhole=false)
     {
-        var idx = str.ToLower().IndexOf(s.ToLower());
+        var idx = str.ToLower().LastIndexOf(s.ToLower());
         if (idx == -1) return defaultWhole?str:"";
         return str.Substring(0, idx);
     }

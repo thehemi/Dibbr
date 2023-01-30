@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if false
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
@@ -8,13 +9,10 @@ using Microsoft.AspNetCore.Http;
 using System.Text;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.FileProviders;
-using Twilio.AspNet.Common;
-using Twilio.AspNet.Core;
-using Twilio.TwiML;
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
-using Twilio.AspNet.Core.MinimalApi;
-using Twilio.Http;
+
 using System.Threading.Tasks;
 
 namespace DibbrBot;
@@ -114,7 +112,7 @@ class Web
 
             if (discord.Length > 0 && openai.Length > 0)
             {
-                var gpt3 = new Gpt3(openai);
+                var gpt3 = new GPT3(openai);
                 if (channel == "")
                 {
                     foreach (var c in Clients)
@@ -193,3 +191,4 @@ class Web
     }
     static Thread t;
 }
+#endif
