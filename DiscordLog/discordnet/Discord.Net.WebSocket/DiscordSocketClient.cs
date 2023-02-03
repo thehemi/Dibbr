@@ -3080,8 +3080,8 @@ namespace Discord.WebSocket
 
 
             //options = RequestOptions.CreateOrClone(options);
-            await ApiClient.SendGatewayAsync(GatewayOpCode.Lazy, x
-                 , options: RequestOptions.Default).ConfigureAwait(false);
+           // await ApiClient.SendGatewayAsync(GatewayOpCode.Lazy, x
+             //    , options: RequestOptions.Default).ConfigureAwait(false);
         }
         private async Task GuildAvailableAsync(SocketGuild guild)
         {
