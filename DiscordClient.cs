@@ -35,7 +35,8 @@ public static class StringHelp
         }
         else
         {
-            input.Add(key, 1);
+            if(!input.TryAdd(key, 1))
+                input[key]++;
             return 1;
         }
 

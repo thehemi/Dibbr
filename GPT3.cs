@@ -512,7 +512,7 @@ public class GPT3
       //  if (_api == null)
         {
             //   _e = new(_engine) {Owner = "openai", Ready = true};
-            _api = new(_token, new Engine(engine));
+            _api = new(_token?? Program.Get("OpenAI"), new Engine(engine));
             _apiFallback = new(Program.Get("OpenAI"), new Engine(engine));
         }
 
@@ -530,14 +530,13 @@ public class GPT3
             //    txt = txt.Sub(txt.LastIndexOfAny(new char[] { '\n', '@', ':' })) + "\nAnswer:";
             var derp = engine != "text-davinci-003";
             var ops = new[] { "@@",":" };
-            if (derp) ops = new[] { "[", "@@", "}" };
             if (txt.Length > 2000) txt = txt[^2000..]; // hrow new Exception("too big");
             TokensTotal += txt.Length / 4;
             LastQuery = txt;
             var strE = "";
             try
             {
-                
+                Console.WriteLine($"GPT Request: {txt.Substring(0,20)}");;
                 result = await _api.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
                    frequencyPenalty: tp, presencePenalty: pp, max_tokens: 1400,
                    stopSequences: ops);
@@ -548,6 +547,8 @@ public class GPT3
                 File.AppendAllText("GPT3__Failed_Queries.txt", "\n\n-----------------------------------------------------------\n\n" + txt);
                 strE = e.Message;
                 Console.WriteLine(e.ToString());
+                if(e.Message.Contains("TooManyRequests"))
+                    await Task.Delay(1000); 
                 result = null;
             }
             if(result?.ToString().Trim().Length < 3)
@@ -618,7 +619,7 @@ public class GPT3
                 $"[ {Program.BotName} is using a lot of tokens. Maybe boss should be warned, unless you did this on purpose.]";
 
 
-        Console.WriteLine("GPT3 response: " + (r.Length > 20 ? r[..20]:r));
+        Console.WriteLine("GPT3 response: " + (r.Length > 70 ? r[..70]:r));
 
         return r;
 
@@ -644,7 +645,7 @@ static class StringHelpers
 
     public static string Before(this string str, string s, bool defaultWhole=false)
     {
-        var idx = str.ToLower().LastIndexOf(s.ToLower());
+        var idx = str.ToLower().IndexOf(s.ToLower());
         if (idx == -1) return defaultWhole?str:"";
         return str.Substring(0, idx);
     }

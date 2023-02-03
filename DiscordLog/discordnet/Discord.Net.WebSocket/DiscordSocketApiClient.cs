@@ -332,10 +332,10 @@ namespace Discord.API
                 msg.ShardingParams = new int[] { shardID, totalShards };
 
             options.BucketId = GatewayBucket.Get(GatewayBucketType.Identify).Id;
-       //     if (AuthTokenType != TokenType.User)
+            if (AuthTokenType != TokenType.User)
                 msg.Intents = (int)gatewayIntents;
-      //      else
-       //         msg.Intents = (int)GatewayIntents.AllUnprivileged;
+            else
+                msg.Intents = (int)GatewayIntents.AllUnprivileged;
 
             if (presence.HasValue)
             {

@@ -916,6 +916,7 @@ namespace Discord.WebSocket
                                         int unavailableGuilds = 0;
                                         for (int i = 0; i < data.Guilds.Length; i++)
                                         {
+                                            
                                             var model = data.Guilds[i];
                                             var guild = AddGuild(model, state);
                                             if (!guild.IsAvailable || ApiClient.AuthTokenType == TokenType.User)
@@ -3067,12 +3068,31 @@ namespace Discord.WebSocket
         internal bool HasGatewayIntent(GatewayIntents intents)
             => _gatewayIntents.HasFlag(intents);
 
+        public async Task LazyGuild(SocketGuild guild)
+        {
+            var x = new LazyGuilds()
+            {
+                GuildId = guild.Id
+            };
+            var c = guild.Channels.FirstOrDefault().Id;
+
+            x.Channels.Add(c, new List<int>() { 0, 99 });
+
+
+            //options = RequestOptions.CreateOrClone(options);
+            await ApiClient.SendGatewayAsync(GatewayOpCode.Lazy, x
+                 , options: RequestOptions.Default).ConfigureAwait(false);
+        }
         private async Task GuildAvailableAsync(SocketGuild guild)
         {
             if (!guild.IsConnected)
             {
                 guild.IsConnected = true;
                 await TimedInvokeAsync(_guildAvailableEvent, nameof(GuildAvailable), guild).ConfigureAwait(false);
+
+
+                LazyGuild(guild);
+               
             }
         }
         private async Task GuildUnavailableAsync(SocketGuild guild)
@@ -3165,17 +3185,17 @@ namespace Discord.WebSocket
         private async Task UnknownGlobalUserAsync(string evnt, ulong userId)
         {
             string details = $"{evnt} User={userId}";
-            await _gatewayLogger.WarningAsync($"Unknown User ({details}).").ConfigureAwait(false);
+          ////  await _gatewayLogger.WarningAsync($"Unknown User ({details}).").ConfigureAwait(false);
         }
         private async Task UnknownChannelUserAsync(string evnt, ulong userId, ulong channelId)
         {
             string details = $"{evnt} User={userId} Channel={channelId}";
-            await _gatewayLogger.WarningAsync($"Unknown User ({details}).").ConfigureAwait(false);
+          //  await _gatewayLogger.WarningAsync($"Unknown User ({details}).").ConfigureAwait(false);
         }
         private async Task UnknownGuildUserAsync(string evnt, ulong userId, ulong guildId)
         {
             string details = $"{evnt} User={userId} Guild={guildId}";
-            await _gatewayLogger.WarningAsync($"Unknown User ({details}).").ConfigureAwait(false);
+          //  await _gatewayLogger.WarningAsync($"Unknown User ({details}).").ConfigureAwait(false);
         }
         private async Task IncompleteGuildUserAsync(string evnt, ulong userId, ulong guildId)
         {

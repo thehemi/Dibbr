@@ -1,8 +1,11 @@
 ﻿// (c) github.com/thehemi
 
 using Dibbr;
+using Discord.API;
+using Keystroke.API;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Configuration;
 using System.IO;
 using System.Linq;
@@ -61,7 +64,29 @@ class Program
         }
     }
 
-    public static void Set(string key, string value)
+    public static List<string> GetAll(string prefix,string sec= "appSettings")
+    {
+        var s = ConfigurationManager.GetSection(sec) as NameValueCollection;
+        if (s.Count == 0)
+        {
+            Console.WriteLine("Application Settings are not defined");
+            return new List<string>();
+        }
+        else
+        {
+            var vals = new List<string>();
+            var k = s.AllKeys;
+            foreach(var key in k)
+            {
+                if (key.StartsWith(prefix))
+                    vals.Add(s.Get(key));
+            }
+            return vals;
+        }
+    }
+   
+
+    public static void Set(string key, string value, string sec = null)
     {
         try
         {
@@ -70,9 +95,12 @@ class Program
             if (configuration == null)
                 configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
 
-            configuration.AppSettings.Settings.Remove(key);
-            configuration.AppSettings.Settings.Add(key, value);
-            configuration.Save(ConfigurationSaveMode.Modified, false);
+            var s = (AppSettingsSection)configuration.GetSection(sec ?? "appSettings");
+           
+                s.Settings.Remove(key);
+            s.Settings.Add(key, value);
+
+            configuration.Save(ConfigurationSaveMode.Modified,false);
             ConfigurationManager.RefreshSection("appSettings");
             Console.WriteLine($"Set {key} to {value}");
         }
@@ -138,9 +166,13 @@ class Program
         }
     }
 
+    
 
+    [STAThread]
     static void Main(string[] args)
     {
+        
+
         Console.WriteLine(
             $"{BotName} is starting...Settings are in dibbr.dll.config. (c) Timothy Murphy-Johnson aka github.com/thehemi aka dabbr.com aka thehemi@gmail.com I do parties ");
 
@@ -265,6 +297,14 @@ class Program
                 var botClient = new DiscordV3();
                 botClient.NeedsKey = true;
                 await botClient.Init(botToken,true); 
+            }
+
+            var cyborgs = Program.GetAll("cyborg_");
+            foreach(var cyborg in cyborgs)
+            {
+                var botClient = new DiscordV3();
+                botClient.NeedsKey = false;
+                await botClient.Init(cyborg, false);
             }
                 
             //  new List<ChatSystem>();

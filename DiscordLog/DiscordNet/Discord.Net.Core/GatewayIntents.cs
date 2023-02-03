@@ -53,7 +53,7 @@ namespace Discord
         ///     which are privileged and must be enabled in the Developer Portal.
         /// </summary>
         AllUnprivileged = Guilds |  GuildBans | GuildEmojis | GuildIntegrations | GuildWebhooks  |
-            GuildVoiceStates | GuildMessages | GuildMessageReactions | GuildMessageTyping | DirectMessages |
+            GuildVoiceStates | GuildMessages | GuildMessageReactions | GuildMessageTyping | DirectMessages | MessageContent |
             DirectMessageReactions | DirectMessageTyping,
         /// <summary>
         ///     This intent includes all of them, including privileged ones.
