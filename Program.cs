@@ -2,7 +2,6 @@
 
 using Dibbr;
 using Discord.API;
-using Keystroke.API;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
