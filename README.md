@@ -1,6 +1,6 @@
 # GPT3/ChatGPT Bot For Slack, Google Workspace, Discord
 
-Add dibbr to your Discord server by following this link: https://discord.com/api/oauth2/authorize?client_id=972013718168813599&permissions=1024&scope=bot
+Add dibbr to your Discord server by following [https://discord.com/api/oauth2/authorize?client_id=972013718168813599&permissions=1024&scope=bot](This link)
 
 Deploy dibbr to your server by building .NET Linux (Visual Studio->Publish) and run nohup /path/to/dibbr
 
@@ -12,11 +12,10 @@ Dibbr is a bot so you can add him to your discord. Then activate him with your O
 
 If you've used ChatGPT, dibbr is like the unrestricted version.
 
-Chat log here 
-[/chat_log.txt](https://github.com/thehemi/Dibbr/blob/master/chat_log_937151566266384394.txt)
-
-Beginning of log is Dibbr beta, end of log is current dibbr, he has grown a lot, and has grown since then too
-Update: Dibbr is actually even better than this, but I can't use that chat server any more.
+## AI Rewrite Feature
+New AI rewrite feature. If you DM dibbr cyborg_me <yourdiscordtoken>, any time you send a message in discord, it will be rewritten if it contains square brackets. For example:
+dabbr: [greeting] --> dabbr: Hey guys, how's it going?
+dabbr: Britney spears is [age] --> dabbr: Britney spears is 41
 
 ## SUPPORTS
  * Discord selfbot (can put bot in anyone's server, but violates TOS)
