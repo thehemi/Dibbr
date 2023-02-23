@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
+using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -186,8 +187,7 @@ public class MessageHandler
      
         if (user == BotName) { LastMessageTime = DateTime.Now; }
 
-        if (user.ToLower() == BotName.ToLower() && !msg.ToLower().StartsWithAny(BotName.ToLower())) return (false, "");
-        PrimeText = Program.Get("PrimeText");
+       // PrimeText = Program.Get("PrimeText");
         if (PrimeText == null || PrimeText.Length == 0)
         {
             PrimeText = Program.Get(Channel + "PrimeText"+BotName)?? Program.Get(Channel + "PrimeText") ?? Program.Get("PrimeText" +BotName) ?? Program.Get("PrimeText");
@@ -402,6 +402,44 @@ public class MessageHandler
             {
                 var res = Dibbr.Phone.Send("", "");
                 return (false, res);
+            }
+            if(m.StartsWith("close portal"))
+            {
+                var us = (Client as DiscordV3).Rooms.Where(r => r.Value.handler.Channel == this.Channel).First().Value.SChannel;
+                var p = (Client as DiscordV3).Rooms.Where(r => r.Value.Portals.Contains(us));
+                foreach (var po in p)
+                    po.Value.Portals.Remove(us);
+                if (p.Count() > 0)
+                    return (true, "Portal removed!");
+                else return (true, "Portal not found!");
+
+
+            }
+            if (m.StartsWith("open p0rtal"))
+            {
+                var c = m.After("open p0rtal");
+                if(c=="")
+                    return (true, $"syntax is open portal <channel>. These are the channels: " + string.Join(", ", (Client as DiscordV3).Rooms.Select(r => r.Value.handler.Channel)));
+                var chan = (Client as DiscordV3).Rooms.Where(r => r.Value.handler.Channel == c).ToList();
+                if(chan.Count > 0)
+                {
+                    chan[0].Value.Portals.Add((Client as DiscordV3).Rooms.Where(r => r.Value.handler.Channel == this.Channel).First().Value.SChannel);
+                }
+            
+       
+            }
+            if (m.StartsWith("broadcast"))
+            {
+                var guids = new Dictionary<string, int>();
+                var text = m.After("broadcast ");
+                foreach(var room in (Client as DiscordV3).Rooms)
+                    if(!guids.ContainsKey(room.Value.Guild))
+                    if(room.Value.handler.Channel.ToLower().Contains("dibbr"))
+                    {
+                           // if(room.Value.SChannel.d)
+                        room.Value.SChannel.SendMessageAsync(text);
+                        guids.Add(room.Value.Guild, 1);
+                    }
             }
             if (m.StartsWithAny("text"))
             {
@@ -1070,9 +1108,13 @@ public class MessageHandler
 
             // if (isQuestion)
             //     log += user + ": Question: " + msg + "\nAnswer:";
+            
             var r = room;
+            // You can set channel topic to override prime text
+            if (r.ChannelDesc.Contains(BotName + ":"))
+                PrimeText = "";
             return $"<Date>: {DateTime.Now} PST, <Server>: {r.handler.Guild}, <Channel>: {r.handler.Channel}\n" +
-                $"<Context>"+PrimeText+"<Log>\n{r.PinnedMessages}\n{log}";
+                $"<Topic>{r.ChannelDesc}\n<Context>"+PrimeText+$"\n<Chat Log>\n{r.PinnedMessages}\n{log}";
 
 
             return "Date: " + DateTime.Now.ToString("F") + " PST.\n Context:" + PrimeText + "\nMemory: " + Memory + "\nConversation (format is name: message):\n" +

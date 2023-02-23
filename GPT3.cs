@@ -506,6 +506,7 @@ public class GPT3
         return "";
     }
 
+    public static List<string> Keys = new List<string>();
     public DateTime lastNoCredits = DateTime.Now;
     public async Task<string> Q(string txt, float pp = 0.6f, float tp = 0, float temp = 0.1f)
     {
@@ -513,15 +514,17 @@ public class GPT3
         {
             //   _e = new(_engine) {Owner = "openai", Ready = true};
             _api = new(_token?? Program.Get("OpenAI"), new Engine(engine));
-            _apiFallback = new(Program.Get("OpenAI"), new Engine(engine));
+            if(Keys.Count > 0)
+                _apiFallback = new(Keys[0], new Engine(engine));
+            else _apiFallback = new(Program.Get("OpenAI"), new Engine(engine));
         }
 
         int i = 0;
         CompletionResult result = null;
         while (true)
         {
-            if (i > 0 && txt.Length > 1000)
-                txt = txt[^1000..];
+            if (i > 0 && txt.Length > 3000)
+                txt = txt[^3000..];
             // string r = "";
            
           //  if (i > 0)
@@ -529,8 +532,8 @@ public class GPT3
           //  if (i > 1)
             //    txt = txt.Sub(txt.LastIndexOfAny(new char[] { '\n', '@', ':' })) + "\nAnswer:";
             var derp = engine != "text-davinci-003";
-            var ops = new[] { "@@",":" };
-            if (txt.Length > 2000) txt = txt[^2000..]; // hrow new Exception("too big");
+            var ops = new[] { "@@","<end"};
+            if (txt.Length > 4000) txt = txt[^4000..]; // hrow new Exception("too big");
             TokensTotal += txt.Length / 4;
             LastQuery = txt;
             var strE = "";
@@ -570,13 +573,16 @@ public class GPT3
                 {
                    
 
-                  //  _token = null;
+                  //  _token = null;keys 
                    // if ((DateTime.Now - lastNoCredits).TotalSeconds > 20)
                     {
                         lastNoCredits = DateTime.Now;
                         _token = null;
-                       // foreach(var b in )
-                        return $"invalid token";// + strE[0..20];
+                        // foreach(var b in )
+                        if (strE.ToLower().Contains("internalservererror"))
+                            return $"Internal server error";
+                        if(strE.ToLower().Contains("unauthorized"))
+                            return $"I need a new OpenAI token (dibbr activate <token>). Error was "+strE[0..40];// + strE[0..20];
                     }
                    // else
                    // {
@@ -614,9 +620,9 @@ public class GPT3
         if(txt.Contains(":") && txt.Contains("\n"))
             txt = txt.Substring(0, txt.LastIndexOf("\n"));
 
-        if (txt.Length >= 2000)
+        if (txt.Length >= 4000)
             r +=
-                $"[ {Program.BotName} is using a lot of tokens. Maybe boss should be warned, unless you did this on purpose.]";
+                $" {Program.BotName} is using a lot of tokens.";
 
 
         Console.WriteLine("GPT3 response: " + (r.Length > 70 ? r[..70]:r));

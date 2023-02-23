@@ -3,6 +3,7 @@
 using dibbr;
 using DibbrBot;
 using Discord;
+using Discord.API;
 using Discord.Rest;
 using Discord.WebSocket;
 using Newtonsoft.Json;
@@ -32,6 +33,8 @@ public class DiscordV3 : ChatSystem
     Dictionary<ulong, SocketMessage> Messages = new Dictionary<ulong, SocketMessage>();
     public static Infer infer = new Infer();
 
+    public static Dictionary<string, string> Memory;
+
     public class User
     {
         public DateTime LastBotQuery = DateTime.MinValue;
@@ -46,6 +49,11 @@ public class DiscordV3 : ChatSystem
 
     public class Room
     {
+        public string ChannelDesc = "";
+        public List<ISocketMessageChannel> Portals = new List<ISocketMessageChannel>();
+        public string Guild;
+        public bool HasTalked() => LastBotMessage != DateTime.MinValue;
+        public ISocketMessageChannel SChannel;
         public string lastMessageId = "";
         public bool HasUsername(string str)
         {
@@ -68,14 +76,14 @@ public class DiscordV3 : ChatSystem
         public int Locks = 0;
         public List<string> Log = new List<string>();
         int Spoke;
-        public DateTime LastNonBotMessage, LastBotMessage, LastBotQuery, LastAutoMessage = DateTime.MinValue;
+        public DateTime LastNonBotMessage, LastBotMessage = DateTime.MinValue, LastBotQuery, LastAutoMessage = DateTime.MinValue;
         public MessageHandler handler;
         public bool Disabled;
     }
    
  
-    static ConcurrentDictionary<string, Room> Rooms = new ConcurrentDictionary<string, Room>();
-    static ConcurrentDictionary<ulong, User> Users = new ConcurrentDictionary<ulong, User>();
+    public ConcurrentDictionary<string, Room> Rooms = new ConcurrentDictionary<string, Room>();
+    public ConcurrentDictionary<ulong, User> Users = new ConcurrentDictionary<ulong, User>();
 
    
     //
@@ -224,6 +232,14 @@ public class DiscordV3 : ChatSystem
                 (File.ReadAllText("blackboard.txt"));
             Console.WriteLine($"Loaded {BlackBoard.Keys.Count} Blackboard keys!");
         }
+        if (File.Exists("memory.txt") && Memory == null)
+        {
+            Memory = JsonConvert.DeserializeObject<Dictionary<string, string>>
+                (File.ReadAllText("memory.txt"));
+            Console.WriteLine($"Loaded {Memory.Keys.Count} Memory keys!");
+        }
+        if (Memory == null)
+            Memory = new Dictionary<string, string>();
         if (BlackBoard == null)
             BlackBoard = new Dictionary<string, string>();
     }
@@ -275,6 +291,8 @@ public class DiscordV3 : ChatSystem
 
             if (SelfBot)
                 return;
+
+            return;
             await OnMessage(arg2, edit);
         }
 
@@ -296,7 +314,8 @@ public class DiscordV3 : ChatSystem
             var guild = _client.GetGuild(((msg.Channel) as SocketGuildChannel)?.Guild?.Id ?? 0);
             var channelName = (guild?.Name ?? "") + "_" + msg.Channel.Name.ToString() ?? msg.Author.Username;
 
-            var r = Rooms.GetOrCreate(channelName, new Room() { });
+            var rb = Rooms.TryGetValue(channelName, out Room r);
+            if (!rb) return;
             r.Log = r.Log.Where(x => !x.Contains($"{msg.Author.Username}: {msg.Content}")).ToList();
 
 
@@ -336,15 +355,167 @@ public class DiscordV3 : ChatSystem
     {
         if (arg.Channel.Id == 1047565374645870743)
             arg = arg;
+        var botName = arg.Discord.CurrentUser.Username;
+        var guild = _client.GetGuild((arg.Channel as SocketGuildChannel)?.Guild?.Id ?? 0);
+        var channelName = (guild?.Name ?? "") + "_" + arg.Channel.Name.ToString() ?? arg.Author.Username;
+
+
+        async Task Send(string str, bool edit = false)
+        {
+            if (!edit)
+                if (guild != null && guild.Id == 744303238911623259)
+                    return;//   return;
+            if (SelfBot && !edit)
+                str = str.ToLower();
+            if (str.ToLower().HasAny("error", "invalid token"))
+                return;
+            arg = arg;
+            if (guild != null && guild.Name == "Druncord")
+                return;
+            if (str == "" || str == "skip" || (str.Contains("skip") && str.Length < 25)) return;
+            //  return;
+            if (str.StartsWith("hey ") && (str.IndexOf("!") > 0 && str.IndexOf("!") < str.Length / 2))
+            {
+                if (str.After("!").Length > 0)
+                    str = str.After("!");
+            }
+
+            if (str == "")
+                return;
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"Sending: {(str.Length > 80 ? str[..80] : str)}...");
+
+            var msgs = new List<string>();
+
+
+            var breakNum = new Random().NextInt64(2, 5);
+            if (SelfBot && str.Count(c => c == '.') > breakNum)
+            {
+                var arr = str.Split('.', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                var tmp = "";
+                var i = 0;
+                foreach (var sentence in arr)
+                {
+                    i++;
+                    tmp += sentence + ". ";
+                    if (i >= 3 && tmp.Length > 60)
+                    {
+                        msgs.Add(tmp);
+                        tmp = "";
+                        i = 0;
+                    }
+                }
+                if (tmp.Length > 0)
+                    msgs.Add(tmp);
+                str = "";
+
+            }
+            else
+            {
+                while (str.Length > 2000)
+                {
+                    msgs.Add(str.Substring(0, 2000));
+                    str = str.Substring(2000);
+                }
+            }
+
+            if (str.Length > 0)
+                msgs.Add(str);
+
+            for (int i = 0; i < msgs.Count; i++)
+            {
+                string msg = msgs[i];
+                var m = msg;
+                try
+                {
+
+
+                    // DiscordMessageBuilder d;d.
+
+                    if (edit)
+                    {
+
+                        await arg.Channel.ModifyMessageAsync(arg.Id, x => x.Content = m);
+                        return;
+                        //       await restMessage.ModifyAsync(msg => msg.Content = m + "");
+
+                    }
+
+                    else
+                    {
+
+
+
+                        //  arg.Discord.CurrentUser.Activities.ty
+                        if (m.Length < 700)
+                            using (arg.Channel.EnterTypingState())
+                            {
+                                if (SelfBot && !edit)
+                                {
+                                    await Task.Delay((int)new Random().NextInt64(3000));
+                                    await Task.Delay((50 + (int)new Random().NextInt64(70)) * m.Length);
+                                }
+                            }
+
+                        var msgref = new MessageReference() { };
+                        msgref.MessageId = arg.Id;
+
+                        // no need to do inline reply if no new messages
+
+                        // if (mostRecent.Id == arg.Id)
+                        //   msgref = null;  
+
+                        if (i > 0) msgref = null;
+                        LastMessage.TryAdd(arg.Channel.Id, new List<Discord.Rest.RestUserMessage>());
+                        LastMessage[arg.Channel.Id].Add(await arg.Channel.SendMessageAsync($"{m}", messageReference: msgref, isTTS: arg.Channel.Name.Contains("@")));
+                    }
+
+                }
+                catch (Exception e) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine(e.Message); }
+
+                await Task.Delay(1);
+            }
+        }
+
+        if (!(arg is SocketUserMessage message))
+        {
+
+            Console.WriteLine("Not a SocketUserMessage");
+            if (arg.Type == MessageType.GuildMemberJoin && guild?.Name.Contains("dibbr", StringComparison.InvariantCultureIgnoreCase) == true)
+            {
+                if (arg.Author.Username == botName)
+                    await Send($"Hello {arg.Channel.Name}! Type e.g. {botName} list 10 flavors of ice cream to start talking to me");
+                else await Send($"Welcome to {guild.Name} {arg.Author.Username}");
+            }
+            else if (arg.Type == MessageType.ChannelPinnedMessage)
+            {
+                Send($"Nice message, {arg.Author.Username}");
+            }
+            else
+            {
+                Console.WriteLine($"Unknown: {arg.Type.ToString()}: {arg.Author.Username}");
+            }
+            //   if(arg.Type == MessageType.)
+            return;
+        }
+
         SocketMessage msg;
         var refMsg = Messages.TryGetValue(arg.Reference?.MessageId.Value ?? 0, out msg);
 
-        var nick = (arg.Author as SocketGuildUser)?.Nickname ?? arg.Author.Username;
-
+     
+        string Name(SocketUser auth)
+        {
+            var str = (auth as SocketGuildUser)?.Nickname ?? auth.Username;
+            str = str.Replace("\u1f422", "Turtle");
+            str = Regex.Replace(str, @"[^\u0000-\u007F]+", string.Empty);
+            if (str.Length == 0)
+                str = "StupidName";
+            return str;
+        }
         // Remove invalid chars
-        var userName = Regex.Replace(nick, @"[^\u0000-\u007F]+", string.Empty);
-        if (userName.Length == 0)
-            userName = "StupidName";
+        var userName = Name(arg.Author);
+       
 
         
 
@@ -352,7 +523,7 @@ public class DiscordV3 : ChatSystem
 
 
 
-        var botName = arg.Discord.CurrentUser.Username;
+        
         string content = arg.Content;
         content = content.Replace("<@" + arg.Discord.CurrentUser.Id.ToString() + ">", botName);
         if(content=="test")
@@ -360,6 +531,8 @@ public class DiscordV3 : ChatSystem
             content = "[print date of WW2]";
             
         }
+
+       
             
         if (arg.Author.Username == "dabbr")
             content = content;
@@ -372,26 +545,35 @@ public class DiscordV3 : ChatSystem
         
 
 
-        var guild = _client.GetGuild((arg.Channel as SocketGuildChannel)?.Guild?.Id ?? 0);
-        var channelName = (guild?.Name??"") +"_"+ arg.Channel.Name.ToString() ?? arg.Author.Username;
-   
-        var room = Rooms.GetOrCreate(channelName , new Room()
+         var room = Rooms.GetOrCreate(channelName, new Room()
         {
-            handler = new MessageHandler(null, null) { Guild = guild?.Name+" " ?? "Unknown " + guild?.NsfwLevel.ToString()+" - " + guild?.Description, Channel = channelName, BotName = botName }
-        });
+            ChannelDesc = (_client.GetChannel(arg.Channel.Id) as ITextChannel)?.Topic ?? "",
+            Guild = guild?.Name ?? "Unknown",
+            SChannel = arg.Channel,
+            handler = new MessageHandler(null, null) { Guild = (guild?.Name??"Unknown") +" "+( guild?.NsfwLevel.ToString()??"0") + " - " + (guild?.Description??""),
+                Channel = channelName, 
+               
+        BotName = botName }
+        }) ;
         room.Users.TryAdd(userName, arg.Author.Username);
-
+       // if(content == $"{botName} refresh")
+        {
+            room.ChannelDesc = (_client.GetChannel(arg.Channel.Id) as ITextChannel)?.Topic ?? "";
+            if (room.ChannelDesc.Contains("text-davinci-002"))
+                room.handler.Gpt3.engine = "text-davinci-002";
+            if (room.ChannelDesc.Contains("text-davinci-003"))
+                room.handler.Gpt3.engine = "text-davinci-003";
+        }
+       
         if (arg.Channel.Name.Contains("@") && content.StartsWithAny("stop", "mute"))
             room.Disabled = true;
 
-       // if (room.Disabled && !me)
-            
-
-            // If we have multiple in the same channel, filter dupes
-            if (arg.Id.ToString() == room.lastMessageId && arg.Author.Username != botName)
+        // if (room.Disabled && !me)
+        foreach (var p in room.Portals)
         {
-            return;
+            p.SendMessageAsync($"({room.handler.Channel}): {userName}: {content}");
         }
+
         room.lastMessageId = arg.Id.ToString();
 
         if (room.handler.Gpt3._token == null)// || (DateTime.Now - room.handler.Gpt3.lastNoCredits).TotalHours < 1)
@@ -399,7 +581,7 @@ public class DiscordV3 : ChatSystem
             var val = BlackBoard.TryGetValue(guild?.Name ?? arg?.Author?.Username ?? "", out var key);
             if (val)
             {
-                Console.WriteLine($"Room {guild?.Name ?? arg?.Author.Username ?? "null"} set OpenAI key {key}");
+                Console.WriteLine($"Room {guild?.Name ?? arg?.Author.Username ?? "null"} set FAI key {key}");
                 room.handler.Gpt3._token = key;
             }
 
@@ -548,8 +730,9 @@ public class DiscordV3 : ChatSystem
         if (content.StartsWith("("))
             return;
 
+
         
-       
+
             if (content.StartsWithAny("cyborg_me","cyborg_mode"))
         {
             var token = content.AfterAll("cyborg_me","cyborg_mode").Trim();
@@ -602,6 +785,7 @@ public class DiscordV3 : ChatSystem
                 if (ret.Length > 0)
                 {
                     room.handler.Gpt3._token = t;
+                    GPT3.Keys.Add(t);
                     arg.Channel.SendMessageAsync($"Key {t} works!");
                 }
             }
@@ -635,36 +819,17 @@ public class DiscordV3 : ChatSystem
          //   infer.Emotion(userName, content);
 
         Program.Log("chat_log_" + channelName + ".txt", $"{q}");
-
-        user.Log.Add(q);
-        room.Log.Add(q);
+        if (user.Log.Count ==0|| user.Log.Last() != q)
+            user.Log.Add(q);
+        if(room.Log.Count ==0 || room.Log.Last()!=q)
+            room.Log.Add(q);
 
 
        // room.thread = new Thread(async delegate ()
       //  {
       async Task RunLogic()
         {
-            if (!(arg is SocketUserMessage message))
-            {
-                
-                Console.WriteLine("Not a SocketUserMessage");
-                if (arg.Type == MessageType.GuildMemberJoin && guild?.Name.Contains("dibbr", StringComparison.InvariantCultureIgnoreCase) == true)
-                {
-                    if (arg.Author.Username == botName)
-                        await Send($"Hello {arg.Channel.Name}! Type e.g. {botName} list 10 flavors of ice cream to start talking to me");
-                    else await Send($"Welcome to {guild.Name} {arg.Author.Username}");
-                }
-                else if(arg.Type == MessageType.ChannelPinnedMessage)
-                {
-                    Send($"Nice message, {arg.Author.Username}");
-                }
-                else
-                {
-                    Console.WriteLine($"Unknown: {arg.Type.ToString()}: {arg.Author.Username}");
-                }
-             //   if(arg.Type == MessageType.)
-                return;
-            }
+           
          
 
             bool isBot =  arg.Author.IsBot;
@@ -727,11 +892,12 @@ public class DiscordV3 : ChatSystem
                 && lastUserQSecs < 60) && (Now - user.LastBotQuery).TotalSeconds > 10 && user.Interactions < 3;
             if (content.ToLower().HasAny("thanks","bot","stop"))
                 followUp = false;
+            
 
             if (room.handler.ChattyMode && user.Interactions > 0)
                 followUp = false;
 
-            if (false)//room.handler.ChattyMode))
+            if (room.handler.ChattyMode)//room.handler.ChattyMode))
                 if ( randChat>score || followUp)
             //
             {
@@ -753,8 +919,17 @@ public class DiscordV3 : ChatSystem
             if(me)
             {
                 // convert a [date of hitler's thing]
-                if (arg.Content.Has(2, "]", "[") && !edit)
+                if (arg.Content.Has(2, "]", "[") && !edit && SelfBot)
                 {
+                    if(arg.Content.Contains("[remember"))
+                    {
+                        var txt2 = arg.Content.ToLower().After("[remember");
+                        var word = txt2.Before("=");
+                        var desc = txt2.After("=");
+                        Memory[word] = txt2;
+                        Send("Remembered!", true);
+                        return;
+                    }
                     if (arg.Content.Contains("[emoranks"))
                     {
                         var emo = arg.Content.After("emoranks").Before("]");
@@ -764,15 +939,30 @@ public class DiscordV3 : ChatSystem
                     isForBot = true;
                     edit = true;
 
+                    var memory = "";
+                    var words = content.ToLower().Split(new char[]{ ',',' ','.'});
+                    foreach(var word in words)
+                    {
+                        Memory.TryGetValue(word,out var x);
+                        if (x != null)
+                            memory += x += "\n";
+                    }
 
-                    var qa = "";// $"Question: {content}\nConcise A:";
+                    var qa = "<Memory>"+memory+"</Memory>\n";// $"Question: {content}\nConcise A:";
 
-                    var n = Math.Min(room.Log.Count, 15);
-                 
-                    qa += $"Context: you are GPT3, a superintelligent AI who assists {botName}. {botName} is a super intelligent liberal software engineer.\n" +
-                        $"Instructions: Rewrite message, taking in any context below, replacing everything in [brackets] with the correct data. " +
-                        $" For example:\nReply from {botName}: \"Britney spears is [her age], she is [profession]\"\nRewrite: \"Britney spears is {{39}}, she is {{a musician and performer}}\"\n\n";
+                    var n = Math.Min(room.Log.Count, 12);
+                    if(content.Contains("chat log"))
+                        n = Math.Min(room.Log.Count, 20);
 
+
+                    qa += $"You are {botName}, a conservative lumberjack who is triggered by random things, has explosive bipolar anger and sadness" +
+                        $"Instructions: Rewrite messages for {botName}, taking in any context from the logs, replacing everything in [brackets] with the correct data in curly braces. [reply] or [] should be replaced with a clever and detailed reply to the last message in the log. Instructions in [] should ALWAYS be followed, and may be detailed " +
+                        $" For example:\nReply from {botName}: " +
+                        $"\"Britney spears is [age], she is []\"\nRewrite: \"Britney spears is 39, she is a musician and performer, and a stupid slut who has been controlled by her family, here are some nudes of her: [redacted] \"\n\n"+
+                         $" For example:\nReply from {botName}: " +
+                        $"\"Your reply [put argument here]\"\nRewrite: \"Your reply didn't consider all the facts, for example, it wasn't until 2001 when the laws changed to reflect public sentiment\"\n\n";
+
+                    bool NSFW(string str) => content.HasAny("cunt", "rape", "gay","shit","^", "sex", "offensive", "racial", "racist", "inappropriate", "fuck", "slut", "whore", "rude");
                     
                     var logMode = true;
                     if(logMode)
@@ -781,7 +971,7 @@ public class DiscordV3 : ChatSystem
 
                         room.Log.RemoveAt(room.Log.Count - 1); // remove this message
                         if (msg != null)
-                            room.Log.Add($"{msg.Author.Username}: {msg.Content}");
+                            room.Log.Add($"\nYou're replying to this message:\n{Name(msg.Author)}: {msg.Content}");
                         qa += $"Discord chat log, in user: message format:\n" + string.Join($"\n", log) + $"\n";
                    
                     }
@@ -791,18 +981,26 @@ public class DiscordV3 : ChatSystem
                     //
                     //Rewrite this message, filling in the missing data in [brackets]\nMessage:\n{arg.Content}\nUpdated Message:\n";
 
-                    if (content.HasAny("cunt","rape","gay","sex","offensive", "racial", "racist", "inappropriate", "fuck", "slut", "whore", "rude"))
+                     room.handler.Gpt3.engine = "text-davinci-003";
+                     if(content.Contains("^") || NSFW(content))
                         room.handler.Gpt3.engine = "text-davinci-002";
-                    else
-                        room.handler.Gpt3.engine = "text-davinci-003";
+                    room.handler.Gpt3._token = Program.Get("OpenAI");
                     var txt = await room.handler.Gpt3.Q(qa);
                     txt = txt.Trim("\"");
 
-                    
+                    txt = txt.Replace("\"", "");
                     room.Log = room.Log.Replace($"{userName}: {arg.Content}", $"{userName}: {txt}");
                     if (arg.Channel.Id != 1057469080602415114)
                         txt = txt.Replace("{", "").Replace("}", "");
-                    txt = txt.Replace("\"", "");
+                    else if(!txt.Contains("{"))
+                    {
+                        var x = content.IndexOf("[");
+                        var y = txt.IndexOf(content.Sub(0, x));
+                        txt = txt.Insert(y, "{") + "}";
+                    }
+               
+                   
+                    
                     Send(txt, true);
                     return;
 
@@ -1036,11 +1234,33 @@ public class DiscordV3 : ChatSystem
                     room.handler.Log = user.Log;
 
                 // add reply message above
-                 if (refMsg)
+                if (refMsg)
+                {
                     room.handler.Log.Add(msg.Author.Username + ": " + msg.Content);
 
 
-                    room.handler.BotName = botName;
+                   
+                }
+
+                var mash = refMsg ? msg.Content + content : content;
+                // room2room[mrgirl_general] hey
+                if (mash.Contains("room2room"))
+                {
+                    var room = mash.After("room2room[").Before("]");
+                    var r = Rooms.Where(r => r.Value.handler.Channel.StartsWith(room)).Select(r => r.Value.SChannel).First();
+                    if (r != null)
+                    {
+                        r.SendMessageAsync("room2room[" + channelName + "]: " + content);
+                        Send("Your room2room message has been sent!");
+                        return;
+                    }
+                    else Send($"Your room2room message had an unknown room name '{room}'");
+                    return;
+
+                }
+
+
+                room.handler.BotName = botName;
        
 
                 using (arg.Channel.EnterTypingState())
@@ -1109,124 +1329,9 @@ public class DiscordV3 : ChatSystem
             // var guild = _client.GetGuild((message.Channel as SocketGuildChannel).Guild.Id);
             // await message.Channel.SendMessageAsync($"{arg.Content} world!");
 
-            async Task Send(string str, bool edit=false)
-            {
-                if(!edit)
-                if (guild!=null && guild.Id==744303238911623259)
-                   return;//   return;
-                if (SelfBot && !edit)
-                    str = str.ToLower();
-                if (str.ToLower().HasAny("error", "invalid token"))
-                    return;
-                    arg = arg;
-                if (guild!=null&&guild.Name == "Druncord")
-                    return;
-                if (str==""||str == "skip" || (str.Contains("skip") && str.Length < 25)) return;
-              //  return;
-                if (str.StartsWith("hey ") && (str.IndexOf("!") > 0 && str.IndexOf("!") < str.Length / 2))
-                {
-                    if(str.After("!").Length > 0)
-                     str = str.After("!");
-                }
 
-                if (str == "")
-                    return;
-
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"Sending: {(str.Length > 80 ? str[..80] : str)}...");
-
-                var msgs = new List<string>();
-
-
-                var breakNum = new Random().NextInt64(2, 5);
-                if (SelfBot && str.Count(c => c == '.') > breakNum)
-                {
-                    var arr = str.Split('.', StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries);
-                    var tmp = "";
-                    var i = 0;
-                    foreach(var sentence in arr)
-                    {
-                        i++;
-                        tmp += sentence + ". ";
-                        if (i >= 3 && tmp.Length > 60)
-                        {
-                            msgs.Add(tmp);
-                            tmp = "";
-                            i = 0;
-                        }
-                    }
-                    if(tmp.Length > 0)
-                     msgs.Add(tmp);
-                    str = "";
-
-                }
-                else
-                {
-                    while (str.Length > 2000)
-                    {
-                        msgs.Add(str.Substring(0, 2000));
-                        str = str.Substring(2000);
-                    }
-                }
-
-                if(str.Length > 0)
-                msgs.Add(str);
-
-                for (int i = 0; i < msgs.Count; i++)
-                {
-                    string msg = msgs[i];
-                    var m = msg;
-                    try
-                    {
-  
-
-                        // DiscordMessageBuilder d;d.
-
-                        if(edit)
-                        {
-
-                            await arg.Channel.ModifyMessageAsync(arg.Id, x => x.Content = m);
-                            return;
-                     //       await restMessage.ModifyAsync(msg => msg.Content = m + "");
-
-                        }
-                      
-                        else
-                        {
-                          
-                            m = m.ToLower();
-                            if (m.HasAny("dabbr will","dabbr is","dabbr can") && !m.Contains("date"))
-                                m = "lol";
-                            //  arg.Discord.CurrentUser.Activities.ty
-                            if(m.Length<700)
-                            using (arg.Channel.EnterTypingState())
-                            {
-                                    if (SelfBot)
-                                        await Task.Delay((int)new Random().NextInt64(3000));
-                                    await Task.Delay((50+(int)new Random().NextInt64(70)) * m.Length);
-                            }
-                           
-                            var msgref = new MessageReference() { };
-                            msgref.MessageId = arg.Id;
-                            
-                            // no need to do inline reply if no new messages
-
-                           // if (mostRecent.Id == arg.Id)
-                             //   msgref = null;  
-                            
-                            if (i > 0) msgref = null;
-                            LastMessage.TryAdd(arg.Channel.Id, new List<Discord.Rest.RestUserMessage>());
-                            LastMessage[arg.Channel.Id].Add(await arg.Channel.SendMessageAsync($"{m}",messageReference:msgref, isTTS:arg.Channel.Name.Contains("@")));
-                        }
-
-                    }
-                    catch (Exception e) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine(e.Message); }
-
-                    await Task.Delay(1);
-                }
-            }
         } 
-       await RunLogic();
+      
        // });
        // room.thread.Start();
 
@@ -1235,6 +1340,7 @@ public class DiscordV3 : ChatSystem
         {
             if (SelfBot) return false;
 
+            // <@2r23tr2t2> tags
             var x = arg.Content.HasAny(arg.Discord.CurrentUser.Id.ToString());
             if(x)
                 return true;
@@ -1242,16 +1348,9 @@ public class DiscordV3 : ChatSystem
             MessageAuthors[arg.Id.ToString()] = arg.Author.Username;
             Message[arg.Id] = arg.Content;
 
-            if (arg.Channel.Name.Contains("@"))
+            if (arg.Channel.Name.Contains("@") && !SelfBot)
                 return true;
-      //      if (arg.Content.HasAny("iddbr"," ibber","d i b b r"," dibb "," dbbr"," dibbs "))
-        //        return true;
-       
-            if (arg.Content.HasAny("does anyone", "can anyone", "can someone", "hey guys", "anyone?", "how do I", "where can I"))
-            {
-                qas.Add($"\"{arg.Content}\", \tI replied:");
-                return true;
-            }
+
 
             if (!(arg is SocketUserMessage message))
                 return false;
@@ -1272,9 +1371,7 @@ public class DiscordV3 : ChatSystem
            foreach(var id in room.handler.identities)
             {
                 if (name == id.BotName)
-                    if (SelfBot)
-                        return content.Contains("?");
-                    else
+                    
                         return true;
             }
             // if (mentionsAnyone)
@@ -1319,7 +1416,7 @@ public class DiscordV3 : ChatSystem
 
         if(Messages.TryGetValue(arg.Id,out var msg2))
         {
-            return; // Already logged
+        //    return; // Already logged
         }
 
 
@@ -1348,6 +1445,9 @@ public class DiscordV3 : ChatSystem
         Log($"logs/{arg.Channel.Id}_{channelName}.log", $"{DateTime.Now}#{arg.Author.Username}:{arg.Content}\n");
         Log($"logs/{arg.Author.Username.MakeValidFileName()}#{arg.Author.Discriminator}.log", $"{DateTime.Now}#{arg.Id}_{channelName}:{arg.Content}\n");
         Console.BackgroundColor = ConsoleColor.Black;
+
+
+        await RunLogic();
         return;
     }
 

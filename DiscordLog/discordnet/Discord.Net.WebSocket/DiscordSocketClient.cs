@@ -3070,12 +3070,14 @@ namespace Discord.WebSocket
 
         public async Task LazyGuild(SocketGuild guild)
         {
+            return;
             var x = new LazyGuilds()
             {
                 GuildId = guild.Id
             };
-            var c = guild.Channels.FirstOrDefault().Id;
+            var c = guild.Channels?.FirstOrDefault().Id ?? 0;
 
+            if (c == 0) return;
             x.Channels.Add(c, new List<int>() { 0, 99 });
 
 
