@@ -1,0 +1,5 @@
+# Dibbr Privacy Policy
+
+Dibbr uses the last few chat lines for context when chatting with other users. This data is never saved to disk. No logs are kept.
+Data is not sent to third parties, with the exception of generating a response, where the last few lines of chat are sent to OpenAI's GPT.
+If you wish to have your chat data excluded, please contact dabbr on discord, open a ticket here, or email tim@dabbr.com
