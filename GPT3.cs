@@ -12,7 +12,6 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using ChatGPT3;
 using Newtonsoft.Json;
 using OpenAI_API;
 
@@ -24,14 +23,14 @@ namespace DibbrBot;
 /// <summary>
 ///     Chat system that uses the OpenAI API to send and receive messages
 /// </summary>
-public class GPT3
+public partial class GPT3
 {
     public string _token;
     public string oldToken;
     public string botName;
     public OpenAIAPI _api, _apiFallback;
     Engine _e;
-    public static ChatGPT chatgpt;// = new ChatGPT();
+
 
     public static int TokensTotal, TokensLog, TokensQuery, TokensResponse = 0;
 
@@ -39,10 +38,8 @@ public class GPT3
     public string LastQuery = "";
     float _fp = 0.7f, _pp = 1.1f, _temp = 1.0f;
     public string neoToken;
-    public GPT3(string token, string engine = "text-davinci-003")
+    public GPT3(string token, string engine = "chatgpt")
     {
-        if(chatgpt == null)
-            chatgpt = new ChatGPT();
         this.engine = engine;
         _token = token;
         oldToken = token;
@@ -314,12 +311,6 @@ public class GPT3
     }
   */
 
-
-    public async Task<string> Chat(string msg)
-    {
-        return await chatgpt.Next(msg);
-    }
-
     /// <summary>
     ///     Asks OpenAI
     /// </summary>
@@ -333,7 +324,7 @@ public class GPT3
         if (_token == null)
         {
             // GPT3 out of credits
-         //   return "";// I need an OpenAI.com token. Activate with the command activate <token>";// await Q2(msg, user) + " [GPT3FB]";
+            return "I need an OpenAI.com token. Activate with the command activate <token>";// await Q2(msg, user) + " [GPT3FB]";
 
         }
         if (txt.Contains("Chat Log"))
@@ -491,11 +482,11 @@ public class GPT3
         return response;
     }
 
-    public async Task<string> Test(string tok)
+    public static async Task<string> Test(string tok)
     {
         try
         {
-            _api = new(tok, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-003" });
+            var _api = new OpenAIAPI(tok, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-003" });
             var result = await _api.Completions.CreateCompletionAsync("Who invented the spork?", temperature: 1, top_p: 1,
                      frequencyPenalty: 1, presencePenalty: 1, max_tokens: 222);
          //   if (result.)
@@ -510,6 +501,9 @@ public class GPT3
     public DateTime lastNoCredits = DateTime.Now;
     public async Task<string> Q(string txt, float pp = 0.6f, float tp = 0, float temp = 0.1f)
     {
+        if (_token == null)
+            return "No OpenAI token has been setup. Use dibbr activate <token>";
+
       //  if (_api == null)
         {
             //   _e = new(_engine) {Owner = "openai", Ready = true};
@@ -562,27 +556,40 @@ public class GPT3
             {
                 Console.WriteLine("GPT3 Response Failure:" + result?.ToString() ?? "OpenAI CALL FAILED WITH NO REASON");
 
-                if (i++ == 0)
+               /* if (i++ == 0)
                 {
                     _api = _apiFallback;
                     _token = _apiFallback.Auth.ApiKey;
                     continue;
-                }
+                }*/
 
-                if (i > 1)
+               // if (i++ > 0)
                 {
                    
 
                   //  _token = null;keys 
                    // if ((DateTime.Now - lastNoCredits).TotalSeconds > 20)
                     {
+                        i++;
                         lastNoCredits = DateTime.Now;
-                        _token = null;
+                       
                         // foreach(var b in )
+                        
                         if (strE.ToLower().Contains("internalservererror"))
                             return $"Internal server error";
-                        if(strE.ToLower().Contains("unauthorized"))
-                            return $"I need a new OpenAI token (dibbr activate <token>). Error was "+strE[0..40];// + strE[0..20];
+                        if (strE.ToLower().Contains("unauthorized"))
+                        {
+                            _token = null;
+                            return $"I need a new OpenAI token (dibbr activate <token>). Error was " + strE[0..40];// + strE[0..20];
+                        }
+                        if (strE.ToLower().Contains("toomany"))
+                        {
+                            await Task.Delay(1000);
+                            // if (i > 1)
+                            return "Error " + (strE.Length > 50 ? strE[0..50] : strE);
+
+                        }
+                        return strE.Length>50?strE[0..50]:strE;
                     }
                    // else
                    // {

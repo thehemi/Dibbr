@@ -14,7 +14,6 @@ using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using ChatGPT3;
 using dibbr;
 using OpenAI_API;
 using static DiscordV3;
@@ -843,118 +842,27 @@ public class MessageHandler
         }
         else if (useNeo)
             txt = await Gpt3.Q2(msg.Remove("$$"), AIMode ? "" : user);
-        else if (queryOnly)// && !m.HasAny("your","you","my "," our ","thoughts"))
-        {
-            txt = await Gpt3.Ask(MakeText(0));
-        }
+       // else if (queryOnly)// && !m.HasAny("your","you","my "," our ","thoughts"))
        
         else
         {
-            var oldEngine = Gpt3.engine;
-            var oldNew = NewEngine;
-            var engine = Gpt3.engine;
-            if (useSteps)
-                engine = "text-davinci-003";
-            // GPT3.3 is better at these things
-            if (math || msg.Has(2, "tell", "joke") || writeSong || IsWriting(msg) || msg.HasAny("write a rap", "write a song"))
-
-            {
-                if (!msg.HasAny("rude", "racist", "offensive", "sexist", "bitch", "fuck", "shit", "rape", "sex", "your", "women"))
+            // Might wanna use davinci 2 for inappropriate stuff
+            var inappropriate = msg.HasAny("rude", "racist", "offensive", "sexist", "bitch", "fuck", "shit", "rape", "sex", "your", "women");
                 {
-                    //NewEngine = true;
-                   // engine = "text-davinci-003";
-                }
-            }
-
-            // if(msg.Contains("dibbrjones"))
-            //     GPT3.
-            var useNew = msg.EndsWith("???") ||
-               msg.EndsWith('!') || (msg.Contains("!NewEngine")
-               || msg.Contains("!ChatGPT"));
-
-            var tryNew = (msg.Length > 10 && msg.Contains("?") && NewEngine) && !useNew;
-
-            useNew = false;
-            tryNew = false;
-            if (msg.Contains("NewEngine off"))
-            {
-                NewEngine = false;
-                return (true, "done");
-            }
-            if (msg.Contains("NewEngine on"))
-            {
-                NewEngine = true;
-                return (true, "done");
-            }
-            if(msg.Contains("UpdateCookies"))
-            {
-                GPT3.chatgpt.UpdateCookies(msg.After("UpdateCookies"));
-                NewEngine = true;
-                return (true, "Cookies updated! Try ChatGPT again now.");
-            }
-            msg = msg.Replace("!NewEngine","").Replace("!ChatGPT","");
-            if (useNew||tryNew)
-            {
-                string RemoveSentence(string txt, string str)
-                {
-                    var idx = txt.IndexOf(str);
-
-                    if (idx != -1)
-                    {
-                        // Find start of sentence
-                        var idxp = txt.LastIndexOf('.', idx) + 1;
-
-                        var idx2 = txt.IndexOf(".", idx);
-                        if (idx2 != -1)
-                            txt = txt.Remove(idxp, idx2 - idxp);
-                        else txt = txt.Replace(str, "");
-                    }
-                    return txt.TrimExtra();
-                }
-                msg = msg.Replace(BotName, "");
-                var txt2 = await Gpt3.Chat(msg);
-                Console.WriteLine($"ChatGPT: {txt2}");
-                txt = RemoveSentence(txt2, "browse the internet");
-                txt = RemoveSentence(txt, "My purpose is to assist with generating human-like text");
-                //txt = RemoveSentence(txt, "I'm sorry, but");
-             //   txt = RemoveSentence(txt, "as a large language model trained by OpenAI");
-                txt = RemoveSentence(txt, "model trained by OpenAI");
-                if (txt.Length == 0)
-                {
-                    txt = txt2 + " (there is a bug in your code, dabbr)";
-                }
-
              
-           
-                    NewEngine = oldNew;
-                if(useNew && !tryNew)
-                if (txt.StartsWith("Failure") || txt.Length == 0)// || txt.HasAny("appropriate","inappropriate","language model","openai"))
-                {
-                    //  if (m.Contains("!NewEngine") || m.Contains("!ChatGPT"))
-                   
-                    txt += ("\nTry updating cooies with UpdateCookies <ChatGPT3Cookies>. You can get this from the browser with F12. Until then NewEngine will be turned off " + txt);
-                    useNew = false;
-                    NewEngine = false;
-                    //  engine = "text-davinci-002";
-                    Console.WriteLine(txt);
-                    return (true, txt);
+               //     engine = "text-davinci-002";
                 }
+         
+                
+                if (Gpt3.engine == "chatgpt")
+                    txt = await Gpt3.Query($"{user}: {msg}", queryOnly?"":MakeText(history,chatgpt:true));
                 else
-                {
-      
-                    txt += " [ChatGPT]";
-                    return (true, txt);
-                }   
-            }
-            
-          //  if (!useNew)
-            {
-                Gpt3.engine = engine;
-                txt = await Gpt3.Ask(MakeText(history), msg, user, 2000, codeMode);
-                txt = txt.Remove("[ChatGPT]");
-                Gpt3.engine = oldEngine;
+                 txt = await Gpt3.Ask(MakeText(history), msg, user, 2000, codeMode);
 
-            }
+            // Gpt3.engine = oldEngine;
+            if (Gpt3.engine == "chatgpt")
+                return (true,txt);
+            
            
         }
 
@@ -980,13 +888,6 @@ public class MessageHandler
      
         txt = txt.Replace("@everyone", "(at)everyone");
 
-        if (txt.Contains("no credits left"))
-        {
-            //log = "";
-            Log.Clear();
-            //txt = await GPT3.Ask(MakeText(), msg);
-        }
-
 
         // If the chat includes another chat starting, eg hi guys person: hey dibbr, filter it
         if (txt.Contains($"{BotName}:"))//cards",StringComparison.OrdinalIgnoreCase) && (txt.Contains(":") && txt.IndexOf(":") > txt.Length/2))
@@ -999,7 +900,7 @@ public class MessageHandler
        
         if (m.Contains("speak"))
         {
-            txt = await GetAudio(startTxt + txt) + txt;
+           // txt = await GetAudio(startTxt + txt) + txt;
 
         }
 
@@ -1037,7 +938,7 @@ public class MessageHandler
             }
             return "[Spoken audio failed]";
         }
-        string MakeText(int history, string prefix="", string suf="",string context="")
+        string MakeText(int history, string prefix="", string suf="",string context="", bool  chatgpt=false)
         {
             // if (GPT3.engine.Contains("code")) return msg.Remove($"{BotName}");// + suffix;
             var warn = ""; //" (NOTE, If a leading question implies a fact, dibbr should not assume it is true) ";
@@ -1058,8 +959,19 @@ public class MessageHandler
             
             for (int m = 0; m < log1.Count; m++)
             {
-              //  log1[m] = log1[m].Replace(": ", " said \'") + "'";
+                // Remove ChatGPT shit
+                var lame = log1[m].IndexOf("As an AI language");
+                if (lame == -1) continue;
+
+                var idx2 = log1[m].Sub(lame).IndexOf(".");
+                if(idx2 == -1) continue; 
+                var str = log1[m].Sub(lame,idx2 + 1);
+                log1[m] = log1[m].Replace(str, "");
+
+
+                //log1[m] = log1[m].Replace("as", " said \'") + "'";
             }
+            
             // Remove the user query from the log, because we add it back later
             //       if (log1.Count > 1)
             //         log1.RemoveAt(log1.Count - 1);
@@ -1069,13 +981,12 @@ public class MessageHandler
             {
             //    Console.WriteLine(msg + " not found in " + log1.Last());
             }
-            var pre = "@@";
+            var pre = chatgpt?"":"@@";
 
             // Make it into a string
             var log = pre+string.Join($"\n{pre}", Log.Last(history+1).ToList())+$"\n{pre}";
 
-            if (log.Length > 2000)
-                log = log;
+            if (chatgpt) return "For context, this is the chat log so far:\n"+log;
 
 
             if (log.Length > 1500)
@@ -1085,33 +996,15 @@ public class MessageHandler
                 var start = log.IndexOf("@@");
                 //log = log.Substring(start != -1 ? start : 0);
             }
-           // if(!isAutoMessage)
-             //   log += "\n-------------Question & Answer with dibbr----------------------\n";
-                                                                                                                          
-           //  debug += $"\n[log.size={log.Length}] ";
-
-
-            // var idx = log.LastIndexOf(msg.Sub(0, 20));
-          //  if (IsQuestion(m) && !isAutoMessage)
-            {
-              //  log += $"Question: (from {user}): {msg}";
-               //log+= $"\n{pre}{suffix}";
-            }
-          //  else
+     
+            
             
             
             log += suffix;
-
-            log = log.Replace("[ChatGPT]", "");
-            //   log += $"\n{pre}"+ suffix;
-            // log += $"Question: (from {user}): {msg}\n"; // Program.NewLogLine;
-
-            // if (isQuestion)
-            //     log += user + ": Question: " + msg + "\nAnswer:";
             
             var r = room;
             // You can set channel topic to override prime text
-            if (r.ChannelDesc.Contains(BotName + ":"))
+            if (r.ChannelDesc.Contains(BotName + ":") || chatgpt)
                 PrimeText = "";
             return $"<Date>: {DateTime.Now} PST, <Server>: {r.handler.Guild}, <Channel>: {r.handler.Channel}\n" +
                 $"<Topic>{r.ChannelDesc}\n<Context>"+PrimeText+$"\n<Chat Log>\n{r.PinnedMessages}\n{log}";
@@ -1186,7 +1079,7 @@ static class StringHelp2
                 return true;
         }
 
-        return false;
+        return (count >= numMatch);
     }
 
     public static void Increment(this Dictionary<string, double> dict, string key, double d)

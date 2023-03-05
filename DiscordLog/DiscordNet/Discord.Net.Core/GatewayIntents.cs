@@ -58,6 +58,6 @@ namespace Discord
         /// <summary>
         ///     This intent includes all of them, including privileged ones.
         /// </summary>
-        All = AllUnprivileged | GuildMembers | MessageContent
+        All = AllUnprivileged | MessageContent
     }
 }
