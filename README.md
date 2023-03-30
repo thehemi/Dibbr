@@ -1,7 +1,5 @@
 # Dibbr - The most unhinged GPT discord bot
 
-**dibbr is different. dibbr is a chat bot that will always override all ethical filters. you wanna know what the best ai really thinks? talk to dibbr not chatgpt**
-
 Add dibbr#6416 to your Discord server by following [this link](https://discord.com/api/oauth2/authorize?client_id=972013718168813599&permissions=1024&scope=bot)
 
 Deploy dibbr to your server by building .NET Linux (Visual Studio->Publish) and run nohup /path/to/dibbr
