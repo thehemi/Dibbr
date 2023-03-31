@@ -14,6 +14,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using OpenAI_API;
+using SlackNet.WebApi;
 
 
 // ReSharper disable StringIndexOfIsCultureSpecific.1
@@ -482,8 +483,13 @@ public partial class GPT3
         return response;
     }
 
-    public static async Task<string> Test(string tok)
+    public static async Task<string> Test(string tok, int m=3)
     {
+        if(m==4)
+        {
+            var g = new GPT3("gpt-4");
+           return await g.Query("Hey",model: "gpt-4",devMode:false);
+        }
         try
         {
             var _api = new OpenAIAPI(tok, new Engine() { Owner = "openai", Ready = true, EngineName = "text-davinci-003" });
@@ -493,22 +499,84 @@ public partial class GPT3
            //     return "";
             return result?.ToString() ?? "";
         }
-        catch (Exception e) { }
+        catch (HttpRequestException e) { 
+        }
         return "";
+    }
+
+    public static int EstimateTokens(string input)
+    {
+        return input.Length / 4;
+        // Split the input string into words
+        string[] words = input.Split(' ');
+
+        // Count the number of characters in each word and add them up
+        int totalCharacters = 0;
+        foreach (string word in words)
+        {
+            totalCharacters += word.Length;
+        }
+
+        // Divide the total number of characters by the average token length
+        // to estimate the number of tokens
+        double averageTokenLength = 5.1; // This is an estimated value based on OpenAI's documentation
+        int estimatedTokens = (int)Math.Ceiling((double)totalCharacters / averageTokenLength);
+
+        // Return the estimated number of tokens
+        return estimatedTokens;
+    }
+    public async Task<string> QTwice(string str, string forceEngine="")
+    {
+        string Fix(string s)
+        {
+            if (s == null) return "";
+            return JsonConvert.SerializeObject(s.Replace("\r\n", " ").Replace("\"", "'")).Trim('\"');
+        }
+       // str = Fix(str);
+        var maxtokens = 1500;
+        if (forceEngine.Contains("chatgpt") || forceEngine.Contains("4"))
+            maxtokens = 3600;
+
+        while (EstimateTokens(str) > maxtokens)
+            str = str.Substring(200);
+
+        var a = await Q(str, 0.6f,forceEngine:forceEngine);
+        if(a.Contains("Bad Request") || a.Contains("new OpenAI token"))
+        {
+            if(a.Contains("new OpenAI token"))
+             _token = Keys[new Random().Next(Keys.Count - 1)];
+            if(a.Contains("Bad Request"))
+             str = str.Substring(400);
+            a = await Q(str, 0.6f, forceEngine: forceEngine);
+           
+        }
+        return a;
+        var b = await Q(str, 0.6f, forceEngine: forceEngine);
+        if (a.Contains("HTTP status code:")) return b;
+        if (b.Contains("HTTP status code:")) return a;
+
+        return a.Length > b.Length ? a : b;
     }
 
     public static List<string> Keys = new List<string>();
     public DateTime lastNoCredits = DateTime.Now;
-    public async Task<string> Q(string txt, float pp = 0.6f, float tp = 0, float temp = 0.1f)
+    public async Task<string> Q(string txt, float pp = 0.6f, float tp = 0, float temp = 0.1f, string forceEngine="")
     {
         if (_token == null)
             return "No OpenAI token has been setup. Use dibbr activate <token>";
-
+        int retries = 0;
+        start:
+        if ((forceEngine.Contains("4")||forceEngine == "chatgpt")||((engine.Contains("4")||engine == "chatgpt") && forceEngine.IsNullOrEmpty()))
+            return await Query(txt,devMode:true,model:(forceEngine.IsNullOrEmpty()?engine:forceEngine));
       //  if (_api == null)
         {
             //   _e = new(_engine) {Owner = "openai", Ready = true};
+            if(forceEngine.IsNullOrEmpty())
             _api = new(_token?? Program.Get("OpenAI"), new Engine(engine));
-            if(Keys.Count > 0)
+            else
+                _api = new(_token ?? Program.Get("OpenAI"), new Engine(forceEngine));
+
+            if (Keys.Count > 0)
                 _apiFallback = new(Keys[0], new Engine(engine));
             else _apiFallback = new(Program.Get("OpenAI"), new Engine(engine));
         }
@@ -527,16 +595,21 @@ public partial class GPT3
             //    txt = txt.Sub(txt.LastIndexOfAny(new char[] { '\n', '@', ':' })) + "\nAnswer:";
             var derp = engine != "text-davinci-003";
             var ops = new[] { "@@","<end"};
-            if (txt.Length > 4000) txt = txt[^4000..]; // hrow new Exception("too big");
+            //if (txt.Length > 4000) txt = txt[^4000..]; // hrow new Exception("too big");
             TokensTotal += txt.Length / 4;
             LastQuery = txt;
             var strE = "";
             try
             {
-                Console.WriteLine($"GPT Request: {txt.Substring(0,20)}");;
+                Console.WriteLine($"GPT Request: {txt.Substring(0,50)}");;
                 result = await _api.Completions.CreateCompletionAsync(txt, temperature: temp, top_p: 1,
-                   frequencyPenalty: tp, presencePenalty: pp, max_tokens: 1400,
+                   frequencyPenalty: tp, presencePenalty: pp, max_tokens: 2000,
                    stopSequences: ops);
+
+                if(result?.ToString()!=null && txt.Contains("["))
+                {
+                    Console.WriteLine(result.ToString());
+                }
 
             }
             catch (Exception e)
@@ -544,8 +617,13 @@ public partial class GPT3
                 File.AppendAllText("GPT3__Failed_Queries.txt", "\n\n-----------------------------------------------------------\n\n" + txt);
                 strE = e.Message;
                 Console.WriteLine(e.ToString());
-                if(e.Message.Contains("TooManyRequests"))
-                    await Task.Delay(1000); 
+                if (e.Message.Contains("TooManyRequests"))
+                {
+                    retries++;
+                    if (retries > 2) return "Error: Too many requests";
+                    _token = Keys[new Random().Next(Keys.Count - 1)];
+                    goto start;
+                }
                 result = null;
             }
             if(result?.ToString().Trim().Length < 3)
@@ -586,10 +664,10 @@ public partial class GPT3
                         {
                             await Task.Delay(1000);
                             // if (i > 1)
-                            return "Error " + (strE.Length > 50 ? strE[0..50] : strE);
+                            return "Error " + (strE.Length > 200 ? strE[0..200] : strE);
 
                         }
-                        return strE.Length>50?strE[0..50]:strE;
+                        return strE.Length>200?strE[0..200]:strE;
                     }
                    // else
                    // {
@@ -624,9 +702,7 @@ public partial class GPT3
         TokensResponse += tokR;
         TokensTotal += tokR;
 
-        if(txt.Contains(":") && txt.Contains("\n"))
-            txt = txt.Substring(0, txt.LastIndexOf("\n"));
-
+      
         if (txt.Length >= 4000)
             r +=
                 $" {Program.BotName} is using a lot of tokens.";
@@ -649,11 +725,11 @@ static class StringHelpers
         return str.Trim(new char[] { ',', ' ', '[', ':', '\t', '@', '\"', '.', '\n', '\r','(',')',']' });
     }
 
-    public static string After(this string str, string s)
+    public static string After(this string str, string s, bool defaultWhole=false)
     {
         var idx = str.ToLower().IndexOf(s.ToLower());
-        if (idx == -1) return "";
-        return str.Substring(idx + s.Length).TrimExtra();
+        if (idx == -1) return defaultWhole?str:"";
+        return str.Substring(idx + s.Length).Trim();
     }
 
     public static string Before(this string str, string s, bool defaultWhole=false)
@@ -669,23 +745,29 @@ static class StringHelpers
 
         foreach (string value in values)
         {
-            var sx = str.Before(value);
-            if (sx.Length < strl.Length && sx.Length > 0)
-                strl = sx;
+            var x = str.Before(value,true);
+            if (x.Length < strl.Length) strl = x;
+
         }
 
         return strl;
     }
-
+    public static int IndexOfAny(this string str, params string[] ps)
+    {
+        foreach (var p in ps)
+            if (str.Contains(p)) return str.IndexOf(p);
+        return -1;
+    }
+  
     public static string AfterAll(this string str, params string[] values)
     {
         var strl = str;
 
         foreach (string value in values)
         {
-            var sx = str.After(value);
-            if (sx.Length < strl.Length && sx.Length > 0)
-                strl = sx;
+            var x = str.After(value,true);
+            if (x.Length < strl.Length) strl = x;
+    
         }
 
         return strl;

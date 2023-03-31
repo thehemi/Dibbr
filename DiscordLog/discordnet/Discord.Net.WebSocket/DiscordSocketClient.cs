@@ -2625,8 +2625,8 @@ namespace Discord.WebSocket
                                         {
                                             entity.Update(State, thread);
                                         }
-
-                                        foreach(var member in data.Members.Where(x => x.Id.Value == entity.Id))
+                                        if(data.Members!=null)
+                                        foreach(var member in data.Members?.Where(x => x.Id.Value == entity.Id))
                                         {
                                             var guildMember = guild.GetUser(member.Id.Value);
 

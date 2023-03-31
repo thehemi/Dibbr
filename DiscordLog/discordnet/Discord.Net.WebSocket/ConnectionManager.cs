@@ -106,8 +106,8 @@ namespace Discord
                             //Wait before reconnecting
                             await Task.Delay(nextReconnectDelay, reconnectCancelToken.Token).ConfigureAwait(false);
                             nextReconnectDelay = (nextReconnectDelay * 2) + jitter.Next(-250, 250);
-                            if (nextReconnectDelay > 60000)
-                                nextReconnectDelay = 60000;
+                            if (nextReconnectDelay > 30000)
+                                nextReconnectDelay = 30000;
                         }
                     }
                 }

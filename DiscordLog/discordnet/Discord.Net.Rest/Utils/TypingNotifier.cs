@@ -32,13 +32,14 @@ namespace Discord.Rest
                     catch
                     {
                         // ignored
+                        Console.WriteLine($"Couldn't run on {_channel.Name}");
                     }
 
                     await Task.Delay(9500, token).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) { }
-    //        catch (TaskCanceledException) { }
+      //      catch (TaskCanceledException) { }
         }
 
         public void Dispose()

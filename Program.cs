@@ -32,7 +32,7 @@ class Program
 {
     // Must be lowercase
     public static string BotName = "dibbr";
-    public static string BotUsername = "dibbr";
+    public static string BotUsername = BotName;
 
     public static string
         NewLogLine =
@@ -150,18 +150,27 @@ class Program
     }
 
 
+
+    static Dictionary<string, string> kv = new Dictionary<string, string>();
     public static async Task Log(string name, string txt)
     {
+        if(kv.TryGetValue(name, out var value))
+        {
+            if (value == txt)
+                return; // We already wrote this to the log
+        }
+        kv[name] = txt;
         try {
             name = name.Replace(" ", "-");
             name = name.Replace("--", "-");
             name = Regex.Replace(name, "[^a-z0-9\\-]", "");
 
-            await File.AppendAllTextAsync(name, txt); }
+  //          await File.AppendAllTextAsync(name, txt);
+            }
         catch (Exception e)
         {
-            try { await File.AppendAllTextAsync("1_" + name, txt); }
-            catch (Exception e2) { Console.WriteLine($"Failed to save to file {name}, {e2.Message}"); }
+           // try { await File.AppendAllTextAsync("1_" + name, txt); }
+          //  catch (Exception e2) { Console.WriteLine($"Failed to save to file {name}, {e2.Message}"); }
         }
     }
 
@@ -195,7 +204,7 @@ class Program
         var primeText = ConfigurationManager.AppSettings["PrimeText"];
         if (primeText == null)
         {
-            Set("BotName", Prompt("\nBot Name (default is Dibbr):", "dibbr").ToLower());
+            Set("BotName", Prompt("\nBot Name (default is Dibbr):", BotName).ToLower());
             //  BotUsername = Prompt("Bot Username (default is dabbr):", "dabbr").ToLower();
 
             //   Console.WriteLine("\nPaste your priming text here, e.g. " + BotName +
@@ -295,15 +304,18 @@ class Program
             {
                 var botClient = new DiscordV3();
                 botClient.NeedsKey = true;
-                await botClient.Init(botToken,true); 
+                 botClient.Init(botToken,true); 
             }
 
             var cyborgs = Program.GetAll("cyborg_");
-            foreach(var cyborg in cyborgs)
+            foreach (var cyborg in cyborgs)
             {
-                var botClient = new DiscordV3();
-                botClient.NeedsKey = false;
-                await botClient.Init(cyborg, false);
+                    var botClient = new DiscordV3();
+                    botClient.NeedsKey = false;
+                      botClient.Init(cyborg, false);
+                    clients.Add(botClient);
+
+
             }
                 
             //  new List<ChatSystem>();
@@ -326,4 +338,6 @@ class Program
 
         while (true) { }
     }
+
+   static  List<DiscordV3> clients = new List<DiscordV3>();
 }

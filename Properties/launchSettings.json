@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "dibbr": {
+      "commandName": "Project",
+      "workingDirectory": "C:\\Users\\Tim\\source\\repos\\Dibbr\\bin\\Debug\\net6.0"
+    }
+  }
+}
