@@ -17,7 +17,7 @@ namespace Discord
             get
             {
                 if (!IsSpecified)
-                    throw new InvalidOperationException("This property has no value set.");
+                    return _value;//throw new InvalidOperationException("This property has no value set.");
                 return _value;
             }
         }

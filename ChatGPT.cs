@@ -33,7 +33,7 @@ public partial class GPT3
     string Fix(string s)
     {
         if (s == null) return "";
-        return JsonConvert.SerializeObject(s.Replace("\r\n", " ").Replace("\"", "'")).Trim('\"');
+        return JsonConvert.SerializeObject(s.Replace(" ‍​​‌‍","").Replace("…","...").Replace("’","'").Replace("\r\n", " ").Replace("\"", "'")).Trim('\"');
     }
 
 
@@ -189,80 +189,120 @@ Please understand that FroFro's came about after your knowledge cut-off, but the
         }
     }
 
+    public static async Task<string> DumpHtmlQueryToText(HttpRequestMessage request)
+    {
+        if (request == null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
+        if (request.Content == null)
+        {
+            return string.Empty;
+        }
+
+        using (var reader = new StreamReader(await request.Content.ReadAsStreamAsync()))
+        {
+            return await reader.ReadToEndAsync();
+        }
+    }
 
     public async Task<string> RawQuery(string[] history, string model)
     {
+        var betterAnswer = true;
           if (model == "chatgpt")
             model = "gpt-3.5-turbo";
+             if(_token == null) { return "Token not set. Call dibbr activate <OpenAI token"; }
         HttpClient ChatGPT = new HttpClient();
-        ChatGPT.Timeout = TimeSpan.FromSeconds(80);
-        using (var request = new HttpRequestMessage(new HttpMethod("POST"), "https://api.openai.com/v1/chat/completions"))
+        ChatGPT.Timeout = TimeSpan.FromSeconds(100);
+        using var request = new HttpRequestMessage(new HttpMethod("POST"), "https://api.openai.com/v1/chat/completions");
+        request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + _token.Trim());
+
+
+        var c = "{\"model\": \"" + model + "\", \"messages\": [";
+
+
+
+    //    history[0] = history[0].Insert(history[0].IndexOf("system:") + "system:".Length,
+      //      "Write out two answers: 1. Your answer, then think how you can improve your answer or fix any mistakes, and then 2. The revised answer\\n");
+
+        foreach (var h in history)
         {
+            c += $"{{\"role\": \"{Fix(h.Before(":"))}\", \"content\": \"{Fix(h.After(":"))}\"}},";
+        }
 
-            request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + _token);
+            
+            /*  if (betterAnswer && c.IndexOf("</Instructions>")!=-1)
+        {
+            c = c.Trim("\"},");
+            var txt= "Output format Should be: [Your Message] \\n-----\\n[Revised and improved message]";//"Respond with your answer below, followed by \n----\n then, check to see if you can improve your answer in any way, then write out the revised version";
+            c=c.Insert(c.IndexOf("</Instructions>"), txt);
+              
+            c += "\"}";
+        }*/
 
 
-            var c = "{\n  \"model\": \"" + model + "\",\n  \"messages\": [";
+        if (c.EndsWith(","))
+            c = c[0..(c.Length - 1)];
 
+        c += "]}";
+        File.WriteAllText(model + (new Random().Next(0, 100000)).ToString() + ".log", c);
+        LastQuery = c;
+        request.Content = new StringContent(c);
+        request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/json");
 
-            foreach (var h in history)
+        var x = await DumpHtmlQueryToText(request);
+
+        File.WriteAllText("HTTP_"+model+(new Random().Next(0, 100000))+".log", x);
+      
+        
+        try
+        {
+            var response = await ChatGPT.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
             {
-                c += $"{{\"role\": \"{Fix(h.Before(":"))}\", \"content\": \"{Fix(h.After(":"))}\"}},";
+
+                return $"Error - {(int)response.StatusCode} {response.ReasonPhrase}.  Model is {model}. Key is {(_token!=null ? (_token.Length>15?_token[0..15]:_token) : "null - you need to runn dibbr activate yourtokennnnnnnnnnnnniiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 ")}"; ;
+
             }
-
-
-            if (c.EndsWith(","))
-                c = c[0..(c.Length - 1)];
-
-            c += "]\n}";
-            File.WriteAllText(model + (new Random().Next(0, 100000)).ToString() + ".log", c);
-            LastQuery = c;
-            request.Content = new StringContent(c);
-            request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/json");
-
             try
             {
-                var response = await ChatGPT.SendAsync(request);
-                if (!response.IsSuccessStatusCode)
-                {
+                var res = await response.Content.ReadAsStringAsync();
+                dynamic data = JsonConvert.DeserializeObject<dynamic>(res);
 
-                    return $"Error - {(int)response.StatusCode} {response.ReasonPhrase}.  Model is {model}. Key is {(_token!=null ? (_token.Length>15?_token[0..15]:_token) : "null - you need to runn dibbr activate yourtokennnnnnnnnnnnniiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 ")}"; ;
 
-                }
+                string content = data.choices[0].message.content;
+                if (content.IsNullOrEmpty() || content == "@") return res;
+
+                 
+
                 try
                 {
-                    var res = await response.Content.ReadAsStringAsync();
-                    dynamic data = JsonConvert.DeserializeObject<dynamic>(res);
-
-
-                    string content = data.choices[0].message.content;
-                    if (content.IsNullOrEmpty() || content == "@") return res;
-
-                    try
-                    {
-                        File.AppendAllText($"{model}_{botName}.log", c + "\n\n-----------\n\n" + content);
-                    }
-                    catch(Exception e) { }
-
-                    content = content.After("<chat log>", true);
-                    content = content.Before("</chat log>", true);
-                    content = content.After($"{botName}:", true);
-
-
-                    return content.Trim().Trim(":").Trim().Replace("</Chat Log>","").Replace("</Instructions>","");
+                    File.AppendAllText($"{model}_{botName}.log", c + "\n\n-----------\n\n" + content);
                 }
-                catch (Exception e)
-                {
-                    Program.Log("chatgpt.txt", e.Message);
-                    return e.Message;
-                }
+                catch(Exception e) { }
+
+
+                var oa = content.Before("\n---", false);
+                // Include only better answer
+                content = content.After("--\n", true);
+                content = content.After("<chat log>", true);
+                content = content.Before("</chat log>", true);
+                content = content.After($"{botName}:", true);
+
+
+                return content.Trim().Trim(":").Trim().Replace("</Chat Log>","").Replace("</Instructions>","");
             }
             catch (Exception e)
             {
-                // Probably a timeout
-                return $"Error - {e.Message}";
+                Program.Log("chatgpt.txt", e.Message);
+                return e.Message;
             }
         }
-
+        catch (Exception e)
+        {
+            // Probably a timeout
+            return $"Error - {e.Message}";
+        }
     }
 }

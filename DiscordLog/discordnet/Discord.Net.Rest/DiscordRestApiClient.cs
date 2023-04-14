@@ -1735,6 +1735,25 @@ namespace Discord.API
             }
             catch (HttpException ex) when (ex.HttpCode == HttpStatusCode.NotFound) { return null; }
         }
+        public async Task<InviteMetadata> AcceptInviteAsync(string inviteId, RequestOptions options = null)
+        {
+            Preconditions.NotNullOrEmpty(inviteId, nameof(inviteId));
+            options = RequestOptions.CreateOrClone(options);
+
+            //Remove trailing slash
+            if (inviteId[inviteId.Length - 1] == '/')
+                inviteId = inviteId.Substring(0, inviteId.Length - 1);
+            //Remove leading URL
+            int index = inviteId.LastIndexOf('/');
+            if (index >= 0)
+                inviteId = inviteId.Substring(index + 1);
+
+            try
+            {
+                return await SendAsync<InviteMetadata>("POST", () => $"invites/{inviteId}?with_counts=true", new BucketIds(), options: options).ConfigureAwait(false);
+            }
+            catch (HttpException ex) when (ex.HttpCode == HttpStatusCode.NotFound) { return null; }
+        }
         /// <exception cref="ArgumentException"><paramref name="guildId"/> may not be equal to zero.</exception>
         public async Task<InviteVanity> GetVanityInviteAsync(ulong guildId, RequestOptions options = null)
         {

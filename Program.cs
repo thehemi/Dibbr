@@ -154,18 +154,13 @@ class Program
     static Dictionary<string, string> kv = new Dictionary<string, string>();
     public static async Task Log(string name, string txt)
     {
-        if(kv.TryGetValue(name, out var value))
-        {
-            if (value == txt)
-                return; // We already wrote this to the log
-        }
-        kv[name] = txt;
+      
         try {
             name = name.Replace(" ", "-");
             name = name.Replace("--", "-");
             name = Regex.Replace(name, "[^a-z0-9\\-]", "");
 
-  //          await File.AppendAllTextAsync(name, txt);
+           await File.AppendAllTextAsync(name, txt);
             }
         catch (Exception e)
         {

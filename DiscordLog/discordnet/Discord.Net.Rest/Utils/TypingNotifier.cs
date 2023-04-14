@@ -39,7 +39,7 @@ namespace Discord.Rest
                 }
             }
             catch (OperationCanceledException) { }
-      //      catch (TaskCanceledException) { }
+     //       catch (TaskCanceledException) { }
         }
 
         public void Dispose()
