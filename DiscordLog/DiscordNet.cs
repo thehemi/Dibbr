@@ -108,6 +108,7 @@ public class DiscordV3 : ChatSystem
         {
             if (Message.Attachments == null)
                 return;
+           
 
             var attachments = Message.Attachments;
 
@@ -136,6 +137,7 @@ public class DiscordV3 : ChatSystem
 
         public async Task<List<string>> FindMessages(string user)
         {
+   
             if (IGuild == null)
                 return new List<string>();
             var msgs = new List<string>();
@@ -708,6 +710,7 @@ public class DiscordV3 : ChatSystem
         {
 
             ChannelDesc = (_client.GetChannel(arg.Channel.Id) as ITextChannel)?.Topic ?? "",
+            IGuild = guild,
             Guild = guild?.Name ?? (arg.Channel.Name) ?? "Unknown",
             SChannel = arg.Channel,
             handler = new MessageHandler(null, null)
@@ -801,6 +804,7 @@ public class DiscordV3 : ChatSystem
 
 
         var room = GetRoom(arg);
+        room.IGuild = guild;
         room.MessageCount++;
         var lPos = room.MessageCount;
         if (room.Users.IsEmpty)
