@@ -506,6 +506,7 @@ public partial class GPT3
 
     public static int EstimateTokens(string input)
     {
+        return (int)(((float)input.Split(new char[] {',', ' ', '.'}).Length) * 1.5f);
         return input.Length / 4;
         // Split the input string into words
         string[] words = input.Split(' ');

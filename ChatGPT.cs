@@ -184,7 +184,7 @@ Please understand that FroFro's came about after your knowledge cut-off, but the
             catch (Exception e)
             {
                 Program.Log("chatgpt.txt", e.Message);
-                return e.Message;
+                return "Error - "+e.Message;
             }
         }
     }
@@ -214,7 +214,7 @@ Please understand that FroFro's came about after your knowledge cut-off, but the
             model = "gpt-3.5-turbo";
              if(_token == null) { return "Token not set. Call dibbr activate <OpenAI token"; }
         HttpClient ChatGPT = new HttpClient();
-        ChatGPT.Timeout = TimeSpan.FromSeconds(100);
+        ChatGPT.Timeout = TimeSpan.FromSeconds(140);
         using var request = new HttpRequestMessage(new HttpMethod("POST"), "https://api.openai.com/v1/chat/completions");
         request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + _token.Trim());
 
@@ -228,7 +228,7 @@ Please understand that FroFro's came about after your knowledge cut-off, but the
 
         foreach (var h in history)
         {
-            c += $"{{\"role\": \"{Fix(h.Before(":"))}\", \"content\": \"{Fix(h.After(":"))}\"}},";
+            c += $"{{\"role\": \"{(h.Before(":"))}\", \"content\": \"{Fix(h.After(":"))}\"}},";
         }
 
             

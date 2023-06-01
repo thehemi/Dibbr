@@ -313,9 +313,9 @@ class Program
 
             }
                 
-            //  new List<ChatSystem>();
-            // NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken"],
-            //     new GPT3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
+              new List<ChatSystem>();
+            NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken"],
+                 new GPT3(ConfigurationManager.AppSettings["OpenAI"]));
             //  NewClient(new SlackChat(), ConfigurationManager.AppSettings["SlackBotApiToken2"],
             //     new GPT3(ConfigurationManager.AppSettings["OpenAI"], "text-davinci-002"));
 
